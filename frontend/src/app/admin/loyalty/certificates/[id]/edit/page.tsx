@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import AdminCrudHeader from "@/components/admin/ui/admin-crud-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
-import Breadcrumbs from "@/components/ui/breadcrumbs";
 import GiftCertificateForm, { type GiftCertificateFormState } from "@/components/admin/loyalty/gift-certificate-form";
 import { fetchAdminGiftCertificate, updateGiftCertificate } from "@/lib/admin-loyalty-api";
 
@@ -82,27 +81,17 @@ export default function AdminGiftCertificateEditPage() {
 
     return (
         <AdminPageCard>
-            <Breadcrumbs
-                className="mb-4"
+            <AdminCrudHeader
+                backHref="/admin/loyalty/certificates"
+                backAriaLabel="Назад к сертификатам"
+                title={`Редактировать сертификат${form?.code?.trim() ? ` — ${form.code}` : form?.id ? ` #${form.id}` : ""}`}
+                description="Редактирование сертификата"
                 items={[
                     { label: "Админка", href: "/admin" },
                     { label: "Сертификаты", href: "/admin/loyalty/certificates" },
                     { label: "Редактирование" },
                 ]}
             />
-
-            <div className="mb-6 flex items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-semibold">
-                        Редактировать сертификат
-                        {form?.code?.trim() ? ` — ${form.code}` : form?.id ? ` #${form.id}` : ""}
-                    </h1>
-                    <p className="mt-1 text-sm text-admin-text-secondary">Редактирование сертификата</p>
-                </div>
-                <Link href="/admin/loyalty/certificates" className="rounded-lg border px-4 py-2 text-sm">
-                    Назад
-                </Link>
-            </div>
 
             {error ? (
                 <div className="mb-4">

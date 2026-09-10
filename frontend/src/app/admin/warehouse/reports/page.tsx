@@ -122,9 +122,9 @@ function ReportDetailsModal({
     showWriteoffSourceColumn?: boolean;
 }) {
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 p-4" onClick={onCloseAction} role="presentation">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden bg-slate-900/50 p-2" onClick={onCloseAction} role="presentation">
             <div
-                className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl bg-white shadow-2xl"
+                className="flex max-h-[calc(100dvh-1rem)] min-h-0 w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
                 role="dialog"
                 aria-modal="true"
@@ -132,7 +132,7 @@ function ReportDetailsModal({
                 <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
                     <div>
                         <h2 className="text-lg font-semibold">{title}</h2>
-                        <p className="mt-1 text-sm text-admin-text-secondary">{subtitle}</p>
+                        <p className="mt-2 text-sm text-admin-text-secondary">{subtitle}</p>
                     </div>
                     <button type="button" onClick={onCloseAction} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border text-lg text-admin-text-secondary hover:bg-admin-muted">
                         ×
@@ -563,15 +563,15 @@ export default function WarehouseReportsPage() {
                             <option value="products">По товарам</option>
                         </select>
                         {salesReportBy === "orders" ? (
-                        <select
-                            value={groupBy}
-                            onChange={(e) => setGroupBy(e.target.value as "day" | "month" | "year")}
-                            className="rounded-lg border px-3 py-2 text-sm"
-                        >
-                            <option value="day">По дням</option>
-                            <option value="month">По месяцам</option>
-                            <option value="year">По годам</option>
-                        </select>
+                            <select
+                                value={groupBy}
+                                onChange={(e) => setGroupBy(e.target.value as "day" | "month" | "year")}
+                                className="rounded-lg border px-3 py-2 text-sm"
+                            >
+                                <option value="day">По дням</option>
+                                <option value="month">По месяцам</option>
+                                <option value="year">По годам</option>
+                            </select>
                         ) : null}
                         <div className="relative min-w-[260px]">
                             <button
@@ -780,8 +780,8 @@ export default function WarehouseReportsPage() {
                                                 <AdminInfoButton
                                                     count={item.items?.length ?? 0}
                                                     onClickAction={() => setReceiptDetailRow(item)}
-                                                />  
-                                                </td>
+                                                />
+                                            </td>
                                             <td className="px-4 py-3 text-xs text-admin-text-secondary">{item.comment || "—"}</td>
                                         </tr>
                                     ))}
@@ -914,9 +914,9 @@ export default function WarehouseReportsPage() {
                                 </div>
                             ) : null}
                             {!writeoffDetailLoading &&
-                            writeoffModalDoc?.status === STOCK_WRITEOFF_STATUS.POSTED &&
-                            !writeoffCanReverse &&
-                            !writeoffModalError ? (
+                                writeoffModalDoc?.status === STOCK_WRITEOFF_STATUS.POSTED &&
+                                !writeoffCanReverse &&
+                                !writeoffModalError ? (
                                 <p className="text-xs text-admin-text-secondary">
                                     Отмена недоступна: нет движений для отката вне склада поставщика.
                                 </p>

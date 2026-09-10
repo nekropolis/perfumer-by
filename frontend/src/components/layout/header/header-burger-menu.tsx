@@ -10,6 +10,7 @@ import { headerBtnIcon, siteBtnGhost } from "@/lib/site-ui-classes";
 
 type HeaderBurgerMenuProps = {
     links: ReadonlyArray<HeaderNavLink>;
+    tabletLinks?: ReadonlyArray<HeaderNavLink>;
     isOpen: boolean;
     menuRef: RefObject<HTMLDivElement | null>;
     onToggleAction: () => void;
@@ -26,8 +27,38 @@ export function HeaderBurgerMenuFallback() {
     );
 }
 
+function BurgerMenuLink({
+    item,
+    pathname,
+    searchParams,
+    onCloseAction,
+    className = "",
+}: {
+    item: HeaderNavLink;
+    pathname: string;
+    searchParams: ReturnType<typeof useSearchParams>;
+    onCloseAction: () => void;
+    className?: string;
+}) {
+    const isActive = isHeaderNavLinkActive(item.href, pathname, searchParams);
+
+    return (
+        <Link
+            href={item.href}
+            className={`${siteBtnGhost} block w-full rounded-lg px-3 py-2 text-left text-sm ${
+                isActive ? "bg-admin-muted text-admin-text" : ""
+            } ${className}`}
+            onClick={onCloseAction}
+            aria-current={isActive ? "page" : undefined}
+        >
+            {item.label}
+        </Link>
+    );
+}
+
 export default function HeaderBurgerMenu({
     links,
+    tabletLinks = [],
     isOpen,
     menuRef,
     onToggleAction,
@@ -50,23 +81,28 @@ export default function HeaderBurgerMenu({
 
             {isOpen ? (
                 <div className="absolute right-0 top-[calc(100%+8px)] z-50 min-w-48 rounded-xl border border-admin-border bg-admin-surface p-1.5 shadow-xl">
-                    {links.map((item) => {
-                        const isActive = isHeaderNavLinkActive(item.href, pathname, searchParams);
-
-                        return (
-                            <Link
-                                key={item.href}
-                                href={item.href}
-                                className={`${siteBtnGhost} block w-full rounded-lg px-3 py-2 text-left text-sm ${
-                                    isActive ? "bg-admin-muted text-admin-text" : ""
-                                }`}
-                                onClick={onCloseAction}
-                                aria-current={isActive ? "page" : undefined}
-                            >
-                                {item.label}
-                            </Link>
-                        );
-                    })}
+                    {tabletLinks.map((item) => (
+                        <BurgerMenuLink
+                            key={item.href}
+                            item={item}
+                            pathname={pathname}
+                            searchParams={searchParams}
+                            onCloseAction={onCloseAction}
+                            className="xl:hidden"
+                        />
+                    ))}
+                    {tabletLinks.length > 0 ? (
+                        <div className="my-1 h-px bg-admin-border xl:hidden" aria-hidden />
+                    ) : null}
+                    {links.map((item) => (
+                        <BurgerMenuLink
+                            key={item.href}
+                            item={item}
+                            pathname={pathname}
+                            searchParams={searchParams}
+                            onCloseAction={onCloseAction}
+                        />
+                    ))}
                 </div>
             ) : null}
         </div>

@@ -285,14 +285,14 @@ export default function ProductDetailInteractive({
                 ? createPortal(
                       <div
                           className={[
-                              "border-t border-admin-border bg-admin-surface px-4 py-3 transition-[opacity,transform] duration-300 ease-out xl:hidden",
+                              "border-t border-admin-border bg-admin-surface px-4 py-2 transition-[opacity,transform] duration-300 ease-out xl:hidden landscape:py-1.5",
                               titleBarEntered
                                   ? "translate-y-0 opacity-100"
                                   : "-translate-y-2 opacity-0",
                           ].join(" ")}
                           aria-hidden
                       >
-                          <div className="mx-auto max-w-7xl truncate font-display text-xl font-semibold leading-snug text-admin-text sm:px-2 sm:text-2xl">
+                          <div className="mx-auto max-w-7xl truncate font-display text-base font-semibold leading-tight text-admin-text sm:px-2 sm:text-lg">
                               {productTitle}
                           </div>
                       </div>,
@@ -529,14 +529,17 @@ export default function ProductDetailInteractive({
                                 role="tab"
                                 aria-selected={activeTab === "reviews"}
                                 onClick={() => setActiveTab("reviews")}
-                                className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                                className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                                     activeTab === "reviews"
                                         ? "bg-admin-primary text-white"
                                         : "text-admin-text-secondary hover:text-admin-text"
                                 }`}
                                 aria-label={`Отзывы, ${reviewsTabCount}`}
                             >
-                                Отзывы · {reviewsTabCount}
+                                Отзывы
+                                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-gold px-1 text-[11px] font-semibold leading-none tabular-nums text-brand-charcoal">
+                                    {reviewsTabCount}
+                                </span>
                             </button>
                         </div>
 

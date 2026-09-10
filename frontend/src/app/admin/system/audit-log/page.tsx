@@ -109,12 +109,12 @@ function AuditLogDetailModal({ row, onCloseAction }: DetailModalProps) {
 
     return (
         <div
-            className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 p-4"
+            className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden bg-slate-900/50 p-2"
             onClick={onCloseAction}
             role="presentation"
         >
             <div
-                className="flex max-h-[min(90vh,720px)] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl"
+                className="flex max-h-[calc(100dvh-1rem)] min-h-0 w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
                 role="dialog"
                 aria-modal="true"

@@ -423,7 +423,7 @@ const AdminOrdersDateRangeButton = forwardRef<AdminOrdersDateRangeButtonHandle, 
 
         const popup = open ? (
             <div
-                className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 pt-16 sm:pt-24"
+                className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-slate-900/50 p-2"
                 role="presentation"
                 onMouseDown={(e) => {
                     if (e.target === e.currentTarget) setOpen(false);
@@ -436,10 +436,10 @@ const AdminOrdersDateRangeButton = forwardRef<AdminOrdersDateRangeButtonHandle, 
                     {...(hideTrigger
                         ? { "aria-label": "Фильтр по дате отправки" }
                         : { "aria-labelledby": `${id}-trigger` })}
-                    className="w-full max-w-[22rem] rounded-2xl border border-admin-border bg-white shadow-xl"
+                    className="flex max-h-[calc(100dvh-1rem)] w-full max-w-[22rem] flex-col overflow-hidden rounded-2xl border border-admin-border bg-white shadow-xl"
                     onMouseDown={(e) => e.stopPropagation()}
                 >
-                    <div className="max-h-[min(85vh,560px)] overflow-y-auto p-4 sm:p-5">
+                    <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
                         {panelMode === "wheels" ? (
                             <div>
                                 <div className="mb-3 flex items-center justify-between gap-2">

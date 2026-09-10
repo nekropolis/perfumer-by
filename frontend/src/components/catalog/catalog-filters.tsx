@@ -12,9 +12,12 @@ import BynSign from "@/components/ui/byn-sign";
 import {
     buildCatalogFacetedFiltersResetPath,
     CATALOG_GENDER_ATTRIBUTE_ID,
+    CATALOG_SECTION_CHIPS,
     getActiveCatalogGender,
+    getActiveCatalogSectionChip,
     getCatalogGenderBucketByOptionId,
     hasCatalogFacetedFilters,
+    type CatalogSectionChip,
 } from "@/lib/catalog-listing-query";
 
 type Props = {
@@ -79,6 +82,26 @@ export default function CatalogFilters({
         mutator(params);
         params.delete("page");
         navigate(`${basePath}${params.toString() ? `?${params.toString()}` : ""}`);
+    };
+
+    const selectSectionChip = (chip: CatalogSectionChip) => {
+        pushParams((params) => {
+            params.delete("gender");
+            params.delete("sale");
+            params.delete("new");
+            params.delete("hit");
+            params.delete(`attr_${CATALOG_GENDER_ATTRIBUTE_ID}`);
+
+            if (chip === "female" || chip === "male" || chip === "unisex") {
+                params.set("gender", chip);
+            } else if (chip === "sale") {
+                params.set("sale", "1");
+            } else if (chip === "hit") {
+                params.set("hit", "1");
+            } else if (chip === "new") {
+                params.set("new", "1");
+            }
+        });
     };
 
     const toggleAttributeOption = (attributeId: number, optionId: number) => {
@@ -279,6 +302,7 @@ export default function CatalogFilters({
     };
 
     const isModal = variant === "modal";
+    const activeSectionChip = getActiveCatalogSectionChip(searchParams);
     const sectionTitleClass = isModal
         ? "text-[11px] font-semibold uppercase tracking-[0.14em] text-admin-text-secondary"
         : "text-xs font-semibold uppercase tracking-[0.12em] text-admin-text-secondary";
@@ -318,6 +342,26 @@ export default function CatalogFilters({
             ) : null}
 
             <div className={isModal ? "space-y-6" : "divide-y divide-admin-border"}>
+                {isModal ? (
+                    <section className="space-y-3">
+                        <div className="flex flex-wrap gap-2">
+                            {CATALOG_SECTION_CHIPS.map((chip) => {
+                                const isActive = activeSectionChip === chip.id;
+                                return (
+                                    <button
+                                        key={chip.id}
+                                        type="button"
+                                        onClick={() => selectSectionChip(chip.id)}
+                                        className={`${siteFilterChip} ${isActive ? siteFilterChipActive : siteFilterChipInactive}`}
+                                    >
+                                        {chip.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </section>
+                ) : null}
+
                 {showBrandFilter ? (
                     <section className={isModal ? "space-y-3" : "space-y-3 py-5 first:pt-0"}>
                         <div className={sectionTitleClass}>
@@ -467,7 +511,9 @@ export default function CatalogFilters({
                     </section>
                 ) : null}
 
-                {safeAttributes.map((attribute) => (
+                {safeAttributes
+                    .filter((attribute) => !(isModal && attribute.id === CATALOG_GENDER_ATTRIBUTE_ID))
+                    .map((attribute) => (
                     <section key={attribute.id} className={isModal ? "space-y-3" : "space-y-3 py-5 first:pt-0"}>
                         <div className={sectionTitleClass}>
                             {attribute.name}

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import AdminPostEditorTabs, { type AdminPostEditorTab } from "@/components/admin/posts/post-editor-tabs";
@@ -8,8 +7,8 @@ import AdminPostForm, { type AdminPostFormState } from "@/components/admin/posts
 import ContentCatalogTabs from "@/components/admin/pages/content-catalog-tabs";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
+import AdminCrudHeader from "@/components/admin/ui/admin-crud-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
-import Breadcrumbs from "@/components/ui/breadcrumbs";
 import { fetchAdminPostById, updateAdminPost } from "@/lib/admin-posts-api";
 
 export default function AdminPostEditPage() {
@@ -71,14 +70,13 @@ export default function AdminPostEditPage() {
 
     return (
         <AdminPageCard>
-            <Breadcrumbs className="mb-4" items={[{ label: "Админка", href: "/admin" }, { label: "Новости/Статьи", href: "/admin/posts" }, { label: "Редактирование" }]} />
-            <div className="mb-6 flex items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-semibold">Редактировать публикацию</h1>
-                    <p className="mt-1 text-sm text-admin-text-secondary">Обновление контента и SEO</p>
-                </div>
-                <Link href="/admin/posts" className="rounded-lg border px-4 py-2 text-sm">Назад</Link>
-            </div>
+            <AdminCrudHeader
+                backHref="/admin/posts"
+                backAriaLabel="Назад к публикациям"
+                title="Редактировать публикацию"
+                description="Обновление контента и SEO"
+                items={[{ label: "Админка", href: "/admin" }, { label: "Новости/Статьи", href: "/admin/posts" }, { label: "Редактирование" }]}
+            />
 
             <ContentCatalogTabs />
 

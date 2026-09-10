@@ -126,6 +126,10 @@ function formatVariantEditTitle(item: AdminProductVariantItem): string {
     return buildDisplayName(item);
 }
 
+function variantWarehouseQty(item: AdminProductVariantItem): number {
+    return Math.max(0, Number(item.main_warehouse_stock ?? item.main_available_stock ?? 0));
+}
+
 function VariantBadges({ item }: { item: AdminProductVariantItem }) {
     const storefrontAvailable = Boolean(item.is_available);
     const hasPreorder = Boolean(item.is_preorder);
@@ -621,6 +625,9 @@ export default function ProductVariantsEditor({
         if (!deleteTarget) {
             return;
         }
+        if (variantWarehouseQty(deleteTarget) > 0) {
+            return;
+        }
 
         setDeleting(true);
         setError("");
@@ -638,6 +645,11 @@ export default function ProductVariantsEditor({
             setDeleting(false);
         }
     };
+
+    const deleteWarehouseQty = deleteTarget ? variantWarehouseQty(deleteTarget) : 0;
+    const deleteBlockedByWarehouse = deleteWarehouseQty > 0;
+    const deleteIsSet = Boolean(deleteTarget?.definition?.is_set || deleteTarget?.is_set);
+    const deleteOffers = deleteTarget?.linked_offers ?? [];
 
     return (
         <div className="space-y-6">
@@ -856,22 +868,55 @@ export default function ProductVariantsEditor({
             <AdminConfirmDialog
                 open={!!deleteTarget}
                 title={
-                    deleteTarget && Boolean(deleteTarget.definition?.is_set || deleteTarget.is_set)
-                        ? "Удаление набора"
-                        : "Удаление варианта"
+                    deleteBlockedByWarehouse
+                        ? "Нельзя удалить вариант"
+                        : deleteIsSet
+                            ? "Удаление набора"
+                            : "Удаление варианта"
                 }
                 message={
-                    deleteTarget
-                        ? Boolean(deleteTarget.definition?.is_set || deleteTarget.is_set)
-                            ? `Удалить набор "${deleteTarget.title}" целиком (включая SKU)?`
-                            : `Удалить вариант "${deleteTarget.title}"?`
-                        : ""
+                    deleteTarget ? (
+                        deleteBlockedByWarehouse ? (
+                            <>
+                                Вариант на складе ({deleteWarehouseQty} шт.). Сначала
+                                спишите товар со склада.
+                            </>
+                        ) : (
+                            <>
+                                <p>
+                                    {deleteIsSet
+                                        ? `Удалить набор "${deleteTarget.title}" целиком (включая SKU)?`
+                                        : `Удалить вариант "${deleteTarget.title}"?`}
+                                </p>
+                                {deleteOffers.length > 0 ? (
+                                    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
+                                        <p>
+                                            Оферы отвяжутся — их нужно будет заново связать:
+                                        </p>
+                                        <ul className="mt-1.5 max-h-40 list-disc overflow-y-auto pl-4">
+                                            {deleteOffers.map((offer) => (
+                                                <li key={offer.id}>
+                                                    {[
+                                                        offer.supplier_name,
+                                                        offer.name || "Офер без названия",
+                                                        offer.part_number,
+                                                    ]
+                                                        .filter((part) => (part ?? "").trim() !== "")
+                                                        .join(" · ")}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                ) : null}
+                            </>
+                        )
+                    ) : (
+                        ""
+                    )
                 }
-                confirmText={
-                    deleteTarget && Boolean(deleteTarget.definition?.is_set || deleteTarget.is_set)
-                        ? "Удалить набор"
-                        : "Удалить"
-                }
+                confirmText={deleteIsSet ? "Удалить набор" : "Удалить"}
+                cancelText={deleteBlockedByWarehouse ? "Закрыть" : "Отмена"}
+                hideConfirm={deleteBlockedByWarehouse}
                 loading={deleting}
                 onCloseAction={() => setDeleteTarget(null)}
                 onConfirmAction={handleDelete}

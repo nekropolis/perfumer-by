@@ -306,7 +306,7 @@ export default function AdminReviewsPage() {
 
             {replyModal ? (
                 <div
-                    className="fixed inset-0 z-[220] flex items-end justify-center bg-slate-900/50 p-4 sm:items-center"
+                    className="fixed inset-0 z-[220] flex items-end justify-center overflow-hidden bg-slate-900/50 p-2 sm:items-center"
                     onClick={() => setReplyModal(null)}
                 >
                     <div
@@ -314,7 +314,7 @@ export default function AdminReviewsPage() {
                         onClick={(e) => e.stopPropagation()}
                         aria-modal="true"
                         aria-labelledby="reply-modal-title"
-                        className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-admin-border bg-white p-5 shadow-xl"
+                        className="max-h-[calc(100dvh-1rem)] w-full max-w-xl overflow-y-auto rounded-2xl border border-admin-border bg-white p-5 shadow-xl"
                     >
                         <h2 id="reply-modal-title" className="mb-1 text-lg font-semibold text-admin-text">
                             Отзыв и ответ #{replyModal.id}

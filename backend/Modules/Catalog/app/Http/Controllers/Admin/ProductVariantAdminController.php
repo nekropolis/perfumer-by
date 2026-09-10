@@ -11,6 +11,7 @@ use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductSet;
 use Modules\Catalog\Models\ProductSetComponent;
 use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Models\VariantDefinition;
 use Modules\Catalog\Http\Resources\ProductVariantResource;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
@@ -354,8 +355,15 @@ class ProductVariantAdminController extends Controller
                 ->get(['variant_id', 'warehouse_id', 'stock', 'reserved_stock'])
                 ->groupBy('variant_id')
             : collect();
+        $linkedOffersByVariant = $variantIds !== []
+            ? SupplierVariantOffer::query()
+                ->with('supplier:id,name')
+                ->whereIn('product_variant_id', $variantIds)
+                ->get(['id', 'product_variant_id', 'supplier_id', 'external_id', 'sku', 'external_product_name', 'external_variant_name'])
+                ->groupBy('product_variant_id')
+            : collect();
 
-        $items = $variants->map(function (ProductVariantLink $variant) use ($warehouseStocks, $mainWarehouseId, $supplierWarehouseId): array {
+        $items = $variants->map(function (ProductVariantLink $variant) use ($warehouseStocks, $mainWarehouseId, $supplierWarehouseId, $linkedOffersByVariant): array {
             $byWh = $warehouseStocks->get($variant->id, collect())->keyBy('warehouse_id');
             $mainStock = $mainWarehouseId > 0 ? $byWh->get($mainWarehouseId) : null;
             $supplierStock = $supplierWarehouseId > 0 ? $byWh->get($supplierWarehouseId) : null;
@@ -368,11 +376,17 @@ class ProductVariantAdminController extends Controller
             return array_merge($variant->toArray(), [
                 'product_set_id' => $variant->productSet?->id,
                 'main_available_stock' => $mainAvailableStock,
+                'main_warehouse_stock' => $this->mainWarehouseOnHandQtyFromRow($mainStock),
                 'available_stock' => (int) $presented['available_stock'],
                 'is_available' => (bool) $presented['is_available'],
                 'fulfillment_tooltip' => ProductVariantResource::adminFulfillmentTooltip($variant, $mainStock, $supplierStock),
                 'supplier_offers_count' => (int) ($variant->supplier_offers_count ?? 0),
                 'active_supplier_offers_count' => (int) ($variant->active_supplier_offers_count ?? 0),
+                'linked_offers' => $linkedOffersByVariant
+                    ->get($variant->id, collect())
+                    ->map(fn (SupplierVariantOffer $offer): array => $this->serializeLinkedOffer($offer))
+                    ->values()
+                    ->all(),
                 'catalog_list_price' => $catalogListPrice,
             ]);
         })->values();
@@ -523,6 +537,13 @@ class ProductVariantAdminController extends Controller
             ->where('product_id', $product->id)
             ->findOrFail($variantId);
 
+        $warehouseQty = $this->mainWarehouseOnHandQty((int) $variant->id);
+        if ($warehouseQty > 0) {
+            throw ValidationException::withMessages([
+                'variant' => "Вариант на складе ({$warehouseQty} шт.). Сначала спишите товар со склада.",
+            ]);
+        }
+
         ProductSet::query()
             ->where('product_id', $product->id)
             ->where('product_variant_link_id', $variant->id)
@@ -595,6 +616,55 @@ class ProductVariantAdminController extends Controller
     private function syncProductStockFlags(Product $product): void
     {
         app(StockInventoryService::class)->syncProductStockFlagsByProductId((int) $product->id);
+    }
+
+    private function mainWarehouseOnHandQty(int $variantId): int
+    {
+        $mainWarehouseId = (int) Warehouse::query()
+            ->where('code', Warehouse::CODE_MAIN)
+            ->value('id');
+        if ($mainWarehouseId <= 0) {
+            return 0;
+        }
+
+        $row = WarehouseVariantStock::query()
+            ->where('variant_id', $variantId)
+            ->where('warehouse_id', $mainWarehouseId)
+            ->first(['stock', 'reserved_stock']);
+
+        return $this->mainWarehouseOnHandQtyFromRow($row);
+    }
+
+    private function mainWarehouseOnHandQtyFromRow(?WarehouseVariantStock $row): int
+    {
+        if ($row === null) {
+            return 0;
+        }
+
+        return max((int) $row->stock, (int) $row->reserved_stock, 0);
+    }
+
+    /**
+     * @return array{id: int, supplier_name: string, name: string, part_number: string}
+     */
+    private function serializeLinkedOffer(SupplierVariantOffer $offer): array
+    {
+        $name = trim((string) ($offer->external_product_name ?? ''));
+        if ($name === '') {
+            $name = trim((string) ($offer->external_variant_name ?? ''));
+        }
+
+        $partNumber = trim((string) ($offer->external_id ?? ''));
+        if ($partNumber === '') {
+            $partNumber = trim((string) ($offer->sku ?? ''));
+        }
+
+        return [
+            'id' => (int) $offer->id,
+            'supplier_name' => trim((string) ($offer->supplier?->name ?? '')),
+            'name' => $name,
+            'part_number' => $partNumber,
+        ];
     }
 
     private function recordManualPriceChangeAudit(

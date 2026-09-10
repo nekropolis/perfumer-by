@@ -107,9 +107,9 @@ export default function AdminIncomingCallDevicesPage() {
             ok
                 ? { type: "success", message: "Токен скопирован" }
                 : {
-                      type: "error",
-                      message: "Не удалось скопировать — выделите токен вручную",
-                  },
+                    type: "error",
+                    message: "Не удалось скопировать — выделите токен вручную",
+                },
         );
     };
 
@@ -164,7 +164,7 @@ export default function AdminIncomingCallDevicesPage() {
         <AdminPageCard>
             <div className="mb-6">
                 <h1 className="text-2xl font-semibold">Телефоны для CRM</h1>
-                <p className="mt-1 text-sm text-admin-text-secondary">
+                <p className="mt-2 text-sm text-admin-text-secondary">
                     Создайте токен для каждого Android-телефона. Перевод в CRM выполняется вручную из приложения.
                 </p>
             </div>

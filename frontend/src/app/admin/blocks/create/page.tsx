@@ -1,11 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import AdminCrudHeader from "@/components/admin/ui/admin-crud-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
-import Breadcrumbs from "@/components/ui/breadcrumbs";
 import AdminBlockForm, { type AdminBlockFormState } from "@/components/admin/blocks/block-form";
 import { createAdminBlock } from "@/lib/admin-blocks-api";
 
@@ -44,14 +43,13 @@ export default function AdminBlockCreatePage() {
 
     return (
         <AdminPageCard>
-            <Breadcrumbs className="mb-4" items={[{ label: "Админка", href: "/admin" }, { label: "Блоки", href: "/admin/blocks" }, { label: "Создание" }]} />
-            <div className="mb-6 flex items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-semibold">Создать блок</h1>
-                    <p className="mt-1 text-sm text-admin-text-secondary">Переиспользуемый блок для встраивания в страницы</p>
-                </div>
-                <Link href="/admin/blocks" className="rounded-lg border px-4 py-2 text-sm">Назад</Link>
-            </div>
+            <AdminCrudHeader
+                backHref="/admin/blocks"
+                backAriaLabel="Назад к блокам"
+                title="Создать блок"
+                description="Переиспользуемый блок для встраивания в страницы"
+                items={[{ label: "Админка", href: "/admin" }, { label: "Блоки", href: "/admin/blocks" }, { label: "Создание" }]}
+            />
 
             {error ? (
                 <div className="mb-4">

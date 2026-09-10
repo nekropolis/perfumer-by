@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import AdminCrudHeader from "@/components/admin/ui/admin-crud-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
-import Breadcrumbs from "@/components/ui/breadcrumbs";
 import ProductVariantDefinitionForm, {
     type ProductVariantDefinitionFormState,
 } from "@/components/admin/products/product-variant-definition-form";
@@ -140,27 +139,17 @@ export default function AdminProductVariantEditPage() {
 
     return (
         <AdminPageCard>
-            <Breadcrumbs
-                className="mb-4"
+            <AdminCrudHeader
+                backHref={VARIANTS_BASE}
+                backAriaLabel="Назад к вариантам"
+                title={`Редактировать вариант - ${form?.title || ""}`}
+                description="Редактирование варианта справочника"
                 items={[
                     { label: "Админка", href: "/admin" },
                     { label: "Варианты продукта", href: VARIANTS_BASE },
                     { label: "Редактирование" },
                 ]}
             />
-
-            <div className="mb-6 flex items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-semibold">
-                        Редактировать вариант - {form?.title || ""}
-                    </h1>
-                    <p className="mt-1 text-sm text-admin-text-secondary">Редактирование варианта справочника</p>
-                </div>
-
-                <Link href={VARIANTS_BASE} className="rounded-lg border px-4 py-2 text-sm">
-                    Назад
-                </Link>
-            </div>
 
             {error ? (
                 <div className="mb-4">

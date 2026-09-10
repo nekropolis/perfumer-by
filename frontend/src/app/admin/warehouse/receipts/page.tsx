@@ -75,9 +75,9 @@ function ReceiptDetailsModal({
     }
 
     return createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 p-4" onClick={onCloseAction} role="presentation">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden bg-slate-900/50 p-2" onClick={onCloseAction} role="presentation">
             <div
-                className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl bg-white shadow-2xl"
+                className="flex max-h-[calc(100dvh-1rem)] min-h-0 w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
                 role="dialog"
                 aria-modal="true"
@@ -85,7 +85,7 @@ function ReceiptDetailsModal({
                 <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
                     <div>
                         <h2 className="text-lg font-semibold">Приход #{row.document_no ?? row.id}</h2>
-                        <p className="mt-1 text-sm text-admin-text-secondary">
+                        <p className="mt-2 text-sm text-admin-text-secondary">
                             {row.supplier_name} · {formatDate(row.received_at)}
                         </p>
                     </div>
@@ -117,9 +117,9 @@ function ReceiptDetailsModal({
                                         item.payload && typeof item.payload === "object" ? item.payload : {};
                                     const supplierProductName = String(
                                         (payload as { supplier_product_name?: unknown }).supplier_product_name
-                                            ?? (payload as { title?: unknown }).title
-                                            ?? (payload as { name?: unknown }).name
-                                            ?? "",
+                                        ?? (payload as { title?: unknown }).title
+                                        ?? (payload as { name?: unknown }).name
+                                        ?? "",
                                     ).trim();
                                     const lineComment = String(
                                         (payload as { comment?: unknown }).comment ?? "",
@@ -473,11 +473,10 @@ export default function AdminWarehouseReceiptsPage() {
                 title="Удаление прихода"
                 message={
                     deleteTarget
-                        ? `Удалить приход #${deleteTarget.document_no ?? deleteTarget.id}?${
-                              deleteTarget.status === STOCK_RECEIPT_STATUS.POSTED
-                                  ? " Документ оприходован: если по партиям есть резервы под заказы, удаление будет запрещено."
-                                  : ""
-                          }`
+                        ? `Удалить приход #${deleteTarget.document_no ?? deleteTarget.id}?${deleteTarget.status === STOCK_RECEIPT_STATUS.POSTED
+                            ? " Документ оприходован: если по партиям есть резервы под заказы, удаление будет запрещено."
+                            : ""
+                        }`
                         : ""
                 }
                 confirmText="Удалить"

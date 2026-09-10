@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import AdminCrudHeader from "@/components/admin/ui/admin-crud-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
-import Breadcrumbs from "@/components/ui/breadcrumbs";
 import ProductSeoGenerationModal from "@/components/admin/products/product-seo-generation-modal";
 import ProductForm, {
     type ProductFormState,
@@ -334,49 +333,38 @@ export default function AdminProductEditPage() {
 
     return (
         <AdminPageCard>
-            <Breadcrumbs
-                className="mb-4"
+            <AdminCrudHeader
+                backHref="/admin/products"
+                backAriaLabel="Назад к продуктам"
+                title={`Редактировать продукт - ${productData?.name ?? ""}`}
+                description="Редактирование продукта"
                 items={[
                     { label: "Админка", href: "/admin" },
                     { label: "Продукты", href: "/admin/products" },
                     { label: "Редактирование" },
                 ]}
+                actions={
+                    <>
+                        {seoGeneration ? (
+                            <span className="text-xs text-admin-text-secondary">
+                                SEO: {seoGeneration.external_status || seoGeneration.status}
+                            </span>
+                        ) : null}
+                        <button
+                            type="button"
+                            onClick={() => void handleOpenSeoGeneration()}
+                            disabled={seoStarting || seoRunning || loading}
+                            className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white disabled:opacity-50"
+                        >
+                            {seoStarting
+                                ? "Подготовка…"
+                                : seoRunning
+                                  ? "Уникализация…"
+                                  : "Уникализировать"}
+                        </button>
+                    </>
+                }
             />
-
-            <div className="mb-6 flex items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-semibold">Редактировать продукт - {productData?.name}</h1>
-                    <p className="mt-1 text-sm text-admin-text-secondary">
-                        Редактирование продукта
-                    </p>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                    {seoGeneration ? (
-                        <span className="text-xs text-admin-text-secondary">
-                            SEO: {seoGeneration.external_status || seoGeneration.status}
-                        </span>
-                    ) : null}
-                    <button
-                        type="button"
-                        onClick={() => void handleOpenSeoGeneration()}
-                        disabled={seoStarting || seoRunning || loading}
-                        className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white disabled:opacity-50"
-                    >
-                        {seoStarting
-                            ? "Подготовка…"
-                            : seoRunning
-                              ? "Уникализация…"
-                              : "Уникализировать"}
-                    </button>
-                    <Link
-                        href="/admin/products"
-                        className="rounded-lg border px-4 py-2 text-sm"
-                    >
-                        Назад
-                    </Link>
-                </div>
-            </div>
 
             {error ? (
                 <div className="mb-4">

@@ -8,6 +8,7 @@ import {
     getRecentlyViewedSnapshot,
     subscribeRecentlyViewed,
 } from "@/lib/recently-viewed-products";
+import { useScrollbarOnScroll } from "@/hooks/use-scrollbar-on-scroll";
 
 const RECENTLY_VIEWED_GAP_PX = 8;
 
@@ -59,6 +60,7 @@ export default function RecentlyViewedSection({ excludeSlug = null }: Props) {
     const headingId = useId();
     const scrollerRef = useRef<HTMLDivElement>(null);
     const [edge, setEdge] = useState({ left: false, right: false });
+    const { isScrolling, onScroll } = useScrollbarOnScroll();
 
     const storedItems = useSyncExternalStore(
         subscribeRecentlyViewed,
@@ -98,14 +100,18 @@ export default function RecentlyViewedSection({ excludeSlug = null }: Props) {
             return;
         }
         syncScrollState();
-        el.addEventListener("scroll", syncScrollState, { passive: true });
+        const handleScroll = () => {
+            syncScrollState();
+            onScroll();
+        };
+        el.addEventListener("scroll", handleScroll, { passive: true });
         const ro = new ResizeObserver(() => syncScrollState());
         ro.observe(el);
         return () => {
-            el.removeEventListener("scroll", syncScrollState);
+            el.removeEventListener("scroll", handleScroll);
             ro.disconnect();
         };
-    }, [items, visibleCols, syncScrollState]);
+    }, [items, visibleCols, syncScrollState, onScroll]);
 
     const scrollByViewport = useCallback((dir: -1 | 1) => {
         const el = scrollerRef.current;
@@ -169,7 +175,7 @@ export default function RecentlyViewedSection({ excludeSlug = null }: Props) {
                             scrollByViewport(1);
                         }
                     }}
-                    className="grid grid-flow-col gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth px-0.5 py-2 [scrollbar-width:thin] snap-x snap-mandatory focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-primary"
+                    className={`product-carousel-scroll grid grid-flow-col gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth px-0.5 py-2 snap-x snap-mandatory focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-primary ${isScrolling ? "is-scrolling" : ""}`}
                     style={{ gridAutoColumns: gridColumnWidth(visibleCols) }}
                 >
                     {items.map((item) => (

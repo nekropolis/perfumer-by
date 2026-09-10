@@ -1,11 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import AdminCrudHeader from "@/components/admin/ui/admin-crud-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
-import Breadcrumbs from "@/components/ui/breadcrumbs";
 import AdminPageForm, { type AdminPageFormState } from "@/components/admin/pages/page-form";
 import AdminPageEditorTabs, { type AdminPageEditorTab } from "@/components/admin/pages/page-editor-tabs";
 import { createAdminPage } from "@/lib/admin-pages-api";
@@ -49,14 +48,13 @@ export default function AdminPageCreatePage() {
 
     return (
         <AdminPageCard>
-            <Breadcrumbs className="mb-4" items={[{ label: "Админка", href: "/admin" }, { label: "Страницы", href: "/admin/pages" }, { label: "Создание" }]} />
-            <div className="mb-6 flex items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-semibold">Создать страницу</h1>
-                    <p className="mt-1 text-sm text-admin-text-secondary">Новая CMS-страница для сайта</p>
-                </div>
-                <Link href="/admin/pages" className="rounded-lg border px-4 py-2 text-sm">Назад</Link>
-            </div>
+            <AdminCrudHeader
+                backHref="/admin/pages"
+                backAriaLabel="Назад к страницам"
+                title="Создать страницу"
+                description="Новая CMS-страница для сайта"
+                items={[{ label: "Админка", href: "/admin" }, { label: "Страницы", href: "/admin/pages" }, { label: "Создание" }]}
+            />
 
             {error ? (
                 <div className="mb-4">

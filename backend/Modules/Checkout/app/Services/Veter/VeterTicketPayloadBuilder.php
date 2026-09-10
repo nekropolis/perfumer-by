@@ -309,7 +309,46 @@ class VeterTicketPayloadBuilder
             $parts[] = $deliveryComment;
         }
 
+        $additionalAddress = $this->formatAdditionalDeliveryAddress($order);
+        if ($additionalAddress !== '') {
+            $until = $this->formatClock($order->delivery_time_to);
+            if ($until !== null) {
+                $parts[] = 'По адресу до '.$until;
+            }
+            $parts[] = 'Потом - '.$additionalAddress;
+        }
+
         return implode("\n", $parts);
+    }
+
+    private function formatAdditionalDeliveryAddress(Order $order): string
+    {
+        $prefix = trim((string) ($order->additional_delivery_street_prefix ?? ''));
+        $street = trim((string) ($order->additional_delivery_address ?? ''));
+        $house = trim((string) ($order->additional_delivery_house ?? ''));
+        $korpus = trim((string) ($order->additional_delivery_korpus ?? ''));
+        $apartment = trim((string) ($order->additional_delivery_apartment ?? ''));
+
+        if ($street === '' && $house === '' && $korpus === '' && $apartment === '') {
+            return '';
+        }
+
+        $streetPart = trim(implode(' ', array_filter([$prefix, $street], static fn (string $v): bool => $v !== '')));
+        $parts = [];
+        if ($streetPart !== '') {
+            $parts[] = $streetPart;
+        }
+        if ($house !== '') {
+            $parts[] = 'д. '.$house;
+        }
+        if ($korpus !== '') {
+            $parts[] = 'корп. '.$korpus;
+        }
+        if ($apartment !== '') {
+            $parts[] = 'кв. '.$apartment;
+        }
+
+        return implode(', ', $parts);
     }
 
     private function formatClock(mixed $value): ?string

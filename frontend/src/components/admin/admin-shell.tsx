@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, startTransition } from "react";
 import { X, Store, User } from "lucide-react";
 import AdminHeader from "@/components/admin/admin-header";
 import AdminSidebar from "@/components/admin/admin-sidebar";
+import { AdminSidebarBadgesProvider } from "@/components/admin/admin-sidebar-badges";
 import AdminActiveTasksWidget from "@/components/admin/admin-active-tasks-widget";
 import AdminBynRateControl from "@/components/admin/pricing/admin-byn-rate-control";
 import AdminWaitingDiscountDateControl from "@/components/admin/admin-waiting-discount-date-control";
@@ -28,6 +29,7 @@ export default function AdminShell({ children }: Props) {
     const [cacheResetBusy, setCacheResetBusy] = useState(false);
     const [hasActiveTasks, setHasActiveTasks] = useState(false);
     const mainScrollRef = useRef<HTMLElement>(null);
+    const shellRef = useRef<HTMLDivElement>(null);
 
     const { logout } = useAuth();
 
@@ -76,22 +78,62 @@ export default function AdminShell({ children }: Props) {
         const body = document.body;
         const prevHtmlOverflow = html.style.overflow;
         const prevBodyOverflow = body.style.overflow;
+        const prevHtmlOverscroll = html.style.overscrollBehavior;
+        const prevBodyOverscroll = body.style.overscrollBehavior;
 
         body.classList.add("admin-shell-body");
         html.style.overflow = "hidden";
         body.style.overflow = "hidden";
+        html.style.overscrollBehavior = "none";
+        body.style.overscrollBehavior = "none";
+
+        const pinToVisualViewport = () => {
+            if (window.scrollX !== 0 || window.scrollY !== 0) {
+                window.scrollTo(0, 0);
+            }
+
+            const el = shellRef.current;
+            const vv = window.visualViewport;
+            if (!el) {
+                return;
+            }
+            if (!vv) {
+                el.style.top = "0px";
+                el.style.left = "0px";
+                el.style.width = "100%";
+                el.style.height = "100dvh";
+                return;
+            }
+            // Tablet Chrome/Safari: URL-bar and overscroll shift visualViewport,
+            // which otherwise clips the in-flow admin header off the top edge.
+            el.style.top = `${vv.offsetTop}px`;
+            el.style.left = `${vv.offsetLeft}px`;
+            el.style.width = `${vv.width}px`;
+            el.style.height = `${vv.height}px`;
+        };
+
+        pinToVisualViewport();
+        window.addEventListener("scroll", pinToVisualViewport, { passive: true });
+        window.visualViewport?.addEventListener("resize", pinToVisualViewport);
+        window.visualViewport?.addEventListener("scroll", pinToVisualViewport);
 
         return () => {
             body.classList.remove("admin-shell-body");
             html.style.overflow = prevHtmlOverflow;
             body.style.overflow = prevBodyOverflow;
+            html.style.overscrollBehavior = prevHtmlOverscroll;
+            body.style.overscrollBehavior = prevBodyOverscroll;
+            window.removeEventListener("scroll", pinToVisualViewport);
+            window.visualViewport?.removeEventListener("resize", pinToVisualViewport);
+            window.visualViewport?.removeEventListener("scroll", pinToVisualViewport);
         };
     }, []);
 
     return (
+        <AdminSidebarBadgesProvider>
         <div
-            className="flex h-screen overflow-hidden bg-admin-bg"
-            style={{ height: "100dvh" }}
+            ref={shellRef}
+            className="fixed left-0 top-0 flex h-[100dvh] w-full overflow-hidden bg-admin-bg"
         >
             <div
                 className={`hidden min-h-0 shrink-0 overflow-hidden border-r border-admin-border bg-admin-sidebar shadow-admin-sidebar lg:block ${sidebarCollapsed ? "w-[72px]" : "w-[260px]"
@@ -99,7 +141,7 @@ export default function AdminShell({ children }: Props) {
             >
                 <div className="flex h-full min-h-0 flex-col">
                     <div
-                        className={`flex h-14 flex-none items-center border-b border-admin-border bg-admin-sidebar ${sidebarCollapsed ? "justify-center px-2" : "px-5"
+                        className={`flex h-[calc(3.5rem+env(safe-area-inset-top,0px))] flex-none items-center border-b border-admin-border bg-admin-sidebar pt-[env(safe-area-inset-top,0px)] ${sidebarCollapsed ? "justify-center px-2" : "px-5"
                             }`}
                     >
                         {sidebarCollapsed ? (
@@ -138,7 +180,7 @@ export default function AdminShell({ children }: Props) {
                 />
 
                 <main className="min-h-0 flex-1 overflow-hidden">
-                    <section ref={mainScrollRef} className="h-full min-h-0 min-w-0 overflow-y-auto">
+                    <section ref={mainScrollRef} className="h-full min-h-0 min-w-0 overflow-y-auto overscroll-y-contain">
                         {children}
                     </section>
                 </main>
@@ -147,7 +189,7 @@ export default function AdminShell({ children }: Props) {
             <AdminScrollToTopButton scrollRef={mainScrollRef} />
 
             {mobileMenuOpen && (
-                <div className="fixed inset-0 z-[200] lg:hidden">
+                <div className="absolute inset-0 z-[200] lg:hidden">
                     <div
                         className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px]"
                         onClick={() => {
@@ -156,8 +198,8 @@ export default function AdminShell({ children }: Props) {
                         }}
                     />
 
-                    <div className="absolute left-0 top-0 flex h-full w-[min(92vw,340px)] flex-col border-r border-admin-border bg-admin-sidebar shadow-2xl">
-                        <div className="relative flex flex-none items-center justify-between gap-2 border-b border-admin-border px-4 py-3">
+                    <div className="absolute left-0 top-0 flex h-full w-max max-w-[92vw] flex-col border-r border-admin-border bg-admin-sidebar shadow-2xl">
+                        <div className="relative flex w-0 min-w-full flex-none items-center justify-between gap-2 border-b border-admin-border px-4 py-3">
                             <div className="min-w-0 shrink truncate text-sm font-semibold tracking-tight text-admin-text">
                                 Меню
                             </div>
@@ -240,11 +282,12 @@ export default function AdminShell({ children }: Props) {
                         </div>
 
                         <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
-                            <AdminSidebar onNavigateAction={() => setMobileMenuOpen(false)} />
+                            <AdminSidebar fitContent onNavigateAction={() => setMobileMenuOpen(false)} />
                         </div>
                     </div>
                 </div>
             )}
         </div>
+        </AdminSidebarBadgesProvider>
     );
 }

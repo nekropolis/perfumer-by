@@ -6,7 +6,7 @@ import AdminSearchInput from "@/components/admin/ui/admin-search-input";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import { fetchSellerOneSupplierProducts } from "@/lib/admin-vanille-api";
 import { highlightAdminSearchTerms } from "@/lib/admin-search-highlight";
-import { adminBtnSecondary, adminModalOverlay } from "@/lib/admin-ui-classes";
+import { adminBtnSecondary, adminModalOverlay, adminModalPanel } from "@/lib/admin-ui-classes";
 import type { SellerOneSupplierProductItem } from "@/types/Vanille";
 
 type Props = {
@@ -87,7 +87,7 @@ export default function SupplierDraftAddProductModal({
     return createPortal(
         <div className={adminModalOverlay} onClick={onCloseAction} role="presentation">
             <div
-                className="flex max-h-[min(90vh,40rem)] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-admin-border bg-admin-surface shadow-2xl"
+                className={`${adminModalPanel} max-w-3xl sm:rounded-xl`}
                 onClick={(e) => e.stopPropagation()}
                 role="dialog"
                 aria-modal="true"

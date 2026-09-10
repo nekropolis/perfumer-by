@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import AdminCrudHeader from "@/components/admin/ui/admin-crud-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
-import Breadcrumbs from "@/components/ui/breadcrumbs";
 import AttributeForm, {
     type AttributeFormState,
 } from "@/components/admin/attributes/attribute-form";
@@ -101,30 +100,17 @@ export default function AdminAttributeEditPage() {
     };
     return (
         <AdminPageCard>
-            <Breadcrumbs
-                className="mb-4"
+            <AdminCrudHeader
+                backHref="/admin/attributes"
+                backAriaLabel="Назад к атрибутам"
+                title={`Редактировать атрибут - ${attributeDetail?.name ?? ""}`}
+                description="Настройка атрибута и его опций"
                 items={[
                     { label: "Админка", href: "/admin" },
                     { label: "Атрибуты", href: "/admin/attributes" },
                     { label: "Редактирование" },
                 ]}
             />
-
-            <div className="mb-6 flex items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-semibold">Редактировать атрибут - {attributeDetail?.name}</h1>
-                    <p className="mt-1 text-sm text-admin-text-secondary">
-                        Настройка атрибута и его опций
-                    </p>
-                </div>
-
-                <Link
-                    href="/admin/attributes"
-                    className="rounded-lg border px-4 py-2 text-sm"
-                >
-                    Назад
-                </Link>
-            </div>
 
             {error ? (
                 <div className="mb-4">

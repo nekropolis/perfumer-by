@@ -677,9 +677,9 @@ export default function ProductAttributeValuesEditor({
             />
 
             {createModalOpen ? (
-                <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
+                <div className="fixed inset-0 z-[200] bg-slate-900/50 p-2">
                     <div className="mx-auto flex h-full w-full max-w-2xl items-center justify-center">
-                        <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
+                        <div className="flex max-h-full min-h-0 w-full flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
                             <div className="border-b px-5 py-4">
                                 <h2 className="text-lg font-semibold">Добавить атрибут к товару</h2>
                             </div>
@@ -790,9 +790,9 @@ export default function ProductAttributeValuesEditor({
             ) : null}
 
             {editForm ? (
-                <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
+                <div className="fixed inset-0 z-[200] bg-slate-900/50 p-2">
                     <div className="mx-auto flex h-full w-full max-w-2xl items-center justify-center">
-                        <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
+                        <div className="flex max-h-full min-h-0 w-full flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
                             <div className="border-b px-5 py-4">
                                 <h2 className="text-lg font-semibold">Редактировать атрибут</h2>
                             </div>

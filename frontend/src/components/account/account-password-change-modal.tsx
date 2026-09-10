@@ -1,13 +1,17 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { ApiRequestError, requestPasswordChange, verifyPasswordChange } from "@/lib/auth-api";
 import { getAuthToken } from "@/lib/auth-token";
 import SmsDevHint from "@/components/ui/sms-dev-hint";
 import PasswordInput from "@/components/ui/password-input";
 import { siteBtnGhost, siteBtnPrimary, siteBtnSecondary, siteCard, siteInput } from "@/lib/site-ui-classes";
+
+const emptySubscribe = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
 
 type AccountPasswordChangeModalProps = {
     phone: string;
@@ -28,11 +32,7 @@ export default function AccountPasswordChangeModal({
     const [infoMessage, setInfoMessage] = useState("");
     const [errorMessage, setErrorMessage] = useState("");
     const [isPending, startTransition] = useTransition();
-    const [mounted, setMounted] = useState(false);
-
-    useEffect(() => {
-        setMounted(true);
-    }, []);
+    const mounted = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
 
     useEffect(() => {
         const handleEsc = (event: KeyboardEvent) => {
@@ -132,7 +132,7 @@ export default function AccountPasswordChangeModal({
                             <h2 id="password-change-title" className="text-lg font-semibold tracking-tight text-admin-text">
                                 Смена пароля
                             </h2>
-                            <p className="mt-1 text-sm text-admin-text-secondary">
+                            <p className="mt-2 text-sm text-admin-text-secondary">
                                 Подтверждение придёт по SMS на {phone}
                             </p>
                         </div>

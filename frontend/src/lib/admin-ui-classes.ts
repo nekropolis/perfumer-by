@@ -51,10 +51,10 @@ export const adminTableCell =
 export const adminTableRowHover = "transition hover:bg-admin-muted/70";
 
 export const adminModalOverlay =
-  "fixed inset-0 z-[200] flex items-end justify-center bg-slate-900/40 p-0 backdrop-blur-[1px] sm:items-center sm:p-4";
+  "fixed inset-0 z-[200] flex items-end justify-center overflow-hidden bg-slate-900/40 p-0 backdrop-blur-[1px] sm:items-center sm:p-2";
 
 export const adminModalPanel =
-  "flex max-h-[min(92dvh,100%)] w-full flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface shadow-2xl sm:max-h-[min(88dvh,900px)] sm:rounded-xl";
+  "flex max-h-[100dvh] min-h-0 w-full flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface shadow-2xl sm:max-h-[calc(100dvh-1rem)] sm:rounded-xl";
 
 export const adminModalPanelCentered =
   "w-full max-w-lg flex-col overflow-hidden rounded-xl border border-admin-border bg-admin-surface shadow-2xl";

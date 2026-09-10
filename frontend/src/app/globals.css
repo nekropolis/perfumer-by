@@ -240,6 +240,37 @@ body:not(.admin-shell-body) .ProseMirror a {
   display: none;
 }
 
+/* Product carousels: 2px scrollbar, only while scrolling.
+   Do not set scrollbar-width here — Chrome treats `thin` as a large bar
+   and ignores ::-webkit-scrollbar height. */
+.product-carousel-scroll::-webkit-scrollbar {
+  height: 2px;
+}
+
+.product-carousel-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.product-carousel-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.product-carousel-scroll.is-scrolling::-webkit-scrollbar-thumb {
+  background: rgb(36 28 21 / 0.4);
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  .product-carousel-scroll {
+    scrollbar-width: none;
+  }
+
+  .product-carousel-scroll.is-scrolling {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(36 28 21 / 0.4) transparent;
+  }
+}
+
 /* reCAPTCHA v3 badge may be hidden if required branding text is shown in UI. */
 .grecaptcha-badge {
   visibility: hidden;

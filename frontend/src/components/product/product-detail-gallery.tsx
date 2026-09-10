@@ -152,7 +152,7 @@ export default function ProductDetailGallery({ product, selectedVariantHasPromot
                             </div>
 
                             <div className="text-base font-medium text-admin-text-secondary">Фото появится позже</div>
-                            <div className="mt-1 text-sm text-admin-text-secondary">Изображение товара загружается</div>
+                            <div className="mt-2 text-sm text-admin-text-secondary">Изображение товара загружается</div>
                         </div>
                     )}
                 </div>

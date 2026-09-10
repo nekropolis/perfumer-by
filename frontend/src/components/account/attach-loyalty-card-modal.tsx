@@ -80,7 +80,7 @@ export default function AttachLoyaltyCardModal({ onCloseAction, onSuccessAction 
                             <h2 id="attach-loyalty-title" className="text-lg font-semibold tracking-tight text-admin-text">
                                 Добавить карту
                             </h2>
-                            <p className="mt-1 text-sm text-admin-text-secondary">
+                            <p className="mt-2 text-sm text-admin-text-secondary">
                                 Накопительная скидка будет применяться к заказам
                             </p>
                         </div>

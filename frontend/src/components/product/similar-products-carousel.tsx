@@ -5,6 +5,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from
 import ProductCardClient from "@/components/product/product-card.client";
 import type { ProductListItem } from "@/types/catalog";
 import { SIMILAR_GAP_PX, similarVisibleColumns } from "@/lib/product-detail-utils";
+import { useScrollbarOnScroll } from "@/hooks/use-scrollbar-on-scroll";
 
 type Props = {
     products: ProductListItem[];
@@ -18,6 +19,7 @@ export default function SimilarProductsCarousel({ products, title = "Похож�
     const [overflow, setOverflow] = useState(false);
     const [edge, setEdge] = useState({ left: false, right: false });
     const [slideWidthPx, setSlideWidthPx] = useState<number | null>(null);
+    const { isScrolling, onScroll } = useScrollbarOnScroll();
 
     const syncScrollState = useCallback(() => {
         const el = scrollerRef.current;
@@ -60,7 +62,11 @@ export default function SimilarProductsCarousel({ products, title = "Похож�
             return;
         }
         syncScrollState();
-        el.addEventListener("scroll", syncScrollState, { passive: true });
+        const handleScroll = () => {
+            syncScrollState();
+            onScroll();
+        };
+        el.addEventListener("scroll", handleScroll, { passive: true });
         const ro = new ResizeObserver(() => measureSlides());
         ro.observe(el);
         const onMq = () => measureSlides();
@@ -69,12 +75,12 @@ export default function SimilarProductsCarousel({ products, title = "Похож�
         mql1280.addEventListener("change", onMq);
         mql768.addEventListener("change", onMq);
         return () => {
-            el.removeEventListener("scroll", syncScrollState);
+            el.removeEventListener("scroll", handleScroll);
             ro.disconnect();
             mql1280.removeEventListener("change", onMq);
             mql768.removeEventListener("change", onMq);
         };
-    }, [products, syncScrollState, measureSlides]);
+    }, [products, syncScrollState, measureSlides, onScroll]);
 
     const scrollByViewport = useCallback((dir: -1 | 1) => {
         const el = scrollerRef.current;
@@ -155,7 +161,7 @@ export default function SimilarProductsCarousel({ products, title = "Похож�
                             scrollByViewport(1);
                         }
                     }}
-                    className={`min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth px-0.5 py-3 [scrollbar-width:thin] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-primary ${slideWidthPx === null ? "invisible" : ""}`}
+                    className={`product-carousel-scroll min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth px-0.5 py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-primary ${isScrolling ? "is-scrolling" : ""} ${slideWidthPx === null ? "invisible" : ""}`}
                 >
                     <div className="flex w-max items-stretch gap-3">
                         {products.map((item, index) => (

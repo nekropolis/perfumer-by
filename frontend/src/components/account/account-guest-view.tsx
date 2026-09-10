@@ -42,7 +42,7 @@ export default function AccountGuestView() {
 
                                 <div className="min-w-0">
                                     <div className="text-lg font-semibold text-admin-text">Гость</div>
-                                    <p className="mt-1 text-sm text-admin-text-secondary">
+                                    <p className="mt-2 text-sm text-admin-text-secondary">
                                         Войдите, чтобы открыть профиль
                                     </p>
                                 </div>
@@ -108,7 +108,7 @@ export default function AccountGuestView() {
                                 <p className="mt-4 text-sm font-medium text-admin-text">
                                     Заказы появятся после входа
                                 </p>
-                                <p className="mt-1 text-sm text-admin-text-secondary">
+                                <p className="mt-2 text-sm text-admin-text-secondary">
                                     Оформите покупку на сайте — история подтянется к вашему номеру
                                 </p>
                                 <Link href="/login" className={`${siteBtnPrimary} mt-5 inline-flex`}>

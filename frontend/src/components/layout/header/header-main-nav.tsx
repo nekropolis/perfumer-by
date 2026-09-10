@@ -11,7 +11,7 @@ type HeaderMainNavProps = {
 
 export function HeaderMainNavFallback({ links }: HeaderMainNavProps) {
     return (
-        <nav className="hidden shrink-0 items-center gap-1 lg:flex" aria-label="Основная навигация">
+        <nav className="hidden shrink-0 items-center gap-1 xl:flex" aria-label="Основная навигация">
             {links.map((item) => (
                 <Link
                     key={item.href}
@@ -30,7 +30,7 @@ export default function HeaderMainNav({ links }: HeaderMainNavProps) {
     const searchParams = useSearchParams();
 
     return (
-        <nav className="hidden shrink-0 items-center gap-1 lg:flex" aria-label="Основная навигация">
+        <nav className="hidden shrink-0 items-center gap-1 xl:flex" aria-label="Основная навигация">
             {links.map((item) => {
                 const isActive = isHeaderNavLinkActive(item.href, pathname, searchParams);
 

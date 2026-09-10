@@ -205,7 +205,7 @@ class ProductAdminController extends Controller
         $product = Product::create([
             'brand_id' => $validated['brand_id'],
             'main_category_id' => null,
-            'name' => $validated['name'],
+            'name' => ProductDisplayName::replaceCyrillicLookalikes($validated['name']),
             'slug' => $slug,
             'h1' => ProductDisplayName::replaceCyrillicLookalikes($validated['h1'] ?: $displayName),
             'short_description' => $validated['short_description'] ?? null,
@@ -266,7 +266,7 @@ class ProductAdminController extends Controller
 
         $product->update([
             'brand_id' => $validated['brand_id'],
-            'name' => $validated['name'],
+            'name' => ProductDisplayName::replaceCyrillicLookalikes($validated['name']),
             'slug' => $slug,
             'h1' => ProductDisplayName::replaceCyrillicLookalikes($validated['h1'] ?: $displayName),
             'short_description' => $validated['short_description'] ?? null,

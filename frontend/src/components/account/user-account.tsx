@@ -69,7 +69,7 @@ export default function UserAccount({ user, logoutAction, onEditAction }: UserAc
                             {displayName}
                         </div>
 
-                        <div className="mt-1 text-sm text-admin-text-secondary">
+                        <div className="mt-2 text-sm text-admin-text-secondary">
                             {user?.phone ? formatBelarusPhoneSpaced(user.phone) : "Телефон не указан"}
                         </div>
 
@@ -78,7 +78,7 @@ export default function UserAccount({ user, logoutAction, onEditAction }: UserAc
                         ) : null}
 
                         {birthDateLabel ? (
-                            <div className="mt-1 text-sm text-admin-text-secondary">
+                            <div className="mt-2 text-sm text-admin-text-secondary">
                                 Дата рождения: {birthDateLabel}
                             </div>
                         ) : null}

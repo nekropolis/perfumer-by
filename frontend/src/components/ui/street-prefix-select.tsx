@@ -2,11 +2,11 @@
 
 import { Check, ChevronDown } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
-import { VETER_STREET_PREFIXES } from "@/constants/veter-street-prefixes";
+import { VETER_STREET_PREFIXES, type VeterStreetPrefix } from "@/constants/veter-street-prefixes";
 
 type StreetPrefixSelectProps = {
     value: string;
-    onChange: (value: string) => void;
+    onChange: (value: VeterStreetPrefix) => void;
     /** storefront rounded-2xl / admin rounded-lg */
     variant?: "site" | "admin";
     className?: string;
@@ -51,7 +51,7 @@ export default function StreetPrefixSelect({
     const triggerClass =
         variant === "site"
             ? "flex min-h-10 w-full items-center justify-between gap-1 rounded-2xl border border-admin-border bg-admin-surface px-2 py-2 text-left text-sm text-admin-text outline-none transition hover:border-admin-border-strong focus-visible:border-admin-primary focus-visible:ring-2 focus-visible:ring-admin-primary/15"
-            : "flex w-full items-center justify-between gap-1 rounded-lg border border-admin-border bg-admin-surface px-1.5 py-2 text-left text-sm text-admin-text outline-none transition hover:bg-admin-muted focus-visible:border-admin-primary focus-visible:ring-2 focus-visible:ring-admin-primary/15";
+            : "flex min-h-10 w-full items-center justify-between gap-1 rounded-lg border border-admin-border bg-admin-surface px-1.5 text-left text-sm leading-5 text-admin-text outline-none transition hover:bg-admin-muted focus-visible:border-admin-primary focus-visible:ring-2 focus-visible:ring-admin-primary/15";
 
     const menuRadius = variant === "site" ? "rounded-2xl" : "rounded-lg";
     const optionRadius = variant === "site" ? "rounded-xl" : "rounded-md";
@@ -67,7 +67,7 @@ export default function StreetPrefixSelect({
                 aria-controls={listId}
                 aria-label={ariaLabel}
             >
-                <span className="whitespace-nowrap leading-none">{value || "—"}</span>
+                <span className="whitespace-nowrap leading-5">{value || "—"}</span>
                 <ChevronDown
                     aria-hidden
                     className={`h-3.5 w-3.5 shrink-0 text-admin-text-muted transition ${open ? "rotate-180" : ""}`}

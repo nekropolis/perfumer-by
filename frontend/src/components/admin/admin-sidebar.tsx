@@ -31,25 +31,14 @@ import {
     Tags,
     Ticket,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { fetchOrdersStats } from "@/lib/admin-orders-api";
-import { fetchAdminReviewsStats } from "@/lib/admin-reviews-api";
-import { fetchProductSeoQueueBadge } from "@/lib/admin-seo-product-descriptions-api";
 import {
-    fetchLastPriceRefreshAt,
-    formatPriceRefreshDayMonth,
-} from "@/lib/admin-pricing-api";
-import {
-    fetchLastAllparfumeCrawledAt,
-    formatAllparfumeUpdatedAt,
-} from "@/lib/admin-allparfume-api";
-import { fetchAdminStockNotificationStats } from "@/lib/stock-notifications-api";
-import { useSmartPolling } from "@/hooks/use-smart-polling";
-
-type BadgeKey = "ordersNew" | "stockProductRequestsNew" | "reviewsPending" | "seoQueued";
-type AlertBadgeKey = "ordersOverdue";
-type MetaBadgeKey = "priceRefreshLast" | "allparfumeLast";
+    type AlertBadgeKey,
+    type BadgeKey,
+    type MetaBadgeKey,
+    useAdminSidebarBadges,
+} from "@/components/admin/admin-sidebar-badges";
 
 type LinkItem = {
     type: "link";
@@ -189,6 +178,7 @@ const sections: SidebarSection[] = [
 type Props = {
     onNavigateAction?: () => void;
     collapsed?: boolean;
+    fitContent?: boolean;
 };
 
 type TooltipState = {
@@ -196,11 +186,6 @@ type TooltipState = {
     x: number;
     y: number;
 } | null;
-
-// Когда есть новые заказы, отзывы на модерации или необработанные заявки (поступление / звонок) —
-// поллим чаще; в «тишине» — реже.
-const ORDERS_STATS_ACTIVE_MS = 15_000;
-const ORDERS_STATS_IDLE_MS = 60_000;
 
 function formatBadgeCount(count: number): string {
     if (count > 99) return "99+";
@@ -358,120 +343,19 @@ function isItemActive(
     return targetPath !== "/admin" && pathname.startsWith(targetPath) && currentQuery === "";
 }
 
-export default function AdminSidebar({ onNavigateAction, collapsed = false }: Props) {
+export default function AdminSidebar({ onNavigateAction, collapsed = false, fitContent = false }: Props) {
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const currentQuery = searchParams.toString();
     const [tooltip, setTooltip] = useState<TooltipState>(null);
-    const [newOrdersCount, setNewOrdersCount] = useState(0);
-    const [overdueOrdersCount, setOverdueOrdersCount] = useState(0);
-    const [stockProductRequestsNew, setStockProductRequestsNew] = useState(0);
-    const [reviewsPendingCount, setReviewsPendingCount] = useState(0);
-    const [seoQueuedCount, setSeoQueuedCount] = useState(0);
-    const [priceRefreshLastLabel, setPriceRefreshLastLabel] = useState<string | null>(null);
-    const [allparfumeLastLabel, setAllparfumeLastLabel] = useState<string | null>(null);
-
-    const flatItems = useMemo(() => sections.flatMap((section) => section.items), []);
-    const _hasItems = flatItems.length > 0;
-    void _hasItems;
-
-    const loadSidebarBadgeStats = useCallback(
-        async (signal: AbortSignal): Promise<{ active: boolean }> => {
-            const [ordersResult, stockResult, reviewsResult, seoResult, priceRefreshResult, allparfumeResult] =
-                await Promise.allSettled([
-                    fetchOrdersStats(signal),
-                    fetchAdminStockNotificationStats(signal),
-                    fetchAdminReviewsStats(signal),
-                    fetchProductSeoQueueBadge(signal),
-                    fetchLastPriceRefreshAt(signal),
-                    fetchLastAllparfumeCrawledAt(signal),
-                ]);
-
-            let ordersNew = 0;
-            let ordersOverdue = 0;
-            if (ordersResult.status === "fulfilled") {
-                ordersNew = ordersResult.value.data.by_status.new ?? 0;
-                ordersOverdue = ordersResult.value.data.overdue_delivery ?? 0;
-                setNewOrdersCount(ordersNew);
-                setOverdueOrdersCount(ordersOverdue);
-            }
-
-            let backInStock = 0;
-            let callback = 0;
-            if (stockResult.status === "fulfilled") {
-                backInStock = stockResult.value.data.back_in_stock_new ?? 0;
-                callback = stockResult.value.data.callback_new ?? 0;
-                setStockProductRequestsNew(backInStock + callback);
-            }
-
-            let reviewsPending = 0;
-            if (reviewsResult.status === "fulfilled") {
-                reviewsPending = reviewsResult.value.data.pending_count ?? 0;
-                setReviewsPendingCount(reviewsPending);
-            }
-
-            let seoQueued = 0;
-            if (seoResult.status === "fulfilled") {
-                seoQueued = seoResult.value.data.queued ?? 0;
-                setSeoQueuedCount(seoQueued);
-            }
-
-            if (priceRefreshResult.status === "fulfilled") {
-                setPriceRefreshLastLabel(formatPriceRefreshDayMonth(priceRefreshResult.value));
-            }
-
-            if (allparfumeResult.status === "fulfilled") {
-                setAllparfumeLastLabel(formatAllparfumeUpdatedAt(allparfumeResult.value));
-            }
-
-            const active =
-                ordersNew > 0 ||
-                ordersOverdue > 0 ||
-                backInStock > 0 ||
-                callback > 0 ||
-                reviewsPending > 0 ||
-                seoQueued > 0;
-            return { active };
-        },
-        [],
-    );
-
-    const { refresh: refreshSidebarBadgeStats } = useSmartPolling({
-        activeIntervalMs: ORDERS_STATS_ACTIVE_MS,
-        idleIntervalMs: ORDERS_STATS_IDLE_MS,
-        fetcherAction: loadSidebarBadgeStats,
-    });
-
-    // Переход между страницами админки — освежить бейджи (заказы, заявки, отзывы, SEO).
-    // На первом рендере ничего не делаем: useSmartPolling сам уже запросил данные.
-    const prevPathRef = useRef<string | null>(null);
-    useEffect(() => {
-        if (prevPathRef.current !== null && prevPathRef.current !== pathname) {
-            refreshSidebarBadgeStats();
-        }
-        prevPathRef.current = pathname;
-    }, [pathname, refreshSidebarBadgeStats]);
-
-    const badgeCounts: Record<BadgeKey, number> = {
-        ordersNew: newOrdersCount,
-        stockProductRequestsNew: stockProductRequestsNew,
-        reviewsPending: reviewsPendingCount,
-        seoQueued: seoQueuedCount,
-    };
-    const alertBadgeCounts: Record<AlertBadgeKey, number> = {
-        ordersOverdue: overdueOrdersCount,
-    };
-    const metaBadgeValues: Record<MetaBadgeKey, string | null> = {
-        priceRefreshLast: priceRefreshLastLabel,
-        allparfumeLast: allparfumeLastLabel,
-    };
+    const { badgeCounts, alertBadgeCounts, metaBadgeValues } = useAdminSidebarBadges();
     const metaBadgeLabels: Record<MetaBadgeKey, string> = {
         priceRefreshLast: "Последнее обновление цен",
         allparfumeLast: "Последнее обновление Allparfume",
     };
 
     return (
-        <aside className="w-full overflow-visible">
+        <aside className={`${fitContent ? "w-max" : "w-full"} overflow-visible`}>
             <nav className="space-y-4 overflow-visible">
                 {sections
                     .filter((section) => section.items.length > 0)
@@ -499,6 +383,22 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
                                     const metaBadgeLabel = item.metaBadgeKey
                                         ? metaBadgeLabels[item.metaBadgeKey]
                                         : "";
+
+                                    const badges = (
+                                        <>
+                                            <SidebarBadge
+                                                count={badgeCount}
+                                                compact={false}
+                                                label={item.badgeLabel}
+                                            />
+                                            <SidebarAlertBadge count={alertCount} compact={false} />
+                                            <SidebarMetaBadge
+                                                value={metaBadge}
+                                                compact={false}
+                                                label={metaBadgeLabel}
+                                            />
+                                        </>
+                                    );
 
                                     return (
                                         <Link
@@ -531,10 +431,10 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
                                                 });
                                             }}
                                             onBlur={() => setTooltip(null)}
-                                            className={`group relative flex items-center gap-2 rounded-lg border-l-2 py-1.5 pr-2.5 text-[13px] transition-colors ${isActive
+                                            className={`group relative flex items-center gap-2 rounded-lg border-l-2 py-1.5 text-[13px] transition-colors ${isActive
                                                     ? "border-admin-primary bg-white pl-[calc(1rem-2px)] font-semibold text-admin-primary shadow-sm"
                                                     : "border-transparent pl-4 font-medium text-admin-text hover:bg-white/70 hover:text-admin-text"
-                                                } ${collapsed ? "justify-center border-l-0 px-2 pl-2" : ""}`}
+                                                } ${collapsed ? "justify-center border-l-0 px-2 pl-2" : ""} ${fitContent ? "w-full whitespace-nowrap pr-10" : "pr-2.5"}`}
                                         >
                                             <span
                                                 className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors ${isActive
@@ -561,21 +461,17 @@ export default function AdminSidebar({ onNavigateAction, collapsed = false }: Pr
                                             </span>
 
                                             {!collapsed ? (
-                                                <div className="flex min-w-0 flex-1 items-center">
-                                                    <div className="truncate leading-5">
+                                                <div className={`flex items-center ${fitContent ? "" : "min-w-0 flex-1"}`}>
+                                                    <div className={fitContent ? "leading-5" : "truncate leading-5"}>
                                                         {item.label}
                                                     </div>
-                                                    <SidebarBadge
-                                                        count={badgeCount}
-                                                        compact={false}
-                                                        label={item.badgeLabel}
-                                                    />
-                                                    <SidebarAlertBadge count={alertCount} compact={false} />
-                                                    <SidebarMetaBadge
-                                                        value={metaBadge}
-                                                        compact={false}
-                                                        label={metaBadgeLabel}
-                                                    />
+                                                    {fitContent ? (
+                                                        <span className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center">
+                                                            {badges}
+                                                        </span>
+                                                    ) : (
+                                                        badges
+                                                    )}
                                                 </div>
                                             ) : null}
 

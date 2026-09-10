@@ -1,11 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import AdminCrudHeader from "@/components/admin/ui/admin-crud-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
-import Breadcrumbs from "@/components/ui/breadcrumbs";
 import GiftCertificateForm, { type GiftCertificateFormState } from "@/components/admin/loyalty/gift-certificate-form";
 import { createGiftCertificate, fetchGiftCertificateTemplates, type GiftCertificateTemplateItem } from "@/lib/admin-loyalty-api";
 
@@ -74,24 +73,17 @@ export default function AdminGiftCertificateCreatePage() {
 
     return (
         <AdminPageCard>
-            <Breadcrumbs
-                className="mb-4"
+            <AdminCrudHeader
+                backHref="/admin/loyalty/certificates"
+                backAriaLabel="Назад к сертификатам"
+                title="Создать сертификат"
+                description="Создание нового подарочного сертификата"
                 items={[
                     { label: "Админка", href: "/admin" },
                     { label: "Сертификаты", href: "/admin/loyalty/certificates" },
                     { label: "Создание" },
                 ]}
             />
-
-            <div className="mb-6 flex items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-semibold">Создать сертификат</h1>
-                    <p className="mt-1 text-sm text-admin-text-secondary">Создание нового подарочного сертификата</p>
-                </div>
-                <Link href="/admin/loyalty/certificates" className="rounded-lg border px-4 py-2 text-sm">
-                    Назад
-                </Link>
-            </div>
 
             {error ? (
                 <div className="mb-4">

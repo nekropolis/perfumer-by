@@ -277,8 +277,8 @@ export default function AdminLegacyProductsPage() {
             </AdminTableShell>
 
             {linkTarget ? (
-                <div className="fixed inset-0 z-[220] flex items-center justify-center bg-slate-900/50 p-4">
-                    <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white p-5">
+                <div className="fixed inset-0 z-[220] flex items-center justify-center overflow-hidden bg-slate-900/50 p-2">
+                    <div className="max-h-[calc(100dvh-1rem)] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white p-5">
                         <div className="mb-4 flex items-center justify-between">
                             <h2 className="text-lg font-semibold">Связать legacy продукт</h2>
                             <button type="button" onClick={closeLinkModal} className="rounded-lg border px-3 py-1 text-sm">
@@ -326,53 +326,53 @@ export default function AdminLegacyProductsPage() {
                                             targetCandidates.map((candidate) => {
                                                 const label = formatLegacyTargetLabel(candidate);
                                                 return (
-                                                <div key={candidate.id} className="flex items-start gap-2 rounded-lg px-2 py-2 hover:bg-admin-muted">
-                                                    <input
-                                                        type="radio"
-                                                        name="target_product"
-                                                        checked={selectedTargetId === candidate.id}
-                                                        onChange={() => setSelectedTargetId(candidate.id)}
-                                                        className="mt-1"
-                                                        id={`legacy-target-${candidate.id}`}
-                                                    />
-                                                    <div className="min-w-0 flex-1">
-                                                        <label
-                                                            htmlFor={`legacy-target-${candidate.id}`}
-                                                            className="block cursor-pointer text-sm font-medium"
-                                                        >
-                                                            {highlightAdminSearchTerms(
-                                                                label,
-                                                                targetSearchInput,
-                                                                candidate.brand_name,
-                                                            )}
-                                                        </label>
+                                                    <div key={candidate.id} className="flex items-start gap-2 rounded-lg px-2 py-2 hover:bg-admin-muted">
+                                                        <input
+                                                            type="radio"
+                                                            name="target_product"
+                                                            checked={selectedTargetId === candidate.id}
+                                                            onChange={() => setSelectedTargetId(candidate.id)}
+                                                            className="mt-1"
+                                                            id={`legacy-target-${candidate.id}`}
+                                                        />
+                                                        <div className="min-w-0 flex-1">
+                                                            <label
+                                                                htmlFor={`legacy-target-${candidate.id}`}
+                                                                className="block cursor-pointer text-sm font-medium"
+                                                            >
+                                                                {highlightAdminSearchTerms(
+                                                                    label,
+                                                                    targetSearchInput,
+                                                                    candidate.brand_name,
+                                                                )}
+                                                            </label>
+                                                            <a
+                                                                href={`/${candidate.slug}`}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className="mt-0.5 inline-block text-xs text-admin-text-secondary underline decoration-admin-text-secondary/40 underline-offset-2 hover:text-admin-primary hover:decoration-admin-primary"
+                                                                onClick={(e) => e.stopPropagation()}
+                                                            >
+                                                                {candidate.slug}
+                                                            </a>
+                                                        </div>
+                                                        {candidate.gender_label ? (
+                                                            <span className="mt-1 shrink-0 text-xs text-admin-text-secondary">
+                                                                · {candidate.gender_label}
+                                                            </span>
+                                                        ) : null}
                                                         <a
                                                             href={`/${candidate.slug}`}
                                                             target="_blank"
                                                             rel="noreferrer"
-                                                            className="mt-0.5 inline-block text-xs text-admin-text-secondary underline decoration-admin-text-secondary/40 underline-offset-2 hover:text-admin-primary hover:decoration-admin-primary"
+                                                            aria-label={`Открыть ${label}`}
+                                                            title="Открыть на сайте"
+                                                            className="mt-1 inline-flex shrink-0 text-admin-text-secondary transition hover:text-admin-primary"
                                                             onClick={(e) => e.stopPropagation()}
                                                         >
-                                                            {candidate.slug}
+                                                            <ArrowUpRight size={14} strokeWidth={2.25} aria-hidden />
                                                         </a>
                                                     </div>
-                                                    {candidate.gender_label ? (
-                                                        <span className="mt-1 shrink-0 text-xs text-admin-text-secondary">
-                                                            · {candidate.gender_label}
-                                                        </span>
-                                                    ) : null}
-                                                    <a
-                                                        href={`/${candidate.slug}`}
-                                                        target="_blank"
-                                                        rel="noreferrer"
-                                                        aria-label={`Открыть ${label}`}
-                                                        title="Открыть на сайте"
-                                                        className="mt-1 inline-flex shrink-0 text-admin-text-secondary transition hover:text-admin-primary"
-                                                        onClick={(e) => e.stopPropagation()}
-                                                    >
-                                                        <ArrowUpRight size={14} strokeWidth={2.25} aria-hidden />
-                                                    </a>
-                                                </div>
                                                 );
                                             })
                                         )}
@@ -401,10 +401,10 @@ export default function AdminLegacyProductsPage() {
             ) : null}
 
             {skipTarget ? (
-                <div className="fixed inset-0 z-[220] flex items-center justify-center bg-slate-900/50 p-4">
-                    <div className="w-full max-w-lg rounded-2xl bg-white p-5">
+                <div className="fixed inset-0 z-[220] flex items-center justify-center overflow-hidden bg-slate-900/50 p-2">
+                    <div className="max-h-[calc(100dvh-1rem)] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5">
                         <h2 className="text-lg font-semibold">Пропустить legacy продукт</h2>
-                        <p className="mt-1 text-sm text-admin-text-secondary">
+                        <p className="mt-2 text-sm text-admin-text-secondary">
                             ID {skipTarget.legacy_product_id} ({skipTarget.legacy_slug || "без slug"})
                         </p>
                         <div className="mt-4">

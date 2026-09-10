@@ -14,7 +14,8 @@ import {
     siteFilterChipInactive,
 } from "@/lib/site-ui-classes";
 import {
-    buildCatalogFacetedFiltersResetPath,
+    CATALOG_DEFAULT_SORT,
+    getActiveCatalogSectionChip,
     hasCatalogFacetedFilters,
 } from "@/lib/catalog-listing-query";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
@@ -217,7 +218,13 @@ export default function CatalogMobileFiltersDrawer(props: Props) {
     }, [mounted, requestClose]);
 
     const resetFilters = () => {
-        navigate(buildCatalogFacetedFiltersResetPath(props.basePath, searchParams));
+        const params = new URLSearchParams();
+        const sort = searchParams.get("sort");
+        if (sort && sort !== CATALOG_DEFAULT_SORT) {
+            params.set("sort", sort);
+        }
+        const qs = params.toString();
+        navigate(qs ? `${props.basePath}?${qs}` : props.basePath);
         requestClose();
     };
 
@@ -253,7 +260,8 @@ export default function CatalogMobileFiltersDrawer(props: Props) {
             )
         ) : null;
 
-    const hasActiveFilters = hasCatalogFacetedFilters(searchParams);
+    const hasActiveFilters =
+        hasCatalogFacetedFilters(searchParams) || getActiveCatalogSectionChip(searchParams) !== "all";
     const filterChipClass = `${siteFilterChip} ${siteFilterChipInactive} inline-flex items-center font-medium`;
 
     return (

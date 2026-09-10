@@ -264,8 +264,8 @@ export default function AdminClientsPage() {
             )}
 
             {historyClient && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-                    <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+                <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-900/50 p-2">
+                    <div className="flex max-h-[calc(100dvh-1rem)] min-h-0 w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
                         <div className="flex items-center justify-between border-b px-4 py-3">
                             <div>
                                 <h3 className="text-sm font-semibold text-admin-text">История заказов</h3>
@@ -281,7 +281,7 @@ export default function AdminClientsPage() {
                                 Закрыть
                             </button>
                         </div>
-                        <div className="max-h-[70vh] overflow-auto p-4">
+                        <div className="min-h-0 flex-1 overflow-auto p-4">
                             {historyLoading ? (
                                 <AdminLoadingState text="Загрузка истории заказов..." />
                             ) : historyRows.length === 0 ? (

@@ -13,9 +13,9 @@ import {
 import {
     buildCatalogFacetedFiltersResetPath,
     buildCatalogSectionChipPath,
+    CATALOG_SECTION_CHIPS,
     getActiveCatalogSectionChip,
     hasCatalogFacetedFilters,
-    type CatalogSectionChip,
 } from "@/lib/catalog-listing-query";
 
 type Props = {
@@ -39,16 +39,6 @@ const SORT_OPTIONS: SortOption[] = [
     { value: "price_desc", label: "Сначала дороже", menuLabel: "Сначала дороже" },
     { value: "name_asc", label: "По названию (А-Я)", menuLabel: "По названию (А-Я)" },
     { value: "name_desc", label: "По названию (Я-А)", menuLabel: "По названию (Я-А)" },
-];
-
-const CATEGORY_CHIPS: ReadonlyArray<{ id: CatalogSectionChip; label: string }> = [
-    { id: "all", label: "Все" },
-    { id: "female", label: "Женские" },
-    { id: "male", label: "Мужские" },
-    { id: "unisex", label: "Унисекс" },
-    { id: "sale", label: "Акции" },
-    { id: "new", label: "Новинки" },
-    { id: "hit", label: "Хиты" },
 ];
 
 const VOLUME_LABELS: Record<string, string> = {
@@ -304,7 +294,7 @@ export default function CatalogGridToolbar({
 
     const categoryChips = showCategoryChips ? (
         <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-2 [&::-webkit-scrollbar]:hidden">
-            {CATEGORY_CHIPS.map((chip) => {
+            {CATALOG_SECTION_CHIPS.map((chip) => {
                 const isActive = activeSectionChip === chip.id;
                 return (
                     <button
@@ -327,16 +317,13 @@ export default function CatalogGridToolbar({
             className="sticky z-[110] border-b border-admin-border bg-[var(--background)]"
             style={{ top: "var(--catalog-toolbar-sticky-top)" }}
         >
-            <div className="flex flex-col gap-2 py-2 sm:gap-3 sm:py-4">
+            <div className="flex flex-col gap-2 py-2 sm:gap-3 sm:py-4 max-lg:landscape:gap-2 max-lg:landscape:py-2">
                 {showCategoryChips ? (
-                    <>
-                        <div className="min-w-0 lg:hidden">{categoryChips}</div>
-                        <div className="flex min-w-0 items-center gap-2">
-                            <div className="shrink-0 lg:hidden">{mobileRightAction}</div>
-                            <div className="hidden min-w-0 flex-1 lg:block">{categoryChips}</div>
-                            <div className="ml-auto shrink-0">{sortControl}</div>
-                        </div>
-                    </>
+                    <div className="flex min-w-0 items-center gap-2">
+                        <div className="shrink-0 lg:hidden">{mobileRightAction}</div>
+                        <div className="hidden min-w-0 flex-1 lg:block">{categoryChips}</div>
+                        <div className="ml-auto shrink-0">{sortControl}</div>
+                    </div>
                 ) : (
                     <div className="flex min-w-0 items-center gap-2">
                         <div className="min-w-0 flex-1 lg:hidden">{mobileRightAction}</div>

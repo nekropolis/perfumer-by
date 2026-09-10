@@ -1,11 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import AdminCrudHeader from "@/components/admin/ui/admin-crud-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
-import Breadcrumbs from "@/components/ui/breadcrumbs";
 import UserForm, { type UserFormState } from "@/components/admin/users/user-form";
 import { createAdminUser } from "@/lib/admin-users-api";
 
@@ -58,23 +57,17 @@ export default function AdminUsersCreatePage() {
 
     return (
         <AdminPageCard>
-            <Breadcrumbs
-                className="mb-4"
+            <AdminCrudHeader
+                backHref="/admin/users"
+                backAriaLabel="Назад к персоналу"
+                title="Создать сотрудника"
+                description="Новый сотрудник с доступом в админку"
                 items={[
                     { label: "Админка", href: "/admin" },
                     { label: "Персонал", href: "/admin/users" },
                     { label: "Создание" },
                 ]}
             />
-            <div className="mb-6 flex items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-semibold">Создать сотрудника</h1>
-                    <p className="mt-1 text-sm text-admin-text-secondary">Новый сотрудник с доступом в админку</p>
-                </div>
-                <Link href="/admin/users" className="rounded-lg border px-4 py-2 text-sm">
-                    Назад
-                </Link>
-            </div>
             {error ? (
                 <div className="mb-4">
                     <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} />

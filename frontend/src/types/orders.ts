@@ -122,6 +122,11 @@ export type OrderData = {
     delivery_house?: string | null;
     delivery_korpus?: string | null;
     delivery_apartment?: string | null;
+    additional_delivery_street_prefix?: string | null;
+    additional_delivery_address?: string | null;
+    additional_delivery_house?: string | null;
+    additional_delivery_korpus?: string | null;
+    additional_delivery_apartment?: string | null;
     delivery_comment?: string | null;
     /** ID отправки (курьер Минск / РБ). */
     shipment_id?: string | null;

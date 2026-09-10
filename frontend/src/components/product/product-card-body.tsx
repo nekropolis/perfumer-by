@@ -63,14 +63,14 @@ export default function ProductCardBody({
             href={productHref}
             className={`${siteCard} group relative flex h-full min-w-0 flex-col transition duration-200 ease-out active:scale-[0.99] ${
                 isCatalog
-                    ? "origin-center p-2 hover:z-10 hover:scale-[1.03] hover:border-admin-border-strong hover:shadow-md sm:p-3 lg:p-4"
-                    : "p-3 hover:-translate-y-0.5 hover:border-admin-border-strong hover:shadow-md sm:p-4"
+                    ? "origin-center p-2 sm:p-3 md:p-1.5 lg:p-4 lg:hover:z-10 lg:hover:scale-[1.03] lg:hover:border-admin-border-strong lg:hover:shadow-md"
+                    : "p-3 sm:p-4 lg:hover:-translate-y-0.5 lg:hover:border-admin-border-strong lg:hover:shadow-md"
             }`}
         >
             <div
                 className={`relative w-full overflow-hidden bg-white ${
                     isCatalog
-                        ? "mb-2 aspect-[5/6] rounded-lg sm:mb-2.5 sm:aspect-[4/5] lg:mb-3 lg:aspect-square lg:rounded-xl"
+                        ? "mb-2 aspect-[5/6] rounded-lg sm:mb-2.5 sm:aspect-[4/5] md:mb-1.5 md:aspect-[5/4] lg:mb-3 lg:aspect-square lg:rounded-xl"
                         : "mb-3 aspect-square rounded-lg sm:mb-4 sm:rounded-xl"
                 }`}
             >
@@ -187,7 +187,7 @@ export default function ProductCardBody({
                     {showCardArrow ? (
                         <span
                             aria-hidden
-                            className={`flex shrink-0 items-center justify-center rounded-full border border-admin-border bg-admin-muted text-admin-primary transition-all duration-150 group-hover:border-admin-primary group-hover:bg-admin-primary group-hover:text-white ${
+                            className={`flex shrink-0 items-center justify-center rounded-full border border-admin-border bg-admin-muted text-admin-primary transition-all duration-150 lg:group-hover:border-admin-primary lg:group-hover:bg-admin-primary lg:group-hover:text-white ${
                                 isCatalog
                                     ? "hidden h-7 w-7 lg:flex"
                                     : "h-8 w-8 sm:h-9 sm:w-9"

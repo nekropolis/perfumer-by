@@ -1,11 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import AdminCrudHeader from "@/components/admin/ui/admin-crud-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
-import Breadcrumbs from "@/components/ui/breadcrumbs";
 import ProductForm, {
     type ProductFormState,
 } from "@/components/admin/products/product-form";
@@ -91,30 +90,17 @@ export default function AdminProductCreatePage() {
 
     return (
         <AdminPageCard>
-            <Breadcrumbs
-                className="mb-4"
+            <AdminCrudHeader
+                backHref="/admin/products"
+                backAriaLabel="Назад к продуктам"
+                title="Создать продукт"
+                description="Создание нового продукта"
                 items={[
                     { label: "Админка", href: "/admin" },
                     { label: "Продукты", href: "/admin/products" },
                     { label: "Создание" },
                 ]}
             />
-
-            <div className="mb-6 flex items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-semibold">Создать продукт</h1>
-                    <p className="mt-1 text-sm text-admin-text-secondary">
-                        Создание нового продукта
-                    </p>
-                </div>
-
-                <Link
-                    href="/admin/products"
-                    className="rounded-lg border px-4 py-2 text-sm"
-                >
-                    Назад
-                </Link>
-            </div>
 
             {error ? (
                 <div className="mb-4">

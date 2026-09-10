@@ -35,4 +35,20 @@ class VanilleProductParserOffersTest extends TestCase
         $this->assertCount(3, $barcodeOffers);
         $this->assertCount(3, $merged);
     }
+
+    public function test_replaces_cyrillic_lookalikes_in_parsed_name_and_page_title(): void
+    {
+        $html = '<title>Thierry Mugler Alien Musс Mysterieux</title>'
+            .'<h1>Alien Musс Mysterieux</h1>'
+            .'<div class="product-intro__section"></div>';
+
+        $httpClient = $this->createMock(VanilleHttpClient::class);
+        $httpClient->method('fetchUrl')->willReturn($html);
+        $parser = new VanilleProductParser($httpClient);
+
+        $item = $parser->parseProductPage('https://vanille.by/alien-musc-mysterieux');
+
+        $this->assertSame('Alien Musc Mysterieux', $item['name']);
+        $this->assertSame('Thierry Mugler Alien Musc Mysterieux', $item['page_title']);
+    }
 }

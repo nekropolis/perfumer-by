@@ -202,8 +202,8 @@ export default function AdminPricingFormulasPage() {
                 )}
 
             {modalOpen ? (
-                <div className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-900/50 p-0 sm:items-center sm:p-4">
-                    <div className="flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl">
+                <div className="fixed inset-0 z-[200] flex items-end justify-center overflow-hidden bg-slate-900/50 p-0 sm:items-center sm:p-2">
+                    <div className="flex max-h-[100dvh] min-h-0 w-full max-w-xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:max-h-[calc(100dvh-1rem)] sm:rounded-2xl">
                         <div className="flex shrink-0 items-center justify-between border-b border-admin-border px-4 py-2.5">
                             <h2 className="text-sm font-semibold">{editing ? "Редактирование" : "Новая формула"}</h2>
                             <button

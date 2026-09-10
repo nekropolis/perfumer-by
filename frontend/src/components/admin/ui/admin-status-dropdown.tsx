@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ChevronDown } from "lucide-react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { orderStatusPillStyle } from "@/constants/order-statuses";
 
@@ -15,14 +15,14 @@ type Option = {
 
 type Props = {
     value: string;
-    options: Option[];
+    options: readonly Option[];
     onChangeAction: (value: string) => void;
     disabled?: boolean;
     /** Текст на закрытом триггере, если value пустой / нет совпадения. Не показывается в меню. */
     placeholder?: string;
-    /** «text» — solid pill-бейдж фиксированной ширины в таблице. */
-    triggerVariant?: "default" | "text";
-    /** Классы для `triggerVariant="text"`. */
+    /** «text» — solid pill в таблице. «underline» — строка со стрелкой. «badge» — обведённый бейдж со стрелкой. */
+    triggerVariant?: "default" | "text" | "underline" | "badge";
+    /** Классы для `triggerVariant="text"` и `underline`. */
     triggerTextClassName?: string;
     /** Цвет статуса для solid pill. */
     triggerColor?: string;
@@ -59,6 +59,10 @@ export default function AdminStatusDropdown({
     const rootRef = useRef<HTMLDivElement | null>(null);
     const menuRef = useRef<HTMLDivElement | null>(null);
 
+    if (!isOpen && menuEntered) {
+        setMenuEntered(false);
+    }
+
     const currentOption = useMemo(
         () => options.find((item) => item.value === value),
         [options, value],
@@ -71,6 +75,58 @@ export default function AdminStatusDropdown({
     const pillStyle = resolvedTriggerColor ? orderStatusPillStyle(resolvedTriggerColor) : null;
     const pillClassName =
         "relative inline-flex h-7 w-full max-w-full items-center justify-center rounded-md px-2 text-center text-[10px] font-bold uppercase leading-none tracking-wide";
+
+    const underlineTriggerClassName =
+        `inline-flex max-w-full items-center gap-0.5 text-left text-sm underline decoration-admin-border underline-offset-2 transition hover:text-admin-primary hover:decoration-admin-primary ${
+            triggerTextClassName ?? "text-admin-text"
+        }`;
+    const underlineTrigger = disabled ? (
+        <span className={`inline-flex max-w-full items-center gap-0.5 text-sm ${triggerTextClassName ?? "text-admin-text"}`}>
+            <span className="min-w-0 truncate">{currentLabel}</span>
+        </span>
+    ) : (
+        <button
+            type="button"
+            onClick={() => setIsOpen((prev) => !prev)}
+            className={underlineTriggerClassName}
+            aria-haspopup="listbox"
+            aria-expanded={isOpen}
+            aria-label={currentLabel || "Выбрать"}
+        >
+            <span className="min-w-0 truncate">{currentLabel}</span>
+            <ChevronDown
+                aria-hidden
+                strokeWidth={2.25}
+                className={`h-3.5 w-3.5 shrink-0 opacity-70 transition-transform ${isOpen ? "rotate-180" : ""}`}
+            />
+        </button>
+    );
+
+    const badgeTriggerClassName =
+        `inline-flex max-w-full items-center gap-1 rounded-full border border-admin-border bg-admin-surface px-2.5 py-1 text-sm font-medium transition hover:border-admin-primary hover:bg-admin-muted hover:text-admin-primary ${
+            triggerTextClassName ?? "text-admin-text"
+        }`;
+    const badgeTrigger = disabled ? (
+        <span className={`inline-flex max-w-full items-center gap-1 rounded-full border border-admin-border bg-admin-surface px-2.5 py-1 text-sm font-medium ${triggerTextClassName ?? "text-admin-text"}`}>
+            <span className="min-w-0 truncate">{currentLabel}</span>
+        </span>
+    ) : (
+        <button
+            type="button"
+            onClick={() => setIsOpen((prev) => !prev)}
+            className={badgeTriggerClassName}
+            aria-haspopup="listbox"
+            aria-expanded={isOpen}
+            aria-label={currentLabel || "Выбрать"}
+        >
+            <span className="min-w-0 truncate">{currentLabel}</span>
+            <ChevronDown
+                aria-hidden
+                strokeWidth={2.25}
+                className={`h-3.5 w-3.5 shrink-0 opacity-70 transition-transform ${isOpen ? "rotate-180" : ""}`}
+            />
+        </button>
+    );
 
     const textTrigger = disabled ? (
         <span
@@ -98,7 +154,7 @@ export default function AdminStatusDropdown({
         </button>
     );
 
-    const updateMenuPosition = () => {
+    const updateMenuPosition = useCallback(() => {
         if (!rootRef.current) {
             return;
         }
@@ -134,21 +190,19 @@ export default function AdminStatusDropdown({
             minWidth,
             openUp,
         });
-    };
+    }, [menuAlign, options.length]);
 
     useLayoutEffect(() => {
         if (!isOpen) {
-            setMenuEntered(false);
             return;
         }
         updateMenuPosition();
-        setMenuEntered(false);
         const frame = window.requestAnimationFrame(() => {
             setMenuEntered(true);
             updateMenuPosition();
         });
         return () => window.cancelAnimationFrame(frame);
-    }, [isOpen, menuAlign, options.length]);
+    }, [isOpen, updateMenuPosition]);
 
     useEffect(() => {
         if (!isOpen) {
@@ -183,10 +237,12 @@ export default function AdminStatusDropdown({
             window.removeEventListener("resize", onReposition);
             window.removeEventListener("scroll", onReposition, true);
         };
-    }, [isOpen, menuAlign, options.length]);
+    }, [isOpen, updateMenuPosition]);
 
     const rootClassName =
-        triggerVariant === "text"
+        triggerVariant === "underline" || triggerVariant === "badge"
+            ? "relative inline-flex max-w-full"
+            : triggerVariant === "text"
             ? `relative inline-flex max-w-full align-middle ${widthClassName === "w-[168px]" ? "w-full" : widthClassName}`
             : `relative inline-flex ${widthClassName}`;
 
@@ -278,7 +334,13 @@ export default function AdminStatusDropdown({
 
     return (
         <div className={rootClassName} ref={rootRef}>
-            {triggerVariant === "text" ? textTrigger : defaultTrigger}
+            {triggerVariant === "text"
+                ? textTrigger
+                : triggerVariant === "underline"
+                  ? underlineTrigger
+                  : triggerVariant === "badge"
+                    ? badgeTrigger
+                    : defaultTrigger}
             {menu}
         </div>
     );

@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import AdminCrudHeader from "@/components/admin/ui/admin-crud-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
-import Breadcrumbs from "@/components/ui/breadcrumbs";
 import { adminCheckbox } from "@/lib/admin-ui-classes";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import {
@@ -452,35 +451,22 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
 
     return (
         <AdminPageCard>
-            <Breadcrumbs
-                className="mb-4"
+            <AdminCrudHeader
+                backHref="/admin/warehouse/writeoffs"
+                backAriaLabel="Назад к списаниям"
+                title={form.document_kind === "reserve" ? "Новый резерв" : "Новое списание"}
+                description={
+                    form.document_kind === "reserve"
+                        ? "Ручной документ резерва. Добавляет резерв на выбранном складе без изменения фактического остатка."
+                        : "Списание со свободного остатка или из резерва. Отмена движений на складе поставщика не поддерживается."
+                }
                 items={[
                     { label: "Админка", href: "/admin" },
                     { label: "Склад", href: "/admin/warehouse/writeoffs" },
                     { label: "Списания", href: "/admin/warehouse/writeoffs" },
                     { label: "Новое списание" },
                 ]}
-            />
-
-            <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                    <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">
-                        {form.document_kind === "reserve" ? "Новый резерв" : "Новое списание"}
-                    </h1>
-                    <p className="mt-1 text-sm text-slate-600">
-                        {form.document_kind === "reserve"
-                            ? "Ручной документ резерва. Добавляет резерв на выбранном складе без изменения фактического остатка."
-                            : "Списание со свободного остатка или из резерва. Отмена движений на складе поставщика не поддерживается."}
-                    </p>
-                </div>
-
-                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-                    <Link
-                        href="/admin/warehouse/writeoffs"
-                        className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-admin-border bg-admin-surface px-4 text-sm font-medium text-admin-text hover:bg-admin-muted sm:w-auto"
-                    >
-                        Назад
-                    </Link>
+                actions={
                     <button
                         type="button"
                         onClick={() => void submit()}
@@ -489,8 +475,8 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                     >
                         {saving ? "Сохраняем..." : form.document_kind === "reserve" ? "Сохранить резерв" : "Сохранить списание"}
                     </button>
-                </div>
-            </div>
+                }
+            />
 
             {error ? (
                 <div className="mb-4">
@@ -658,15 +644,15 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
 
             {isAddModalOpen ? (
                 <div
-                    className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 p-4"
+                    className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden bg-slate-900/50 p-2"
                     role="presentation"
                 >
                     <div
-                        className="w-full max-w-3xl rounded-xl border border-admin-border bg-admin-surface shadow-admin-card shadow-2xl"
+                        className="flex max-h-[calc(100dvh-1rem)] min-h-0 w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-admin-border bg-admin-surface shadow-admin-card shadow-2xl"
                         role="dialog"
                         aria-modal="true"
                     >
-                        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4">
+                        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-4">
                             <div>
                                 <h2 className="text-base font-semibold text-slate-900">Добавить товар</h2>
                             </div>
@@ -679,7 +665,7 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
                             </button>
                         </div>
 
-                        <div className="space-y-3 p-4">
+                        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
                             <div className="w-full min-w-0">
                                 <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
                                     Товар и вариант

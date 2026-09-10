@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { User } from "lucide-react";
 import type { RefObject } from "react";
+import { siteBtnGhost } from "@/lib/site-ui-classes";
 
 type Props = {
     accountRef: RefObject<HTMLDivElement | null>;
@@ -37,25 +38,21 @@ export default function HeaderAccountMenu({
                         <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[var(--header-control-bg)] text-[10px] font-semibold text-[var(--header-text)]">
                             {userName.slice(0, 1).toUpperCase()}
                         </span>
-                        <span className="max-w-[120px] truncate">{userName}</span>
+                        <span className="hidden max-w-[120px] truncate lg:inline">{userName}</span>
                     </button>
 
                     {isAccountOpen && (
-                        <div className="absolute right-0 mt-3 w-72 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-2 shadow-[0_16px_40px_rgba(31,23,34,0.08)]">
-                            <div className="rounded-2xl bg-[var(--background)] px-4 py-3">
-                                <div className="text-sm font-medium text-[var(--foreground)]">
-                                    {userName}
-                                </div>
-                                <div className="mt-1 text-xs text-[var(--text-secondary)]">
-                                    {userPhone}
-                                </div>
+                        <div className="absolute right-0 top-[calc(100%+8px)] z-50 min-w-56 rounded-xl border border-admin-border bg-admin-surface p-1.5 shadow-xl">
+                            <div className="px-3 py-2">
+                                <div className="text-sm font-medium text-admin-text">{userName}</div>
+                                <div className="mt-0.5 text-xs text-admin-text-secondary">{userPhone}</div>
                             </div>
 
-                            <div className="my-2 border-t border-[var(--line)]" />
+                            <div className="my-1 h-px bg-admin-border" aria-hidden />
 
                             <Link
                                 href="/account"
-                                className="block rounded-2xl px-4 py-3 text-sm text-[var(--text-secondary)] transition hover:bg-[var(--background)] hover:text-[var(--foreground)]"
+                                className={`${siteBtnGhost} block w-full rounded-lg px-3 py-2 text-left text-sm`}
                                 onClick={onCloseAction}
                             >
                                 Личный кабинет
@@ -63,7 +60,7 @@ export default function HeaderAccountMenu({
 
                             <Link
                                 href="/wishlist"
-                                className="block rounded-2xl px-4 py-3 text-sm text-[var(--text-secondary)] transition hover:bg-[var(--background)] hover:text-[var(--foreground)]"
+                                className={`${siteBtnGhost} block w-full rounded-lg px-3 py-2 text-left text-sm`}
                                 onClick={onCloseAction}
                             >
                                 Избранное
@@ -71,7 +68,7 @@ export default function HeaderAccountMenu({
 
                             <button
                                 type="button"
-                                className="block w-full rounded-2xl px-4 py-3 text-left text-sm text-[var(--text-secondary)] transition hover:bg-[var(--background)] hover:text-[var(--foreground)]"
+                                className={`${siteBtnGhost} block w-full rounded-lg px-3 py-2 text-left text-sm`}
                                 onClick={onLogoutAction}
                             >
                                 Выйти

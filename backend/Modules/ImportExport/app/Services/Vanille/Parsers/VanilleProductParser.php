@@ -2,6 +2,7 @@
 
 namespace Modules\ImportExport\Services\Vanille\Parsers;
 
+use Modules\Catalog\Support\ProductDisplayName;
 use Modules\ImportExport\Services\Vanille\Support\VanilleHttpClient;
 
 class VanilleProductParser
@@ -30,9 +31,9 @@ class VanilleProductParser
 
         return [
             'url' => $url,
-            'page_title' => $this->cleanText($pageTitle),
+            'page_title' => ProductDisplayName::replaceCyrillicLookalikes($this->cleanText($pageTitle)),
             'brand' => $brand,
-            'name' => $this->cleanText($name),
+            'name' => ProductDisplayName::replaceCyrillicLookalikes($this->cleanText($name)),
             'characteristics' => $characteristics,
             'description' => $description,
             'offers' => $offers,

@@ -151,6 +151,10 @@ class ProductDisplayNameTest extends TestCase
             'Teeb Al Ghawali Amber Al Chawali',
             ProductDisplayName::replaceCyrillicLookalikes('Teeb Al Ghawali Amber Аl Chawali'),
         );
+        $this->assertSame(
+            'Alien Musc Mysterieux',
+            ProductDisplayName::replaceCyrillicLookalikes('Alien Musс Mysterieux'),
+        );
     }
 
     public function test_replace_cyrillic_lookalikes_keeps_real_russian_words(): void

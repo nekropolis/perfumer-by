@@ -133,9 +133,9 @@ function WriteoffDetailsModal({
     const doc = fetched ?? row;
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 p-4" onClick={onCloseAction} role="presentation">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden bg-slate-900/50 p-2" onClick={onCloseAction} role="presentation">
             <div
-                className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl bg-white shadow-2xl"
+                className="flex max-h-[calc(100dvh-1rem)] min-h-0 w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
                 role="dialog"
                 aria-modal="true"
@@ -143,7 +143,7 @@ function WriteoffDetailsModal({
                 <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
                     <div>
                         <h2 className="text-lg font-semibold">{typeLabel(doc.type)} #{doc.document_no ?? doc.id}</h2>
-                        <p className="mt-1 text-sm text-admin-text-secondary">
+                        <p className="mt-2 text-sm text-admin-text-secondary">
                             {typeLabel(doc.type)} · {formatDate(doc.written_off_at)} · {getStockWriteoffStatusLabel(doc.status)}
                         </p>
                     </div>

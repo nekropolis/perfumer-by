@@ -336,8 +336,8 @@ export default function AdminHeader({
     }, [pathname]);
 
     return (
-        <header className="relative z-20 h-14 flex-none border-b border-black/[0.06] bg-admin-header shadow-[0_4px_16px_rgba(15,23,42,0.06)]">
-            <div className="flex h-full w-full items-center gap-3 px-4 sm:px-6">
+        <header className="relative z-20 flex-none border-b border-black/[0.06] bg-admin-header pt-[env(safe-area-inset-top)] shadow-[0_4px_16px_rgba(15,23,42,0.06)]">
+            <div className="flex h-14 w-full items-center gap-3 px-4 sm:px-6">
                 <div className="flex min-w-0 flex-1 items-center gap-3">
                     <button
                         type="button"
@@ -346,6 +346,16 @@ export default function AdminHeader({
                         title={sidebarCollapsed ? "Развернуть меню" : "Свернуть меню"}
                     >
                         {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+                    </button>
+
+                    <button
+                        type="button"
+                        className={`lg:hidden ${adminIconBtn}`}
+                        onClick={onOpenMobileMenuAction}
+                        aria-label="Открыть меню"
+                        title="Открыть меню"
+                    >
+                        <Menu size={18} />
                     </button>
 
                     <div className="relative w-full max-w-[24rem] lg:max-w-[26rem]" ref={quickPhoneRef}>
@@ -587,16 +597,6 @@ export default function AdminHeader({
                             </div>
                         )}
                     </div>
-
-                    <button
-                        type="button"
-                        className={`lg:hidden ${adminIconBtn}`}
-                        onClick={onOpenMobileMenuAction}
-                        aria-label="Открыть меню"
-                        title="Открыть меню"
-                    >
-                        <Menu size={18} />
-                    </button>
                 </div>
             </div>
         </header>

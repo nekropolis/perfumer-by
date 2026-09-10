@@ -9,9 +9,10 @@ type BreadcrumbItem = {
 type Props = {
     items: BreadcrumbItem[];
     className?: string;
+    alwaysShow?: boolean;
 };
 
-export default function Breadcrumbs({ items, className = "" }: Props) {
+export default function Breadcrumbs({ items, className = "", alwaysShow = false }: Props) {
     if (!items.length) {
         return null;
     }
@@ -20,7 +21,7 @@ export default function Breadcrumbs({ items, className = "" }: Props) {
 
     return (
         <nav className={`text-sm ${className}`} aria-label="Хлебные крошки">
-            {parentItem?.href ? (
+            {!alwaysShow && parentItem?.href ? (
                 <Link
                     href={parentItem.href}
                     className="mb-3 inline-flex items-center gap-1 text-admin-text-secondary transition hover:text-admin-text md:hidden"
@@ -30,7 +31,9 @@ export default function Breadcrumbs({ items, className = "" }: Props) {
                 </Link>
             ) : null}
 
-            <ol className="hidden flex-wrap items-center gap-2 text-admin-text-secondary md:flex">
+            <ol
+                className={`${alwaysShow ? "flex" : "hidden md:flex"} flex-wrap items-center gap-2 text-admin-text-secondary`}
+            >
                 {items.map((item, index) => {
                     const isLast = index === items.length - 1;
 

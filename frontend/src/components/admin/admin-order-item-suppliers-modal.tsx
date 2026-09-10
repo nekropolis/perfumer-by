@@ -65,18 +65,18 @@ export default function AdminOrderItemSuppliersModal({ item, onCloseAction }: Pr
 
     return (
         <div
-            className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 p-4"
+            className="fixed inset-0 z-[1000] flex items-center justify-center overflow-hidden bg-slate-900/60 p-2"
             onClick={onCloseAction}
             role="presentation"
         >
             <div
-                className="w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl"
+                className="flex max-h-[calc(100dvh-1rem)] min-h-0 w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white p-6 shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="admin-order-item-suppliers-title"
             >
-                <div className="mb-4 flex items-start justify-between gap-4">
+                <div className="mb-4 flex shrink-0 items-start justify-between gap-4">
                     <div>
                         <h3
                             id="admin-order-item-suppliers-title"
@@ -84,7 +84,7 @@ export default function AdminOrderItemSuppliersModal({ item, onCloseAction }: Pr
                         >
                             Поставщики товара
                         </h3>
-                        <div className="mt-1 text-sm text-admin-text-secondary">
+                        <div className="mt-2 text-sm text-admin-text-secondary">
                             {lineItemFullTitle(item)}
                         </div>
                         {item.variant_id != null && (
@@ -113,7 +113,7 @@ export default function AdminOrderItemSuppliersModal({ item, onCloseAction }: Pr
                         Для этого варианта нет привязанных поставщиков.
                     </div>
                 ) : (
-                    <div className="max-h-[60vh] overflow-auto rounded-2xl border">
+                    <div className="min-h-0 flex-1 overflow-auto rounded-2xl border">
                         <table className="w-full text-sm">
                             <thead className="bg-admin-muted text-xs uppercase tracking-wide text-admin-text-secondary">
                                 <tr>

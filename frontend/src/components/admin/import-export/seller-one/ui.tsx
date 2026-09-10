@@ -39,6 +39,7 @@ import {
     adminBtnSecondary,
     adminInput,
     adminModalOverlay,
+    adminModalPanel,
 } from "@/lib/admin-ui-classes";
 
 function usePortalMounted(): boolean {
@@ -713,7 +714,7 @@ export function ManualLinkModal({
 
     return createPortal(
         <div className={adminModalOverlay}>
-            <div className="flex max-h-[min(92dvh,100%)] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface shadow-2xl sm:max-h-[min(88dvh,760px)] sm:rounded-xl">
+            <div className={`${adminModalPanel} max-w-2xl`}>
                 <div className="flex shrink-0 items-start justify-between gap-3 border-b border-admin-border px-4 py-3 sm:px-5 sm:py-4">
                     <div className="min-w-0">
                         <div className="text-base font-semibold text-admin-text">Принудительная связка</div>
@@ -982,9 +983,9 @@ export function RulesModal({
     }
 
     return createPortal(
-        <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
+        <div className="fixed inset-0 z-[200] bg-slate-900/50 p-2">
             <div className="mx-auto flex h-full w-full max-w-2xl items-center justify-center">
-                <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
+                <div className="flex max-h-full min-h-0 w-full flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
                     <div className="flex items-center justify-between border-b px-5 py-4">
                         <h2 className="text-lg font-semibold">Правила поиска</h2>
                         <button type="button" onClick={onCloseAction} className="text-sm text-admin-text-secondary">
@@ -1102,9 +1103,9 @@ export function PricingSettingsModal({
     }
 
     return createPortal(
-        <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6">
+        <div className="fixed inset-0 z-[200] bg-slate-900/50 p-2">
             <div className="mx-auto flex h-full w-full max-w-2xl items-center justify-center">
-                <div className="flex max-h-full w-full flex-col rounded-2xl bg-white shadow-xl">
+                <div className="flex max-h-full min-h-0 w-full flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
                     <div className="flex items-center justify-between border-b px-5 py-4">
                         <h2 className="text-lg font-semibold">Формула цены Seller One</h2>
                         <button type="button" onClick={onCloseAction} className="text-sm text-admin-text-secondary">
@@ -1202,7 +1203,7 @@ export function DuplicateVariantLinksModal({
     );
 
     return createPortal(
-        <div className="fixed inset-0 z-[200] bg-slate-900/50 px-4 py-6" onClick={onCloseAction}>
+        <div className="fixed inset-0 z-[200] bg-slate-900/50 p-2" onClick={onCloseAction}>
             <div
                 className="mx-auto flex h-full w-full max-w-5xl items-center justify-center"
                 onClick={(e) => e.stopPropagation()}

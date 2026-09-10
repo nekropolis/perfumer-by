@@ -21,6 +21,28 @@ const emptySubscribe = () => () => { };
 const getClientSnapshot = () => true;
 const getServerSnapshot = () => false;
 
+function DiagonalStrike({ children }: { children: ReactNode }) {
+    return (
+        <span className="relative inline-flex items-baseline">
+            {children}
+            <svg
+                className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+                aria-hidden
+            >
+                <line
+                    x1="0"
+                    y1="92%"
+                    x2="100%"
+                    y2="8%"
+                    stroke="currentColor"
+                    strokeWidth="1.75"
+                    vectorEffect="non-scaling-stroke"
+                />
+            </svg>
+        </span>
+    );
+}
+
 type Props = {
     selectedVariant: ProductVariantData | null;
     isSelectedVariantInCart: boolean;
@@ -329,10 +351,16 @@ export default function ProductBuyBox({
                         {hasVariant ? (
                             <>
                                 <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
-                                    <span className="truncate text-sm font-medium leading-5 text-admin-text">
+                                    <span className="min-w-0 truncate text-sm font-medium leading-5 text-admin-text">
                                         {selectedVariant.is_set
                                             ? "Набор"
                                             : formatVariantVolumeLine(selectedVariant)}
+                                        {!selectedVariant.is_set ? (
+                                            <span className="font-normal text-admin-text-secondary">
+                                                {" · "}
+                                                {formatVariantConcentrationLabel(selectedVariant)}
+                                            </span>
+                                        ) : null}
                                     </span>
                                     {designLabel ? (
                                         <span className="inline-flex shrink-0 items-center rounded-full bg-admin-muted px-1.5 py-px text-[10px] font-medium leading-4 text-admin-text">
@@ -353,12 +381,8 @@ export default function ProductBuyBox({
                                             </div>
                                         ))}
                                     </div>
-                                ) : (
-                                    <div className="truncate text-xs leading-4 text-admin-text-secondary">
-                                        {formatVariantConcentrationLabel(selectedVariant)}
-                                    </div>
-                                )}
-                                <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                                ) : null}
+                                <div className="mt-0.5 flex flex-wrap items-end gap-x-1.5 gap-y-0.5">
                                     <span className="text-2xl font-semibold leading-none tabular-nums text-admin-text">
                                         {effectivePrice
                                             ? formatPriceAction(effectivePrice)
@@ -367,8 +391,10 @@ export default function ProductBuyBox({
                                                 : "Цена уточняется"}
                                     </span>
                                     {(selectedVariant.old_price || hasAnyDiscount) ? (
-                                        <span className="text-sm text-admin-text-secondary line-through">
-                                            {formatPriceAction(selectedVariant.old_price || selectedVariant.price)}
+                                        <span className="self-start mt-0.5 text-base font-medium leading-none text-admin-text-secondary">
+                                            <DiagonalStrike>
+                                                {formatPriceAction(selectedVariant.old_price || selectedVariant.price)}
+                                            </DiagonalStrike>
                                         </span>
                                     ) : null}
                                 </div>
@@ -377,7 +403,6 @@ export default function ProductBuyBox({
                                         Скидка {loyaltyPercent.toFixed(2)}% по карте {loyaltyCardNumber}
                                     </div>
                                 ) : null}
-                                {/* When checkbox is shown below, skip duplicate green line. */}
                                 {hasWaitingDiscount && !showWaitingCheckbox ? (
                                     <div className="mt-0.5 text-xs leading-4 text-green-700">
                                         Скидка {waitingDiscountPercent}% за ожидание доставки
@@ -446,8 +471,10 @@ export default function ProductBuyBox({
                                 </div>
 
                                 {(selectedVariant.old_price || hasAnyDiscount) && (
-                                    <div className="text-base text-admin-text-secondary line-through">
-                                        {formatPriceAction(selectedVariant.old_price || selectedVariant.price)}
+                                    <div className="self-start mt-0.5 text-xl font-medium leading-none text-admin-text-secondary">
+                                        <DiagonalStrike>
+                                            {formatPriceAction(selectedVariant.old_price || selectedVariant.price)}
+                                        </DiagonalStrike>
                                     </div>
                                 )}
 

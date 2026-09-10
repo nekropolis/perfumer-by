@@ -15,7 +15,7 @@ import {
     type WarehouseSupplierOption,
 } from "@/lib/admin-warehouse-api";
 import { STOCK_RECEIPT_STATUS } from "@/lib/warehouse-document-status";
-import { adminBtnPrimary, adminBtnSecondary, adminModalOverlay } from "@/lib/admin-ui-classes";
+import { adminBtnPrimary, adminBtnSecondary, adminModalOverlay, adminModalPanel } from "@/lib/admin-ui-classes";
 import type { SellerOneSupplierProductItem } from "@/types/Vanille";
 import { SELLER_ONE_SUPPLIER_CODE } from "./constants";
 
@@ -240,7 +240,7 @@ export default function AddToReceiptModal({ row, onClose }: Props) {
     return createPortal(
         <div className={adminModalOverlay} role="presentation" onClick={onClose}>
             <div
-                className="w-full max-w-lg rounded-xl border border-admin-border bg-admin-surface shadow-admin-card"
+                className={`${adminModalPanel} max-w-lg`}
                 role="dialog"
                 aria-modal="true"
                 onClick={(e) => e.stopPropagation()}
@@ -261,7 +261,7 @@ export default function AddToReceiptModal({ row, onClose }: Props) {
                     </button>
                 </div>
 
-                <div className="space-y-3 px-4 py-3 text-sm">
+                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 text-sm">
                     <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                         <div className="font-medium text-slate-900">{row.code || "—"}</div>
                         <div className="mt-0.5 text-xs text-slate-600">{row.external_name}</div>

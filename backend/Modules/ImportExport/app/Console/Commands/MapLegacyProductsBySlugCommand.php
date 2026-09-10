@@ -40,6 +40,10 @@ class MapLegacyProductsBySlugCommand extends Command
 
         $legacyDescriptions = $this->extractProductDescriptionsFromDump($dumpPath);
 
+        $existingMatchedByLegacyId = $truncate ? [] : $this->loadExistingMatchedProductIds();
+        $linkedLegacyIds = $this->loadLinkedLegacyProductIds();
+        $redirectFromSlugs = $this->loadRedirectFromSlugs();
+
         $productsBySlug = Product::query()
             ->whereNotNull('slug')
             ->get(['id', 'slug'])
@@ -50,44 +54,58 @@ class MapLegacyProductsBySlugCommand extends Command
         $unmatchedRows = [];
         $matched = 0;
         $unmatched = 0;
+        $keptMatched = 0;
+        $keptLinked = 0;
+        $excludedFromRedirect = 0;
 
         foreach ($legacySlugs as $legacyProductId => $legacySlug) {
+            if (isset($existingMatchedByLegacyId[$legacyProductId])) {
+                $keptMatched++;
+                continue;
+            }
+
+            if (isset($linkedLegacyIds[$legacyProductId])) {
+                $keptLinked++;
+                $rows[] = $this->mapRow($legacyProductId, $legacySlug, null, false, 'Already linked; skipped rematch');
+                continue;
+            }
+
             $product = $productsBySlug->get($legacySlug);
             $isMatched = $product !== null;
 
             if ($isMatched) {
                 $matched++;
                 $matchedIds[$legacyProductId] = (int) $product->id;
-            } else {
-                $unmatched++;
-                $description = $legacyDescriptions[$legacyProductId] ?? null;
-                $unmatchedRows[] = [
-                    'legacy_product_id' => $legacyProductId,
-                    'legacy_slug' => $legacySlug,
-                    'legacy_name' => $description['name'] ?? null,
-                    'legacy_description' => $description['description'] ?? null,
-                    'legacy_meta_title' => $description['meta_title'] ?? null,
-                    'legacy_meta_description' => $description['meta_description'] ?? null,
-                    'legacy_meta_keyword' => $description['meta_keyword'] ?? null,
-                    'status' => 'unmatched',
-                    'updated_at' => now(),
-                    'created_at' => now(),
-                ];
+                $rows[] = $this->mapRow($legacyProductId, $legacySlug, (int) $product->id, true, null);
+                continue;
             }
 
-            $rows[] = [
+            if ($this->slugIsInRedirectFrom($legacySlug, $redirectFromSlugs)) {
+                $excludedFromRedirect++;
+                $rows[] = $this->mapRow($legacyProductId, $legacySlug, null, false, 'Slug already in seo_redirects from_path');
+                continue;
+            }
+
+            $unmatched++;
+            $description = $legacyDescriptions[$legacyProductId] ?? null;
+            $unmatchedRows[] = [
                 'legacy_product_id' => $legacyProductId,
                 'legacy_slug' => $legacySlug,
-                'product_id' => $product?->id,
-                'status' => $isMatched ? 'matched' : 'unmatched',
-                'match_method' => 'slug_exact',
-                'note' => $isMatched ? null : 'No current product found with the same slug',
-                'created_at' => now(),
+                'legacy_name' => $description['name'] ?? null,
+                'legacy_description' => $description['description'] ?? null,
+                'legacy_meta_title' => $description['meta_title'] ?? null,
+                'legacy_meta_description' => $description['meta_description'] ?? null,
+                'legacy_meta_keyword' => $description['meta_keyword'] ?? null,
+                'status' => 'unmatched',
+                'skip_reason' => null,
                 'updated_at' => now(),
+                'created_at' => now(),
             ];
+            $rows[] = $this->mapRow($legacyProductId, $legacySlug, null, false, 'No current product found with the same slug');
         }
 
         $updatedProducts = 0;
+        $closedStale = ['deleted' => 0, 'requeued_skipped' => 0];
 
         if (! $dryRun) {
             if ($truncate) {
@@ -95,15 +113,22 @@ class MapLegacyProductsBySlugCommand extends Command
                 DB::table('legacy_map_products')->truncate();
             }
 
-            DB::transaction(function () use ($rows): void {
-                DB::table('legacy_map_products')->upsert(
-                    $rows,
-                    ['legacy_product_id'],
-                    ['legacy_slug', 'product_id', 'status', 'match_method', 'note', 'updated_at']
-                );
-            });
+            if ($rows !== []) {
+                DB::transaction(function () use ($rows): void {
+                    DB::table('legacy_map_products')->upsert(
+                        $rows,
+                        ['legacy_product_id'],
+                        ['legacy_slug', 'product_id', 'status', 'match_method', 'note', 'updated_at']
+                    );
+                });
+            }
 
-            $this->syncLegacyUnmatchedProductsTable($unmatchedRows, $dumpPath);
+            $closedStale = $this->syncLegacyUnmatchedProductsTable(
+                $unmatchedRows,
+                $dumpPath,
+                array_keys($existingMatchedByLegacyId + $matchedIds),
+                $redirectFromSlugs,
+            );
 
             if ($syncFields && $matchedIds !== []) {
                 $productsById = Product::query()
@@ -157,11 +182,15 @@ class MapLegacyProductsBySlugCommand extends Command
             }
         }
 
-        $total = count($rows);
         $this->info('Legacy product mapping by slug finished.');
-        $this->line("Total: {$total}");
+        $this->line('Dump products: '.count($legacySlugs));
         $this->line("Matched: {$matched}");
-        $this->line("Unmatched: {$unmatched}");
+        $this->line("Kept existing matched: {$keptMatched}");
+        $this->line("Kept linked: {$keptLinked}");
+        $this->line("Excluded (slug in seo_redirects From): {$excludedFromRedirect}");
+        $this->line("Unmatched queued: {$unmatched}");
+        $this->line('Closed stale unmatched: '.$closedStale['deleted']);
+        $this->line('Requeued skipped: '.$closedStale['requeued_skipped']);
         $this->line('Mode: '.($dryRun ? 'dry-run' : 'write'));
         $this->line('Fields sync: '.($syncFields ? 'enabled' : 'disabled'));
         if ($syncFields) {
@@ -171,10 +200,7 @@ class MapLegacyProductsBySlugCommand extends Command
         if ($unmatched > 0) {
             $this->warn('Unmatched slugs (first 50):');
             $shown = 0;
-            foreach ($rows as $row) {
-                if ($row['status'] !== 'unmatched') {
-                    continue;
-                }
+            foreach ($unmatchedRows as $row) {
                 $this->line(sprintf('- product_id=%d slug=%s', $row['legacy_product_id'], (string) $row['legacy_slug']));
                 $shown++;
                 if ($shown >= 50) {
@@ -184,7 +210,7 @@ class MapLegacyProductsBySlugCommand extends Command
         }
 
         if ($exportUnmatchedPath !== '') {
-            $ok = $this->exportUnmatchedToCsv($rows, $exportUnmatchedPath);
+            $ok = $this->exportUnmatchedToCsv($unmatchedRows, $exportUnmatchedPath);
             if (! $ok) {
                 $this->error("Failed to export unmatched CSV: {$exportUnmatchedPath}");
                 return self::FAILURE;
@@ -610,15 +636,49 @@ class MapLegacyProductsBySlugCommand extends Command
 
     /**
      * @param  list<array<string, mixed>>  $unmatchedRows
+     * @param  list<int>  $matchedLegacyIds
+     * @param  array<string, true>  $redirectFromSlugs
+     * @return array{deleted: int, requeued_skipped: int}
      */
-    private function syncLegacyUnmatchedProductsTable(array $unmatchedRows, string $dumpPath): void
-    {
+    private function syncLegacyUnmatchedProductsTable(
+        array $unmatchedRows,
+        string $dumpPath,
+        array $matchedLegacyIds,
+        array $redirectFromSlugs,
+    ): array {
+        $deleted = 0;
+        $requeued = 0;
+
         if (! DB::getSchemaBuilder()->hasTable('legacy_unmatched_products')) {
-            return;
+            return ['deleted' => 0, 'requeued_skipped' => 0];
         }
 
+        $matchedLegacyIds = array_values(array_unique(array_map('intval', $matchedLegacyIds)));
+        if ($matchedLegacyIds !== []) {
+            $deleted += (int) DB::table('legacy_unmatched_products')
+                ->where('status', '!=', 'linked')
+                ->whereIn('legacy_product_id', $matchedLegacyIds)
+                ->delete();
+        }
+
+        $fromSlugs = array_keys($redirectFromSlugs);
+        if ($fromSlugs !== []) {
+            $deleted += (int) DB::table('legacy_unmatched_products')
+                ->where('status', '!=', 'linked')
+                ->whereIn('legacy_slug', $fromSlugs)
+                ->delete();
+        }
+
+        $requeued = (int) DB::table('legacy_unmatched_products')
+            ->where('status', 'skipped')
+            ->update([
+                'status' => 'unmatched',
+                'skip_reason' => null,
+                'updated_at' => now(),
+            ]);
+
         if ($unmatchedRows === []) {
-            return;
+            return ['deleted' => $deleted, 'requeued_skipped' => $requeued];
         }
 
         $legacyIds = array_map(static fn (array $row): int => (int) $row['legacy_product_id'], $unmatchedRows);
@@ -631,15 +691,15 @@ class MapLegacyProductsBySlugCommand extends Command
         $rowsToUpsert = [];
         foreach ($unmatchedRows as $row) {
             $legacyId = (int) $row['legacy_product_id'];
-            $status = $existingStatuses[$legacyId] ?? null;
-            if ($status !== null && $status !== 'unmatched') {
+            $status = $existingStatuses[$legacyId] ?? $existingStatuses[(string) $legacyId] ?? null;
+            if ($status === 'linked') {
                 continue;
             }
             $rowsToUpsert[] = $row;
         }
 
         if ($rowsToUpsert === []) {
-            return;
+            return ['deleted' => $deleted, 'requeued_skipped' => $requeued];
         }
 
         $legacyIdsForUpsert = array_map(static fn (array $row): int => (int) $row['legacy_product_id'], $rowsToUpsert);
@@ -663,7 +723,7 @@ class MapLegacyProductsBySlugCommand extends Command
         foreach ($rowsToUpsert as $i => $row) {
             $legacyId = (int) $row['legacy_product_id'];
             $merged = $this->mergeStagedReviewPayloads(
-                LegacyDumpOcReviewExtractor::decodeStagedReviewsJson($existingReviewsByProduct[$legacyId] ?? '[]'),
+                LegacyDumpOcReviewExtractor::decodeStagedReviewsJson($existingReviewsByProduct[$legacyId] ?? $existingReviewsByProduct[(string) $legacyId] ?? '[]'),
                 $reviewsByProductId[$legacyId] ?? []
             );
             $rowsToUpsert[$i]['legacy_reviews'] = json_encode(array_values($merged), JSON_UNESCAPED_UNICODE);
@@ -681,9 +741,95 @@ class MapLegacyProductsBySlugCommand extends Command
                 'legacy_meta_keyword',
                 'legacy_reviews',
                 'status',
+                'skip_reason',
                 'updated_at',
             ]
         );
+
+        return ['deleted' => $deleted, 'requeued_skipped' => $requeued];
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function loadExistingMatchedProductIds(): array
+    {
+        if (! DB::getSchemaBuilder()->hasTable('legacy_map_products')) {
+            return [];
+        }
+
+        return DB::table('legacy_map_products')
+            ->where('status', 'matched')
+            ->whereNotNull('product_id')
+            ->pluck('product_id', 'legacy_product_id')
+            ->all();
+    }
+
+    /**
+     * @return array<int, true>
+     */
+    private function loadLinkedLegacyProductIds(): array
+    {
+        if (! DB::getSchemaBuilder()->hasTable('legacy_unmatched_products')) {
+            return [];
+        }
+
+        $set = [];
+        foreach (DB::table('legacy_unmatched_products')->where('status', 'linked')->pluck('legacy_product_id') as $id) {
+            $set[(int) $id] = true;
+        }
+
+        return $set;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function loadRedirectFromSlugs(): array
+    {
+        if (! DB::getSchemaBuilder()->hasTable('seo_redirects')) {
+            return [];
+        }
+
+        $slugs = [];
+        foreach (DB::table('seo_redirects')->pluck('from_path') as $path) {
+            $slug = trim((string) $path, '/');
+            if ($slug !== '') {
+                $slugs[$slug] = true;
+            }
+        }
+
+        return $slugs;
+    }
+
+    /**
+     * @param  array<string, true>  $redirectFromSlugs
+     */
+    private function slugIsInRedirectFrom(string $slug, array $redirectFromSlugs): bool
+    {
+        $normalized = trim($slug, '/');
+        if ($normalized === '') {
+            return false;
+        }
+
+        return isset($redirectFromSlugs[$normalized]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function mapRow(int $legacyProductId, string $legacySlug, ?int $productId, bool $isMatched, ?string $note): array
+    {
+        return [
+            'legacy_product_id' => $legacyProductId,
+            'legacy_slug' => $legacySlug,
+            'product_id' => $productId,
+            'status' => $isMatched ? 'matched' : 'unmatched',
+            'match_method' => 'slug_exact',
+            'note' => $note,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ];
     }
 
     /**

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import type { OrderData, OrderItem } from "@/types/orders";
 import { lineItemProductTitle } from "@/lib/product-display-name";
 import { syncReceiptMadeInCountries } from "@/lib/admin-orders-api";
+import { adminModalOverlay, adminModalPanel } from "@/lib/admin-ui-classes";
 
 type ReceiptItemDraft = {
     key: string;
@@ -271,18 +272,18 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
     return createPortal(
         <>
             <div
-                className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-900/55 p-0 sm:items-center sm:p-4"
+                className={adminModalOverlay}
                 onClick={onCloseAction}
                 role="presentation"
             >
                 <div
-                    className="flex h-[94dvh] w-[calc(100vw-24px)] max-w-5xl flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface shadow-2xl sm:h-[min(90vh,760px)] sm:rounded-xl"
+                    className={`${adminModalPanel} w-[min(100%,calc(100vw-1rem))] max-w-5xl`}
                     onClick={(event) => event.stopPropagation()}
                     role="dialog"
                     aria-modal="true"
                     aria-labelledby="admin-order-receipts-title"
                 >
-                    <div className="border-b border-admin-border px-4 py-3">
+                    <div className="flex-none border-b border-admin-border px-4 py-3">
                         <div className="flex items-start justify-between gap-3">
                             <div>
                                 <h3 id="admin-order-receipts-title" className="text-lg font-semibold text-admin-text">

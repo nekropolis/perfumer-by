@@ -14,7 +14,7 @@ export default function WishlistPageView() {
                 <div className="mb-6 flex items-end justify-between gap-3">
                     <div>
                         <h1 className="text-2xl font-semibold tracking-tight">Избранное</h1>
-                        <p className="mt-1 text-sm text-admin-text-secondary">
+                        <p className="mt-2 text-sm text-admin-text-secondary">
                             {wishlistQty > 0 ? `Товаров в избранном: ${wishlistQty}` : "Список пока пуст"}
                         </p>
                     </div>

@@ -2,7 +2,7 @@
 
 import { Search, ChevronsUpDown } from "lucide-react";
 import { useMemo, useState } from "react";
-import { adminBtnSecondary, adminInput, adminSelect } from "@/lib/admin-ui-classes";
+import { adminBtnSecondary, adminInput, adminModalOverlay, adminModalPanel, adminSelect } from "@/lib/admin-ui-classes";
 
 type Option = {
     value: string;
@@ -73,9 +73,12 @@ export default function AdminSearchableSelect({
             </button>
 
             {open ? (
-                <div className="fixed inset-0 z-[200] bg-slate-900/50 px-3 py-4 sm:px-4 sm:py-6">
-                    <div className="mx-auto flex h-full w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface shadow-2xl sm:h-auto sm:max-h-[min(88dvh,640px)] sm:rounded-xl">
-                        <div className="flex items-center justify-between gap-3 border-b border-admin-border px-4 py-3 sm:px-5 sm:py-4">
+                <div className={adminModalOverlay} onClick={close} role="presentation">
+                    <div
+                        className={`${adminModalPanel} max-w-lg`}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-admin-border px-4 py-3 sm:px-5 sm:py-4">
                             <div className="min-w-0">
                                 <div className="text-base font-semibold text-admin-text">{title}</div>
                                 <div className="text-sm text-admin-text-secondary">{subtitle}</div>
@@ -85,7 +88,7 @@ export default function AdminSearchableSelect({
                             </button>
                         </div>
 
-                        <div className="border-b border-admin-border p-4">
+                        <div className="shrink-0 border-b border-admin-border p-4">
                             <div className="relative">
                                 <Search
                                     size={16}

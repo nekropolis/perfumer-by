@@ -196,7 +196,7 @@ export default function AdminSeoProductDescriptionsPage() {
             const res = await submitProductSeoWork();
             setSuccess(
                 res.message ||
-                    `Отправлено: ${res.data.requested_count}, принято: ${res.data.accepted_count}`,
+                `Отправлено: ${res.data.requested_count}, принято: ${res.data.accepted_count}`,
             );
             await load();
         } catch (e: unknown) {
@@ -241,7 +241,7 @@ export default function AdminSeoProductDescriptionsPage() {
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h1 className="text-2xl font-semibold">Описание продуктов</h1>
-                    <p className="mt-1 text-sm text-admin-text-secondary">
+                    <p className="mt-2 text-sm text-admin-text-secondary">
                         Отправка чанков в SEO Description и забор готовых полей:
                         SEO description, краткое описание, описание.
                         {workActive ? (

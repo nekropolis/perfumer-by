@@ -22,12 +22,28 @@ final class DeliveryCityResolver
             $validated['delivery_house'] = null;
             $validated['delivery_korpus'] = null;
             $validated['delivery_apartment'] = null;
+            $validated['additional_delivery_street_prefix'] = null;
+            $validated['additional_delivery_address'] = null;
+            $validated['additional_delivery_house'] = null;
+            $validated['additional_delivery_korpus'] = null;
+            $validated['additional_delivery_apartment'] = null;
             $validated['delivery_comment'] = null;
 
             return $validated;
         }
 
-        foreach (['delivery_street_prefix', 'delivery_house', 'delivery_korpus', 'delivery_apartment', 'delivery_comment'] as $key) {
+        foreach ([
+            'delivery_street_prefix',
+            'delivery_house',
+            'delivery_korpus',
+            'delivery_apartment',
+            'additional_delivery_street_prefix',
+            'additional_delivery_address',
+            'additional_delivery_house',
+            'additional_delivery_korpus',
+            'additional_delivery_apartment',
+            'delivery_comment',
+        ] as $key) {
             if (! array_key_exists($key, $validated)) {
                 continue;
             }

@@ -196,7 +196,7 @@ export default function HomeTemplate({
                                             Perfumer
                                         </div>
                                         <div className="mt-2 font-display text-2xl text-admin-text">Ароматы</div>
-                                        <div className="mt-1 text-sm text-admin-text-secondary">для вашего стиля</div>
+                                        <div className="mt-2 text-sm text-admin-text-secondary">для вашего стиля</div>
                                     </div>
                                 </div>
                             )}

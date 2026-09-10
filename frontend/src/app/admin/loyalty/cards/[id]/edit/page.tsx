@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import AdminCrudHeader from "@/components/admin/ui/admin-crud-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
-import Breadcrumbs from "@/components/ui/breadcrumbs";
 import LoyaltyCardForm, {
     type LoyaltyCardFormState,
     validateLoyaltyCardDiscountPercent,
@@ -148,23 +147,17 @@ export default function AdminLoyaltyCardEditPage() {
 
     return (
         <AdminPageCard>
-            <Breadcrumbs
-                className="mb-4"
+            <AdminCrudHeader
+                backHref="/admin/loyalty/cards"
+                backAriaLabel="Назад к картам"
+                title={`Редактировать карту ${form?.number ? `- ${form.number}` : ""}`}
+                description="Редактирование карты лояльности"
                 items={[
                     { label: "Админка", href: "/admin" },
                     { label: "Накопительные карты", href: "/admin/loyalty/cards" },
                     { label: "Редактирование" },
                 ]}
             />
-            <div className="mb-6 flex items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-semibold">Редактировать карту {form?.number ? `- ${form.number}` : ""}</h1>
-                    <p className="mt-1 text-sm text-admin-text-secondary">Редактирование карты лояльности</p>
-                </div>
-                <Link href="/admin/loyalty/cards" className="rounded-lg border px-4 py-2 text-sm">
-                    Назад
-                </Link>
-            </div>
 
             {error ? (
                 <div className="mb-4">

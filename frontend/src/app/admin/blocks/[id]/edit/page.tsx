@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import AdminCrudHeader from "@/components/admin/ui/admin-crud-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
-import Breadcrumbs from "@/components/ui/breadcrumbs";
 import AdminBlockForm, { type AdminBlockFormState } from "@/components/admin/blocks/block-form";
 import { fetchAdminBlockById, updateAdminBlock } from "@/lib/admin-blocks-api";
 
@@ -63,14 +62,13 @@ export default function AdminBlockEditPage() {
 
     return (
         <AdminPageCard>
-            <Breadcrumbs className="mb-4" items={[{ label: "Админка", href: "/admin" }, { label: "Блоки", href: "/admin/blocks" }, { label: "Редактирование" }]} />
-            <div className="mb-6 flex items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-semibold">Редактировать блок</h1>
-                    <p className="mt-1 text-sm text-admin-text-secondary">Обновление содержимого блока</p>
-                </div>
-                <Link href="/admin/blocks" className="rounded-lg border px-4 py-2 text-sm">Назад</Link>
-            </div>
+            <AdminCrudHeader
+                backHref="/admin/blocks"
+                backAriaLabel="Назад к блокам"
+                title="Редактировать блок"
+                description="Обновление содержимого блока"
+                items={[{ label: "Админка", href: "/admin" }, { label: "Блоки", href: "/admin/blocks" }, { label: "Редактирование" }]}
+            />
 
             {error ? (
                 <div className="mb-4">

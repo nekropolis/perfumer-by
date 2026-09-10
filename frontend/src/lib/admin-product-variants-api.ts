@@ -32,6 +32,15 @@ export type AdminProductVariantItem = {
     old_price?: string | number | null;
     stock?: number;
     main_available_stock?: number;
+    /** Физический остаток на основном складе (включая резерв). */
+    main_warehouse_stock?: number;
+    /** Оферы поставщиков, которые каскадно удалятся вместе с вариантом. */
+    linked_offers?: Array<{
+        id: number;
+        supplier_name: string;
+        name: string;
+        part_number: string;
+    }>;
     /** Доступно для витрины/корзины (канал main → supplier прайс → supplier склад). */
     available_stock?: number;
     is_available?: boolean;

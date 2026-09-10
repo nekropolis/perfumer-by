@@ -1,11 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import AdminCrudHeader from "@/components/admin/ui/admin-crud-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
-import Breadcrumbs from "@/components/ui/breadcrumbs";
 import BrandForm, { type BrandFormState } from "@/components/admin/brands/brand-form";
 import BrandEditorTabs, { type BrandEditorTab } from "@/components/admin/brands/brand-editor-tabs";
 import { createBrand } from "@/lib/admin-brands-api";
@@ -61,30 +60,17 @@ export default function AdminBrandCreatePage() {
 
     return (
         <AdminPageCard>
-            <Breadcrumbs
-                className="mb-4"
+            <AdminCrudHeader
+                backHref="/admin/brands"
+                backAriaLabel="Назад к брендам"
+                title="Создать бренд"
+                description="Создание нового бренда"
                 items={[
                     { label: "Админка", href: "/admin" },
                     { label: "Бренды", href: "/admin/brands" },
                     { label: "Создание" },
                 ]}
             />
-
-            <div className="mb-6 flex items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-semibold">Создать бренд</h1>
-                    <p className="mt-1 text-sm text-admin-text-secondary">
-                        Создание нового бренда
-                    </p>
-                </div>
-
-                <Link
-                    href="/admin/brands"
-                    className="rounded-lg border px-4 py-2 text-sm"
-                >
-                    Назад
-                </Link>
-            </div>
 
             {error ? (
                 <div className="mb-4">

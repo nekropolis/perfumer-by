@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import AdminCrudHeader from "@/components/admin/ui/admin-crud-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
-import Breadcrumbs from "@/components/ui/breadcrumbs";
 import UserForm, { type UserFormState } from "@/components/admin/users/user-form";
 import { fetchAdminUser, updateAdminUser } from "@/lib/admin-users-api";
 
@@ -89,23 +88,17 @@ export default function AdminUsersEditPage() {
 
     return (
         <AdminPageCard>
-            <Breadcrumbs
-                className="mb-4"
+            <AdminCrudHeader
+                backHref="/admin/users"
+                backAriaLabel="Назад к персоналу"
+                title="Редактировать сотрудника"
+                description="Изменение полей профиля и роли"
                 items={[
                     { label: "Админка", href: "/admin" },
                     { label: "Персонал", href: "/admin/users" },
                     { label: "Редактирование" },
                 ]}
             />
-            <div className="mb-6 flex items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-semibold">Редактировать сотрудника</h1>
-                    <p className="mt-1 text-sm text-admin-text-secondary">Изменение полей профиля и роли</p>
-                </div>
-                <Link href="/admin/users" className="rounded-lg border px-4 py-2 text-sm">
-                    Назад
-                </Link>
-            </div>
             {error ? (
                 <div className="mb-4">
                     <AdminFeedbackMessage type="error" message={error} onCloseAction={() => setError("")} />

@@ -73,11 +73,11 @@ export default function CatalogPageView({
     const showResetFilters = showBrand;
 
     return (
-        <main className="mx-auto max-w-7xl px-4 py-8 pb-12 sm:px-6 lg:px-8">
-            <Breadcrumbs className="mb-4" items={breadcrumbs} />
+        <main className="mx-auto max-w-7xl px-4 py-8 pb-12 sm:px-6 lg:px-8 max-lg:landscape:py-4 max-lg:landscape:pb-8">
+            <Breadcrumbs className="mb-4 max-lg:landscape:mb-2" items={breadcrumbs} />
 
-            <div className="mb-6">
-                <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">{title}</h1>
+            <div className="mb-6 max-lg:landscape:mb-3">
+                <h1 className="text-3xl font-semibold leading-tight sm:text-4xl max-lg:landscape:text-2xl">{title}</h1>
                 {intro?.trim() ? (
                     <p className="mt-3 max-w-3xl text-sm leading-6 text-admin-text-secondary sm:text-base">
                         {intro}
@@ -107,7 +107,7 @@ export default function CatalogPageView({
                         }
                     />
 
-                    <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[280px_minmax(0,1fr)]">
+                    <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[280px_minmax(0,1fr)] max-lg:landscape:mt-3">
                         <aside className="hidden self-start lg:block">
                             <div className="rounded-xl border border-admin-border bg-admin-surface p-5 shadow-sm">
                                 <CatalogFilters
@@ -123,7 +123,7 @@ export default function CatalogPageView({
                         </aside>
 
                     <section className="min-w-0">
-                        <div className="mb-4 text-sm text-admin-text-secondary">
+                        <div className="mb-4 text-sm text-admin-text-secondary max-lg:landscape:mb-2">
                             Найдено: {productsTotal} {productsCountLabel(productsTotal)}
                         </div>
 
@@ -132,7 +132,7 @@ export default function CatalogPageView({
 
                             {listingProducts.length > 0 ? (
                                 <>
-                                    <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4 lg:gap-4">
+                                    <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 md:gap-2 lg:grid-cols-4 lg:gap-4">
                                         {listingProducts.map((product, index) => (
                                             <ProductCard
                                                 key={product.id}

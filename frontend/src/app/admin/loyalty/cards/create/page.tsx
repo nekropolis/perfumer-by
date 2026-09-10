@@ -1,11 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import AdminCrudHeader from "@/components/admin/ui/admin-crud-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
-import Breadcrumbs from "@/components/ui/breadcrumbs";
 import LoyaltyCardForm, {
     type LoyaltyCardFormState,
     validateLoyaltyCardDiscountPercent,
@@ -95,24 +94,17 @@ export default function AdminLoyaltyCardCreatePage() {
 
     return (
         <AdminPageCard>
-            <Breadcrumbs
-                className="mb-4"
+            <AdminCrudHeader
+                backHref="/admin/loyalty/cards"
+                backAriaLabel="Назад к картам"
+                title="Создать накопительную карту"
+                description="Создание новой карты лояльности"
                 items={[
                     { label: "Админка", href: "/admin" },
                     { label: "Накопительные карты", href: "/admin/loyalty/cards" },
                     { label: "Создание" },
                 ]}
             />
-
-            <div className="mb-6 flex items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-semibold">Создать накопительную карту</h1>
-                    <p className="mt-1 text-sm text-admin-text-secondary">Создание новой карты лояльности</p>
-                </div>
-                <Link href="/admin/loyalty/cards" className="rounded-lg border px-4 py-2 text-sm">
-                    Назад
-                </Link>
-            </div>
 
             {error ? (
                 <div className="mb-4">

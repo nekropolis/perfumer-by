@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, useTransition, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
     ApiRequestError,
@@ -35,6 +35,9 @@ type RegisterStep = "form" | "code";
 type MessageTone = "error" | "success" | "default";
 
 const labelClassName = "mb-1.5 block text-sm font-medium text-admin-text";
+const emptySubscribe = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
 
 type AuthModalProps = {
     open: boolean;
@@ -60,11 +63,10 @@ function AuthTabButton({
             aria-selected={active}
             id={id}
             onClick={onClick}
-            className={`flex-1 rounded-2xl px-3 py-2 text-sm font-semibold transition ${
-                active
+            className={`flex-1 rounded-2xl px-3 py-2 text-sm font-semibold transition ${active
                     ? "bg-admin-surface text-admin-text shadow-sm ring-1 ring-admin-border"
                     : "text-admin-text-secondary hover:text-admin-text"
-            }`}
+                }`}
         >
             {children}
         </button>
@@ -75,7 +77,7 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
     const router = useRouter();
     const { login } = useAuth();
 
-    const [mounted, setMounted] = useState(false);
+    const mounted = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
     const [tab, setTab] = useState<Tab>(initialTab);
     const [registerStep, setRegisterStep] = useState<RegisterStep>("form");
     const [showForgot, setShowForgot] = useState(false);
@@ -92,6 +94,20 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
     const [messageTone, setMessageTone] = useState<MessageTone>("default");
     const [captchaSecurityNotice, setCaptchaSecurityNotice] = useState(false);
     const [isPending, startTransition] = useTransition();
+    const sessionKey = open ? `open:${initialTab}` : "closed";
+    const [prevSessionKey, setPrevSessionKey] = useState(sessionKey);
+
+    if (sessionKey !== prevSessionKey) {
+        setPrevSessionKey(sessionKey);
+        if (open) {
+            setTab(initialTab);
+            setRegisterStep("form");
+            setShowForgot(false);
+            setMessage("");
+            setMessageTone("default");
+            setCaptchaSecurityNotice(false);
+        }
+    }
 
     const recaptchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || "";
     const phoneIsValid = isBelarusPhoneComplete(phone);
@@ -99,35 +115,18 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
     const headerTitle = showForgot
         ? "Восстановление пароля"
         : registerStep === "code"
-          ? "Подтверждение SMS"
-          : tab === "login"
-            ? "Вход в аккаунт"
-            : "Регистрация";
+            ? "Подтверждение SMS"
+            : tab === "login"
+                ? "Вход в аккаунт"
+                : "Регистрация";
 
     const headerSubtitle = showForgot
         ? "Новый пароль придёт по SMS на ваш номер"
         : registerStep === "code"
-          ? "Введите код из сообщения"
-          : tab === "login"
-            ? "Заказы, профиль и карта лояльности"
-            : "Создайте аккаунт за минуту";
-
-    useEffect(() => {
-        setMounted(true);
-    }, []);
-
-    useEffect(() => {
-        if (!open) {
-            return;
-        }
-
-        setTab(initialTab);
-        setRegisterStep("form");
-        setShowForgot(false);
-        setMessage("");
-        setMessageTone("default");
-        setCaptchaSecurityNotice(false);
-    }, [open, initialTab]);
+            ? "Введите код из сообщения"
+            : tab === "login"
+                ? "Заказы, профиль и карта лояльности"
+                : "Создайте аккаунт за минуту";
 
     useEffect(() => {
         if (!open) {
@@ -176,8 +175,8 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
         messageTone === "error"
             ? "border-red-200 bg-red-50 text-red-700"
             : messageTone === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-              : "border-admin-border bg-admin-muted text-admin-text";
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-admin-border bg-admin-muted text-admin-text";
 
     const getRecaptchaToken = async (action: string): Promise<string | undefined> => {
         if (!recaptchaSiteKey || typeof window === "undefined" || !window.grecaptcha) {
@@ -381,7 +380,7 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                             <h2 id="auth-modal-title" className="text-lg font-semibold tracking-tight text-admin-text">
                                 {headerTitle}
                             </h2>
-                            <p className="mt-1 text-sm text-admin-text-secondary">{headerSubtitle}</p>
+                            <p className="mt-2 text-sm text-admin-text-secondary">{headerSubtitle}</p>
                         </div>
                         <button
                             type="button"

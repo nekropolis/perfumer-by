@@ -3,7 +3,7 @@
 import { Search, ChevronsUpDown } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { ProductBrandOption } from "@/lib/admin-products-api";
-import { adminBtnSecondary, adminInput, adminSelect } from "@/lib/admin-ui-classes";
+import { adminBtnSecondary, adminInput, adminModalOverlay, adminModalPanel, adminSelect } from "@/lib/admin-ui-classes";
 
 type Props = {
     value: string;
@@ -70,9 +70,12 @@ export default function AdminBrandSelect({
             </button>
 
             {open && (
-                <div className="fixed inset-0 z-[200] bg-slate-900/50 px-3 py-4 sm:px-4 sm:py-6">
-                    <div className="mx-auto flex h-full w-full max-w-lg flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:rounded-xl">
-                        <div className="flex items-center justify-between gap-3 border-b border-admin-border px-4 py-3 sm:px-5 sm:py-4">
+                <div className={adminModalOverlay} onClick={() => setOpen(false)} role="presentation">
+                    <div
+                        className={`${adminModalPanel} max-w-lg`}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-admin-border px-4 py-3 sm:px-5 sm:py-4">
                             <div className="min-w-0">
                                 <div className="text-base font-semibold text-admin-text">Выбор бренда</div>
                                 <div className="text-sm text-admin-text-secondary">Найдите и выберите нужный бренд</div>
@@ -86,7 +89,7 @@ export default function AdminBrandSelect({
                             </button>
                         </div>
 
-                        <div className="border-b border-admin-border p-4">
+                        <div className="shrink-0 border-b border-admin-border p-4">
                             <div className="relative">
                                 <Search
                                     size={16}
@@ -102,7 +105,7 @@ export default function AdminBrandSelect({
                             </div>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-3">
+                        <div className="flex min-h-0 flex-1 overflow-y-auto p-3">
                             <div className="space-y-1">
                                 {filteredBrands.length > 0 ? (
                                     filteredBrands.map((brand) => {

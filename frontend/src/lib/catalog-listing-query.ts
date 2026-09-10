@@ -290,6 +290,16 @@ export function getActiveCatalogMenuParam(
 
 export type CatalogSectionChip = "all" | "female" | "male" | "unisex" | "sale" | "new" | "hit";
 
+export const CATALOG_SECTION_CHIPS: ReadonlyArray<{ id: CatalogSectionChip; label: string }> = [
+    { id: "all", label: "Все" },
+    { id: "female", label: "Женские" },
+    { id: "male", label: "Мужские" },
+    { id: "unisex", label: "Унисекс" },
+    { id: "sale", label: "Акции" },
+    { id: "new", label: "Новинки" },
+    { id: "hit", label: "Хиты" },
+];
+
 export function getActiveCatalogSectionChip(
     searchParams: Pick<URLSearchParams, "get">,
 ): CatalogSectionChip {

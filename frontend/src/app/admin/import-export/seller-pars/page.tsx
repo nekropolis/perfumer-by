@@ -877,7 +877,7 @@ export default function SellerParsImportPage() {
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
                         <h1 className="text-lg font-semibold">Парсинг поставщиков</h1>
-                        <p className="mt-1 text-sm text-admin-text-secondary">Парсинг прайса и сопоставление товаров с каталогом</p>
+                        <p className="mt-2 text-sm text-admin-text-secondary">Парсинг прайса и сопоставление товаров с каталогом</p>
                     </div>
 
                     <div className="flex w-full min-w-0 flex-row items-center gap-2 md:w-auto md:justify-end">
@@ -909,8 +909,8 @@ export default function SellerParsImportPage() {
                         {supplierPreviewLoading
                             ? "Парсинг..."
                             : selectedSupplierName
-                              ? `Новый парсинг (${selectedSupplierName})`
-                              : "Новый парсинг"}
+                                ? `Новый парсинг (${selectedSupplierName})`
+                                : "Новый парсинг"}
                     </button>
                     {(supplierPreviewLoading || activeJobId) ? (
                         <button

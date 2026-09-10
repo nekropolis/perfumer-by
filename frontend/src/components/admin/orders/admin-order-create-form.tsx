@@ -64,6 +64,7 @@ import AdminOrderTagsPicker from "@/components/admin/orders/admin-order-tags-pic
 import type { OrderTag } from "@/lib/admin-order-tags-api";
 import { format } from "date-fns";
 import StreetPrefixSelect from "@/components/ui/street-prefix-select";
+import { formatDeliveryAddressLine } from "@/lib/format-delivery-address";
 import {
   DEFAULT_VETER_STREET_PREFIX,
 } from "@/constants/veter-street-prefixes";
@@ -198,7 +199,7 @@ const surfaceFieldCompactClass =
 const orderLineTableRow =
   "flex min-w-[52rem] items-start gap-x-3";
 const orderLineColName = "min-w-0 flex-1 overflow-hidden";
-const orderLineColFrom = "w-[6.25rem] shrink-0";
+const orderLineColFrom = "w-[8rem] shrink-0";
 const orderLineColQty = "w-11 shrink-0";
 const orderLineColPrice = "w-[5.75rem] shrink-0";
 const orderLineColTotal = "w-[6.5rem] shrink-0";
@@ -496,6 +497,15 @@ function formatNationalDisplay(national: string): string {
   if (d.length <= 5) return `${d.slice(0, 2)} ${d.slice(2)}`;
   if (d.length <= 7) return `${d.slice(0, 2)} ${d.slice(2, 5)}-${d.slice(5)}`;
   return `${d.slice(0, 2)} ${d.slice(2, 5)}-${d.slice(5, 7)}-${d.slice(7, 9)}`;
+}
+
+function formatAdminPhoneLabel(phoneDigits: string, plainMode: boolean): string {
+  const d = digitsOnly(phoneDigits);
+  if (!d) return "";
+  if (plainMode) return `+${d}`;
+  const national = nationalFromPhoneDigits(phoneDigits);
+  const shown = formatNationalDisplay(national);
+  return shown ? `+375 ${shown}` : "";
 }
 
 function isValidBelarusMobileNational(national: string): boolean {
@@ -1144,6 +1154,29 @@ export default function AdminOrderCreateForm({
   const [deliveryApartment, setDeliveryApartment] = useState(
     () => seedOrder?.delivery_apartment ?? "",
   );
+  const [additionalDeliveryStreetPrefix, setAdditionalDeliveryStreetPrefix] = useState(
+    () => seedOrder?.additional_delivery_street_prefix?.trim() || DEFAULT_VETER_STREET_PREFIX,
+  );
+  const [additionalDeliveryAddress, setAdditionalDeliveryAddress] = useState(
+    () => seedOrder?.additional_delivery_address ?? "",
+  );
+  const [additionalDeliveryHouse, setAdditionalDeliveryHouse] = useState(
+    () => seedOrder?.additional_delivery_house ?? "",
+  );
+  const [additionalDeliveryKorpus, setAdditionalDeliveryKorpus] = useState(
+    () => seedOrder?.additional_delivery_korpus ?? "",
+  );
+  const [additionalDeliveryApartment, setAdditionalDeliveryApartment] = useState(
+    () => seedOrder?.additional_delivery_apartment ?? "",
+  );
+  const [additionalAddressPopupOpen, setAdditionalAddressPopupOpen] = useState(false);
+  const [draftAdditionalStreetPrefix, setDraftAdditionalStreetPrefix] = useState<string>(
+    DEFAULT_VETER_STREET_PREFIX,
+  );
+  const [draftAdditionalAddress, setDraftAdditionalAddress] = useState("");
+  const [draftAdditionalHouse, setDraftAdditionalHouse] = useState("");
+  const [draftAdditionalKorpus, setDraftAdditionalKorpus] = useState("");
+  const [draftAdditionalApartment, setDraftAdditionalApartment] = useState("");
   const [deliveryComment, setDeliveryComment] = useState(
     () => seedOrder?.delivery_comment ?? "",
   );
@@ -1170,6 +1203,14 @@ export default function AdminOrderCreateForm({
     })),
   );
   const [tagsPopupOpen, setTagsPopupOpen] = useState(false);
+  const [namePopupOpen, setNamePopupOpen] = useState(false);
+  const [draftCustomerFirstName, setDraftCustomerFirstName] = useState("");
+  const [draftCustomerLastName, setDraftCustomerLastName] = useState("");
+  const [draftCustomerPatronymic, setDraftCustomerPatronymic] = useState("");
+  const [namePopupError, setNamePopupError] = useState("");
+  const [additionalPhonePopupOpen, setAdditionalPhonePopupOpen] = useState(false);
+  const [draftAdditionalPhoneDigits, setDraftAdditionalPhoneDigits] = useState("");
+  const [additionalPhonePopupError, setAdditionalPhonePopupError] = useState("");
   const [deliveryTimeModalOpen, setDeliveryTimeModalOpen] = useState(false);
   const [draftDeliveryTimeFrom, setDraftDeliveryTimeFrom] = useState("");
   const [belarusCityQuery, setBelarusCityQuery] = useState(() => {
@@ -1322,6 +1363,11 @@ export default function AdminOrderCreateForm({
     deliveryHouse: string;
     deliveryKorpus: string;
     deliveryApartment: string;
+    additionalDeliveryStreetPrefix: string;
+    additionalDeliveryAddress: string;
+    additionalDeliveryHouse: string;
+    additionalDeliveryKorpus: string;
+    additionalDeliveryApartment: string;
     deliveryComment: string;
     shipmentId: string;
   } | null>(null);
@@ -1460,6 +1506,11 @@ export default function AdminOrderCreateForm({
       deliveryHouse,
       deliveryKorpus,
       deliveryApartment,
+      additionalDeliveryStreetPrefix,
+      additionalDeliveryAddress,
+      additionalDeliveryHouse,
+      additionalDeliveryKorpus,
+      additionalDeliveryApartment,
       deliveryComment,
       shipmentId,
     };
@@ -1474,6 +1525,11 @@ export default function AdminOrderCreateForm({
     deliveryHouse,
     deliveryKorpus,
     deliveryApartment,
+    additionalDeliveryStreetPrefix,
+    additionalDeliveryAddress,
+    additionalDeliveryHouse,
+    additionalDeliveryKorpus,
+    additionalDeliveryApartment,
     deliveryComment,
     shipmentId,
   ]);
@@ -1524,6 +1580,11 @@ export default function AdminOrderCreateForm({
           setDeliveryHouse(snap.deliveryHouse);
           setDeliveryKorpus(snap.deliveryKorpus);
           setDeliveryApartment(snap.deliveryApartment);
+          setAdditionalDeliveryStreetPrefix(snap.additionalDeliveryStreetPrefix);
+          setAdditionalDeliveryAddress(snap.additionalDeliveryAddress);
+          setAdditionalDeliveryHouse(snap.additionalDeliveryHouse);
+          setAdditionalDeliveryKorpus(snap.additionalDeliveryKorpus);
+          setAdditionalDeliveryApartment(snap.additionalDeliveryApartment);
           setDeliveryComment(snap.deliveryComment);
           setShipmentId(snap.shipmentId);
         } else if (initialOrder && normalizeDelivery(initialOrder.delivery_method) === "belarus_courier") {
@@ -1548,6 +1609,13 @@ export default function AdminOrderCreateForm({
           setDeliveryHouse(initialOrder.delivery_house ?? "");
           setDeliveryKorpus(initialOrder.delivery_korpus ?? "");
           setDeliveryApartment(initialOrder.delivery_apartment ?? "");
+          setAdditionalDeliveryStreetPrefix(
+            initialOrder.additional_delivery_street_prefix?.trim() || DEFAULT_VETER_STREET_PREFIX,
+          );
+          setAdditionalDeliveryAddress(initialOrder.additional_delivery_address ?? "");
+          setAdditionalDeliveryHouse(initialOrder.additional_delivery_house ?? "");
+          setAdditionalDeliveryKorpus(initialOrder.additional_delivery_korpus ?? "");
+          setAdditionalDeliveryApartment(initialOrder.additional_delivery_apartment ?? "");
           setDeliveryComment(initialOrder.delivery_comment ?? "");
           setShipmentId(initialOrder.shipment_id ?? "");
         } else {
@@ -2456,6 +2524,10 @@ export default function AdminOrderCreateForm({
     const resolvedPhone = plainPhoneMode
       ? digitsOnly(phoneDigits)
       : fullPhoneFromNational(nationalFromPhoneDigits(phoneDigits));
+    if (!customerFirstName.trim()) {
+      setError("Задайте имя клиента");
+      return;
+    }
     if (!isValidAdminOrderPhone(resolvedPhone, plainPhoneMode)) {
       setError(
         plainPhoneMode
@@ -2512,6 +2584,12 @@ export default function AdminOrderCreateForm({
 
     const addr =
       deliveryMethod === "pickup" ? "Самовывоз" : deliveryAddress.trim();
+    const hasAdditionalDeliveryAddress = Boolean(
+      additionalDeliveryAddress.trim() ||
+        additionalDeliveryHouse.trim() ||
+        additionalDeliveryKorpus.trim() ||
+        additionalDeliveryApartment.trim(),
+    );
 
     const payload: AdminOrderPayload = {
       customer_name:
@@ -2535,6 +2613,26 @@ export default function AdminOrderCreateForm({
       delivery_korpus: deliveryMethod === "pickup" ? null : deliveryKorpus.trim() || null,
       delivery_apartment:
         deliveryMethod === "pickup" ? null : deliveryApartment.trim() || null,
+      additional_delivery_street_prefix:
+        deliveryMethod === "pickup" || !hasAdditionalDeliveryAddress
+          ? null
+          : additionalDeliveryStreetPrefix.trim() || null,
+      additional_delivery_address:
+        deliveryMethod === "pickup" || !hasAdditionalDeliveryAddress
+          ? null
+          : additionalDeliveryAddress.trim() || null,
+      additional_delivery_house:
+        deliveryMethod === "pickup" || !hasAdditionalDeliveryAddress
+          ? null
+          : additionalDeliveryHouse.trim() || null,
+      additional_delivery_korpus:
+        deliveryMethod === "pickup" || !hasAdditionalDeliveryAddress
+          ? null
+          : additionalDeliveryKorpus.trim() || null,
+      additional_delivery_apartment:
+        deliveryMethod === "pickup" || !hasAdditionalDeliveryAddress
+          ? null
+          : additionalDeliveryApartment.trim() || null,
       delivery_comment:
         deliveryMethod === "pickup" ? null : deliveryComment.trim() || null,
       shipment_id:
@@ -2622,7 +2720,6 @@ export default function AdminOrderCreateForm({
     savedCities.length > 0 && deliveryMethod !== "pickup" && deliveryMethod !== "belarus_courier";
 
   const nationalLive = nationalFromPhoneDigits(phoneDigits);
-  const additionalNationalLive = nationalFromPhoneDigits(additionalPhoneDigits);
   const nationalDebounced = nationalFromPhoneDigits(debouncedPhone);
   const showPhoneClientPanel =
     phoneHitsOpen &&
@@ -2717,6 +2814,112 @@ export default function AdminOrderCreateForm({
     </div>
   );
 
+  const customerDisplayName = buildCustomerName({
+    first: customerFirstName,
+    last: customerLastName,
+    patronymic: customerPatronymic,
+  });
+
+  const openNamePopup = () => {
+    setDraftCustomerFirstName(customerFirstName);
+    setDraftCustomerLastName(customerLastName);
+    setDraftCustomerPatronymic(customerPatronymic);
+    setNamePopupError("");
+    setNamePopupOpen(true);
+  };
+
+  const applyNamePopup = () => {
+    if (!draftCustomerFirstName.trim()) {
+      setNamePopupError("Укажите имя");
+      return;
+    }
+    setCustomerFirstName(draftCustomerFirstName.trim());
+    setCustomerLastName(draftCustomerLastName.trim());
+    setCustomerPatronymic(draftCustomerPatronymic.trim());
+    setNamePopupError("");
+    setNamePopupOpen(false);
+  };
+
+  const additionalPhoneLabel = formatAdminPhoneLabel(additionalPhoneDigits, plainPhoneMode);
+  const draftAdditionalNationalLive = nationalFromPhoneDigits(draftAdditionalPhoneDigits);
+
+  const openAdditionalPhonePopup = () => {
+    setDraftAdditionalPhoneDigits(additionalPhoneDigits);
+    setAdditionalPhonePopupError("");
+    setAdditionalPhonePopupOpen(true);
+  };
+
+  const applyAdditionalPhonePopup = () => {
+    const d = digitsOnly(draftAdditionalPhoneDigits);
+    if (!d) {
+      setAdditionalPhoneDigits("");
+      setShowAdditionalPhone(false);
+      setAdditionalPhonePopupError("");
+      setAdditionalPhonePopupOpen(false);
+      return;
+    }
+    const resolved = plainPhoneMode
+      ? d
+      : fullPhoneFromNational(nationalFromPhoneDigits(draftAdditionalPhoneDigits));
+    if (!isValidAdminOrderPhone(resolved, plainPhoneMode)) {
+      setAdditionalPhonePopupError(
+        plainPhoneMode
+          ? "Укажите номер с кодом страны: 8–15 цифр"
+          : "Введите 9 цифр после +375 (код 25, 29, 33 или 44)",
+      );
+      return;
+    }
+    setAdditionalPhoneDigits(draftAdditionalPhoneDigits);
+    setShowAdditionalPhone(true);
+    setAdditionalPhonePopupError("");
+    setAdditionalPhonePopupOpen(false);
+  };
+
+  const additionalAddressFilled = Boolean(
+    additionalDeliveryAddress.trim() ||
+      additionalDeliveryHouse.trim() ||
+      additionalDeliveryKorpus.trim() ||
+      additionalDeliveryApartment.trim(),
+  );
+  const additionalAddressLine = additionalAddressFilled
+    ? formatDeliveryAddressLine({
+        prefix: additionalDeliveryStreetPrefix,
+        street: additionalDeliveryAddress,
+        house: additionalDeliveryHouse,
+        korpus: additionalDeliveryKorpus,
+        apartment: additionalDeliveryApartment,
+      })
+    : "";
+
+  const openAdditionalAddressPopup = () => {
+    setDraftAdditionalStreetPrefix(
+      (additionalDeliveryStreetPrefix || DEFAULT_VETER_STREET_PREFIX) as typeof draftAdditionalStreetPrefix,
+    );
+    setDraftAdditionalAddress(additionalDeliveryAddress);
+    setDraftAdditionalHouse(additionalDeliveryHouse);
+    setDraftAdditionalKorpus(additionalDeliveryKorpus);
+    setDraftAdditionalApartment(additionalDeliveryApartment);
+    setAdditionalAddressPopupOpen(true);
+  };
+
+  const applyAdditionalAddressPopup = () => {
+    setAdditionalDeliveryStreetPrefix(draftAdditionalStreetPrefix.trim() || DEFAULT_VETER_STREET_PREFIX);
+    setAdditionalDeliveryAddress(draftAdditionalAddress.trim());
+    setAdditionalDeliveryHouse(draftAdditionalHouse.trim());
+    setAdditionalDeliveryKorpus(draftAdditionalKorpus.trim());
+    setAdditionalDeliveryApartment(draftAdditionalApartment.trim());
+    setAdditionalAddressPopupOpen(false);
+  };
+
+  const clearAdditionalAddress = () => {
+    setAdditionalDeliveryStreetPrefix(DEFAULT_VETER_STREET_PREFIX);
+    setAdditionalDeliveryAddress("");
+    setAdditionalDeliveryHouse("");
+    setAdditionalDeliveryKorpus("");
+    setAdditionalDeliveryApartment("");
+    setAdditionalAddressPopupOpen(false);
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
 
@@ -2778,41 +2981,63 @@ export default function AdminOrderCreateForm({
           ) : null}
         </div>
 
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch lg:gap-5">
-          <div className="flex w-full shrink-0 flex-col gap-3.5 rounded-xl border border-admin-border/90 bg-admin-muted/50 p-3.5 sm:max-w-[28rem] lg:max-w-[34rem]">
+        <div className="flex flex-wrap items-stretch gap-3">
+          <div className="flex min-w-[16rem] flex-1 flex-col gap-3 rounded-xl border border-admin-border/90 bg-admin-muted/50 p-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              {customerDisplayName ? (
+                <span className="min-w-0 truncate text-sm font-medium text-admin-text">
+                  {customerDisplayName}
+                </span>
+              ) : (
+                <span className="text-sm text-admin-text-secondary">ФИО не задано</span>
+              )}
+              <button
+                type="button"
+                onClick={openNamePopup}
+                className="inline-flex items-center gap-1 rounded-full border border-dashed border-admin-border bg-admin-surface px-2.5 py-1 text-xs font-medium text-admin-primary transition hover:border-admin-primary hover:bg-admin-muted"
+                title={customerDisplayName ? "Редактировать имя" : "Задать имя"}
+              >
+                <Plus size={13} strokeWidth={2.5} />
+                {customerDisplayName ? "Редактировать" : "Задать имя"}
+              </button>
+            </div>
+
             <div>
-              <div className={showAdditionalPhone ? "grid grid-cols-1 gap-3 sm:grid-cols-2" : undefined}>
-                <div className="relative">
-                  <div className="mb-1 flex items-center justify-between gap-2">
-                    <label className="block text-xs font-medium text-admin-text-secondary">Телефон *</label>
-                    <button
-                      type="button"
-                      className="text-[11px] font-medium text-admin-primary hover:underline"
-                      onClick={() => {
-                        setPlainPhoneMode((prev) => {
-                          if (prev) {
-                            const toBy = (raw: string) => {
-                              const d = digitsOnly(raw);
-                              const national = d.startsWith(PHONE_PREFIX)
-                                ? d.slice(PHONE_PREFIX.length).slice(0, 9)
-                                : "";
-                              return national ? fullPhoneFromNational(national) : "";
-                            };
-                            setPhoneDigits(toBy(phoneDigits));
-                            setAdditionalPhoneDigits(toBy(additionalPhoneDigits));
-                            return false;
-                          }
-                          setPhoneDigits(digitsOnly(phoneDigits).slice(0, ADMIN_PHONE_MAX_DIGITS));
-                          setAdditionalPhoneDigits(
-                            digitsOnly(additionalPhoneDigits).slice(0, ADMIN_PHONE_MAX_DIGITS),
-                          );
-                          return true;
-                        });
-                      }}
-                    >
-                      {plainPhoneMode ? "Белорусский мобильный" : "Международный номер"}
-                    </button>
-                  </div>
+              <div className="relative">
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <label className="block text-xs font-medium text-admin-text-secondary">Телефон *</label>
+                  <button
+                    type="button"
+                    className="text-[11px] font-medium text-admin-primary hover:underline"
+                    onClick={() => {
+                      setPlainPhoneMode((prev) => {
+                        if (prev) {
+                          const toBy = (raw: string) => {
+                            const d = digitsOnly(raw);
+                            const national = d.startsWith(PHONE_PREFIX)
+                              ? d.slice(PHONE_PREFIX.length).slice(0, 9)
+                              : "";
+                            return national ? fullPhoneFromNational(national) : "";
+                          };
+                          setPhoneDigits(toBy(phoneDigits));
+                          setAdditionalPhoneDigits(toBy(additionalPhoneDigits));
+                          setDraftAdditionalPhoneDigits(toBy(draftAdditionalPhoneDigits));
+                          return false;
+                        }
+                        setPhoneDigits(digitsOnly(phoneDigits).slice(0, ADMIN_PHONE_MAX_DIGITS));
+                        setAdditionalPhoneDigits(
+                          digitsOnly(additionalPhoneDigits).slice(0, ADMIN_PHONE_MAX_DIGITS),
+                        );
+                        setDraftAdditionalPhoneDigits(
+                          digitsOnly(draftAdditionalPhoneDigits).slice(0, ADMIN_PHONE_MAX_DIGITS),
+                        );
+                        return true;
+                      });
+                    }}
+                  >
+                    {plainPhoneMode ? "Белорусский мобильный" : "Международный номер"}
+                  </button>
+                </div>
                   {plainPhoneMode ? (
                     <input
                       value={digitsOnly(phoneDigits)}
@@ -2908,219 +3133,378 @@ export default function AdminOrderCreateForm({
                   ) : null}
                 </div>
 
-                {showAdditionalPhone ? (
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-admin-text-secondary">
-                      Доп. телефон
-                    </label>
-                    {plainPhoneMode ? (
-                      <input
-                        value={digitsOnly(additionalPhoneDigits)}
-                        onChange={(e) =>
-                          setAdditionalPhoneDigits(
-                            e.target.value.replace(/\D/g, "").slice(0, ADMIN_PHONE_MAX_DIGITS),
-                          )
-                        }
-                        className="w-full rounded-lg border border-admin-border bg-admin-bg px-2.5 py-2 font-mono text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/20"
-                        placeholder="79001234567"
-                        inputMode="numeric"
-                        autoComplete="new-password"
-                        autoCorrect="off"
-                        autoCapitalize="off"
-                        spellCheck={false}
-                      />
-                    ) : (
-                      <div className="flex overflow-hidden rounded-lg border border-admin-border bg-admin-bg transition focus-within:border-admin-primary focus-within:ring-2 focus-within:ring-admin-primary/20">
-                        <span className="flex shrink-0 items-center border-r border-admin-border px-2.5 text-sm tabular-nums text-admin-text-secondary">
-                          +375
-                        </span>
-                        <input
-                          value={formatNationalDisplay(additionalNationalLive)}
-                          onChange={(e) => {
-                            const raw = e.target.value.replace(/\D/g, "");
-                            if (!raw.startsWith(PHONE_PREFIX) && raw.length >= 10) {
-                              setPlainPhoneMode(true);
-                              setPhoneDigits(digitsOnly(phoneDigits).slice(0, ADMIN_PHONE_MAX_DIGITS));
-                              setAdditionalPhoneDigits(raw.slice(0, ADMIN_PHONE_MAX_DIGITS));
-                              return;
-                            }
-                            setAdditionalPhoneDigits(
-                              fullPhoneFromNational(clampNationalDigits(e.target.value)),
-                            );
-                          }}
-                          className="min-w-0 flex-1 border-0 bg-transparent px-2.5 py-2 text-sm text-admin-text outline-none ring-0 placeholder:text-admin-text-secondary/70 focus:ring-0"
-                          placeholder="29 123-45-67"
-                          inputMode="numeric"
-                          autoComplete="new-password"
-                          autoCorrect="off"
-                          autoCapitalize="off"
-                          spellCheck={false}
-                        />
-                      </div>
-                    )}
-                  </div>
+              <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
+                {additionalPhoneLabel ? (
+                  <span className="min-w-0 truncate font-mono text-sm text-admin-text">
+                    {additionalPhoneLabel}
+                  </span>
                 ) : null}
-              </div>
-
-              {!showAdditionalPhone ? (
                 <button
                   type="button"
-                  className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-admin-primary hover:underline"
-                  onClick={() => setShowAdditionalPhone(true)}
+                  onClick={openAdditionalPhonePopup}
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-admin-border bg-admin-surface px-2.5 py-1 text-xs font-medium text-admin-primary transition hover:border-admin-primary hover:bg-admin-muted"
+                  title={additionalPhoneLabel ? "Редактировать номер" : "Добавить номер"}
                 >
-                  <Plus size={12} strokeWidth={2.5} />
-                  Добавить номер
+                  <Plus size={13} strokeWidth={2.5} />
+                  {additionalPhoneLabel ? "Редактировать" : "Добавить номер"}
                 </button>
-              ) : null}
-            </div>
-
-            <div>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="min-w-0">
-                  <label className="mb-1 block text-[11px] text-admin-text-secondary/90">Имя</label>
-                  <input
-                    value={customerFirstName}
-                    onChange={(e) => setCustomerFirstName(e.target.value)}
-                    className={clientFieldClass}
-                    placeholder="Иван"
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="min-w-0">
-                  <label className="mb-1 block text-[11px] text-admin-text-secondary/90">Фамилия</label>
-                  <input
-                    value={customerLastName}
-                    onChange={(e) => setCustomerLastName(e.target.value)}
-                    className={clientFieldClass}
-                    placeholder="Иванов"
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="min-w-0">
-                  <label className="mb-1 block text-[11px] text-admin-text-secondary/90">Отчество</label>
-                  <input
-                    value={customerPatronymic}
-                    onChange={(e) => setCustomerPatronymic(e.target.value)}
-                    className={clientFieldClass}
-                    placeholder="Иванович"
-                    autoComplete="off"
-                  />
-                </div>
               </div>
             </div>
           </div>
 
-          <div className="flex min-h-[6.5rem] min-w-0 flex-1 flex-col rounded-xl bg-admin-muted/55 px-4 py-3.5">
-            <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 border-b border-admin-border/70 pb-2.5">
-              <span className="text-xs font-semibold uppercase tracking-wide text-admin-text-secondary">
+          <div className="flex min-w-[16rem] flex-1 flex-col justify-center gap-1.5 rounded-xl bg-admin-muted/55 px-3 py-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary">
                 Заказы и скидочная карта
               </span>
               {context?.matched_user ? (
-                <span className="rounded-lg bg-admin-primary/12 px-2 py-0.5 text-[11px] font-medium text-admin-primary">
+                <span className="rounded-md bg-admin-primary/12 px-1.5 py-0.5 text-[11px] font-medium text-admin-primary">
                   В базе
                 </span>
               ) : context && totalOrdersCount(context) > 0 ? (
-                <span className="rounded-md bg-amber-100/80 px-2 py-0.5 text-[11px] font-medium text-amber-900">
+                <span className="rounded-md bg-amber-100/80 px-1.5 py-0.5 text-[11px] font-medium text-amber-900">
                   Гость
                 </span>
               ) : null}
             </div>
 
             {contextLoading ? (
-              <p className="text-sm text-admin-text-secondary">Загрузка…</p>
+              <p className="text-xs text-admin-text-secondary">Загрузка…</p>
             ) : context ? (
-              <div className="flex flex-1 flex-col justify-center gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-                <div className="space-y-2">
-                  {totalOrdersCount(context) > 0 ? (
-                    <p className="text-[11px] text-admin-text-secondary">
-                      Нажмите на счётчик с числом — откроется список заказов
-                    </p>
-                  ) : null}
-                  <div className="flex flex-wrap gap-2">
-                    {(
-                      [
-                        {
-                          kind: "completed" as const,
-                          label: "Выполнено",
-                          count: context.orders.completed,
-                          countClass: "text-emerald-700",
-                        },
-                        {
-                          kind: "active" as const,
-                          label: "Активные",
-                          count: context.orders.active,
-                          countClass: "text-sky-700",
-                        },
-                        {
-                          kind: "cancelled" as const,
-                          label: "Отменено",
-                          count: context.orders.cancelled,
-                          countClass: "text-admin-text",
-                        },
-                      ] as const
-                    ).map((stat) => {
-                      const clickable = stat.count > 0;
+              <>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                  {(
+                    [
+                      {
+                        kind: "completed" as const,
+                        label: "Выполнено",
+                        count: context.orders.completed,
+                        countClass: "text-emerald-700",
+                      },
+                      {
+                        kind: "active" as const,
+                        label: "Активные",
+                        count: context.orders.active,
+                        countClass: "text-sky-700",
+                      },
+                      {
+                        kind: "cancelled" as const,
+                        label: "Отменено",
+                        count: context.orders.cancelled,
+                        countClass: "text-admin-text",
+                      },
+                    ] as const
+                  ).map((stat) => {
+                    const clickable = stat.count > 0;
+                    const body = (
+                      <>
+                        {stat.label} —{" "}
+                        <span className={`tabular-nums font-semibold ${stat.countClass}`}>{stat.count}</span>
+                      </>
+                    );
+                    if (!clickable) {
                       return (
-                        <button
-                          key={stat.kind}
-                          type="button"
-                          disabled={!clickable}
-                          onClick={() => setOrdersHistoryModal(stat.kind)}
-                          title={clickable ? `Показать: ${stat.label}` : undefined}
-                          className={`inline-flex min-w-[5.5rem] flex-col items-start rounded-lg border px-2.5 py-2 text-left transition ${clickable
-                            ? "cursor-pointer border-admin-border bg-admin-surface shadow-sm hover:border-admin-primary/40 hover:bg-admin-muted/80"
-                            : "cursor-not-allowed border-transparent bg-transparent opacity-50"
-                            }`}
-                        >
-                          <span className="text-[11px] text-admin-text-secondary">{stat.label}</span>
-                          <span className="flex w-full items-center justify-between gap-1">
-                            <span
-                              className={`text-xl font-semibold tabular-nums ${stat.countClass}`}
-                            >
-                              {stat.count}
-                            </span>
-                            {clickable ? (
-                              <ChevronRight
-                                size={16}
-                                strokeWidth={2}
-                                className="shrink-0 text-admin-text-secondary"
-                                aria-hidden
-                              />
-                            ) : null}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="sm:border-l sm:border-admin-border/70 sm:pl-6">
-                  {context.discount_cards.length ? (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs text-admin-text-secondary">Карта</span>
-                      {context.discount_cards.map((c) => (
-                        <span
-                          key={c.number}
-                          className="inline-flex items-center gap-1 rounded-lg bg-admin-surface px-2 py-1 font-mono text-xs text-admin-text shadow-sm ring-1 ring-admin-border/80"
-                        >
-                          {c.number}
-                          <span className="font-sans text-[11px] font-semibold text-admin-primary">−{c.discount_percent}%</span>
+                        <span key={stat.kind} className="text-xs text-admin-text-secondary/80">
+                          {body}
                         </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="text-xs text-admin-text-secondary">Скидочная карта не привязана</span>
-                  )}
+                      );
+                    }
+                    return (
+                      <button
+                        key={stat.kind}
+                        type="button"
+                        onClick={() => setOrdersHistoryModal(stat.kind)}
+                        title={`Показать: ${stat.label}`}
+                        className="inline-flex origin-center items-center rounded-md bg-admin-surface px-1.5 py-0.5 text-xs text-admin-text ring-1 ring-admin-border/80 transition duration-150 hover:scale-110 hover:ring-admin-primary/50 active:scale-95"
+                      >
+                        {body}
+                      </button>
+                    );
+                  })}
                 </div>
-              </div>
+                {context.discount_cards.length ? (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] text-admin-text-secondary">Карта</span>
+                    {context.discount_cards.map((c) => (
+                      <span
+                        key={c.number}
+                        className="inline-flex items-center gap-1 rounded-md bg-admin-surface px-1.5 py-0.5 font-mono text-[11px] text-admin-text ring-1 ring-admin-border/80"
+                      >
+                        {c.number}
+                        <span className="font-sans font-semibold text-admin-primary">−{c.discount_percent}%</span>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-[11px] text-admin-text-secondary">Скидочная карта не привязана</span>
+                )}
+              </>
             ) : (
-              <p className="text-sm leading-snug text-admin-text-secondary">
+              <p className="text-xs leading-snug text-admin-text-secondary">
                 Введите номер — появятся заказы и скидочная карта клиента.
               </p>
             )}
           </div>
         </div>
       </SectionCard>
+
+      <AdminModalShell
+        open={namePopupOpen}
+        onCloseAction={() => setNamePopupOpen(false)}
+        title="Задать имя"
+        maxWidthClass="sm:max-w-md"
+        footer={
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={applyNamePopup}
+              className="rounded-lg bg-admin-primary px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
+            >
+              Готово
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-admin-text-secondary">
+              Задать имя *
+            </label>
+            <input
+              value={draftCustomerFirstName}
+              onChange={(e) => {
+                setDraftCustomerFirstName(e.target.value);
+                if (namePopupError) setNamePopupError("");
+              }}
+              className={clientFieldClass}
+              placeholder="Иван"
+              autoComplete="off"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  applyNamePopup();
+                }
+              }}
+            />
+            {namePopupError ? (
+              <p className="mt-1 text-xs text-red-600">{namePopupError}</p>
+            ) : null}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="min-w-0">
+              <label className="mb-1 block text-[11px] text-admin-text-secondary/90">Фамилия</label>
+              <input
+                value={draftCustomerLastName}
+                onChange={(e) => setDraftCustomerLastName(e.target.value)}
+                className={clientFieldClass}
+                placeholder="Иванов"
+                autoComplete="off"
+              />
+            </div>
+            <div className="min-w-0">
+              <label className="mb-1 block text-[11px] text-admin-text-secondary/90">Отчество</label>
+              <input
+                value={draftCustomerPatronymic}
+                onChange={(e) => setDraftCustomerPatronymic(e.target.value)}
+                className={clientFieldClass}
+                placeholder="Иванович"
+                autoComplete="off"
+              />
+            </div>
+          </div>
+        </div>
+      </AdminModalShell>
+
+      <AdminModalShell
+        open={additionalPhonePopupOpen}
+        onCloseAction={() => setAdditionalPhonePopupOpen(false)}
+        title="Добавить номер"
+        maxWidthClass="sm:max-w-md"
+        footer={
+          <div className="flex justify-end gap-2">
+            {additionalPhoneLabel ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setDraftAdditionalPhoneDigits("");
+                  setAdditionalPhoneDigits("");
+                  setShowAdditionalPhone(false);
+                  setAdditionalPhonePopupError("");
+                  setAdditionalPhonePopupOpen(false);
+                }}
+                className="rounded-lg border border-admin-border px-3 py-1.5 text-sm font-medium text-admin-text hover:bg-admin-muted"
+              >
+                Удалить
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={applyAdditionalPhonePopup}
+              className="rounded-lg bg-admin-primary px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
+            >
+              Готово
+            </button>
+          </div>
+        }
+      >
+        <div>
+          <label className="mb-1 block text-xs font-medium text-admin-text-secondary">
+            Доп. телефон
+          </label>
+          {plainPhoneMode ? (
+            <input
+              value={digitsOnly(draftAdditionalPhoneDigits)}
+              onChange={(e) => {
+                setDraftAdditionalPhoneDigits(
+                  e.target.value.replace(/\D/g, "").slice(0, ADMIN_PHONE_MAX_DIGITS),
+                );
+                if (additionalPhonePopupError) setAdditionalPhonePopupError("");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  applyAdditionalPhonePopup();
+                }
+              }}
+              className="w-full rounded-lg border border-admin-border bg-admin-bg px-2.5 py-2 font-mono text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/20"
+              placeholder="79001234567"
+              inputMode="numeric"
+              autoComplete="new-password"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+            />
+          ) : (
+            <div className="flex overflow-hidden rounded-lg border border-admin-border bg-admin-bg transition focus-within:border-admin-primary focus-within:ring-2 focus-within:ring-admin-primary/20">
+              <span className="flex shrink-0 items-center border-r border-admin-border px-2.5 text-sm tabular-nums text-admin-text-secondary">
+                +375
+              </span>
+              <input
+                value={formatNationalDisplay(draftAdditionalNationalLive)}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\D/g, "");
+                  if (!raw.startsWith(PHONE_PREFIX) && raw.length >= 10) {
+                    setPlainPhoneMode(true);
+                    setPhoneDigits(digitsOnly(phoneDigits).slice(0, ADMIN_PHONE_MAX_DIGITS));
+                    setDraftAdditionalPhoneDigits(raw.slice(0, ADMIN_PHONE_MAX_DIGITS));
+                    if (additionalPhonePopupError) setAdditionalPhonePopupError("");
+                    return;
+                  }
+                  setDraftAdditionalPhoneDigits(
+                    fullPhoneFromNational(clampNationalDigits(e.target.value)),
+                  );
+                  if (additionalPhonePopupError) setAdditionalPhonePopupError("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    applyAdditionalPhonePopup();
+                  }
+                }}
+                className="min-w-0 flex-1 border-0 bg-transparent px-2.5 py-2 text-sm text-admin-text outline-none ring-0 placeholder:text-admin-text-secondary/70 focus:ring-0"
+                placeholder="29 123-45-67"
+                inputMode="numeric"
+                autoComplete="new-password"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+              />
+            </div>
+          )}
+          {additionalPhonePopupError ? (
+            <p className="mt-1 text-xs text-red-600">{additionalPhonePopupError}</p>
+          ) : null}
+        </div>
+      </AdminModalShell>
+
+      <AdminModalShell
+        open={additionalAddressPopupOpen}
+        onCloseAction={() => setAdditionalAddressPopupOpen(false)}
+        title="Дополнительный адрес"
+        maxWidthClass="sm:max-w-lg"
+        footer={
+          <div className="flex justify-end gap-2">
+            {additionalAddressLine ? (
+              <button
+                type="button"
+                onClick={clearAdditionalAddress}
+                className="rounded-lg border border-admin-border px-3 py-1.5 text-sm font-medium text-admin-text hover:bg-admin-muted"
+              >
+                Удалить
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={applyAdditionalAddressPopup}
+              className="rounded-lg bg-admin-primary px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
+            >
+              Готово
+            </button>
+          </div>
+        }
+      >
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-[6rem_minmax(0,1fr)_3.5rem_3.5rem_3.5rem] sm:items-end">
+          <label className="col-span-1 block text-sm text-admin-text-secondary">
+            Тип
+            <div className="mt-1">
+              <StreetPrefixSelect
+                value={draftAdditionalStreetPrefix}
+                onChange={setDraftAdditionalStreetPrefix}
+                variant="admin"
+              />
+            </div>
+          </label>
+          <label className="col-span-2 block text-sm text-admin-text-secondary sm:col-span-1">
+            Адрес
+            <input
+              type="text"
+              value={draftAdditionalAddress}
+              onChange={(e) => setDraftAdditionalAddress(e.target.value)}
+              className={`mt-1 ${surfaceFieldClass}`}
+              placeholder="Улица"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  applyAdditionalAddressPopup();
+                }
+              }}
+            />
+          </label>
+          <label className="block text-sm text-admin-text-secondary">
+            Дом
+            <input
+              type="text"
+              value={draftAdditionalHouse}
+              onChange={(e) => setDraftAdditionalHouse(e.target.value)}
+              className={`mt-1 ${surfaceFieldCompactClass}`}
+              placeholder="№"
+              maxLength={4}
+            />
+          </label>
+          <label className="block text-sm text-admin-text-secondary">
+            Корп.
+            <input
+              type="text"
+              value={draftAdditionalKorpus}
+              onChange={(e) => setDraftAdditionalKorpus(e.target.value)}
+              className={`mt-1 ${surfaceFieldCompactClass}`}
+              placeholder="№"
+              maxLength={4}
+            />
+          </label>
+          <label className="block text-sm text-admin-text-secondary">
+            Кв.
+            <input
+              type="text"
+              value={draftAdditionalApartment}
+              onChange={(e) => setDraftAdditionalApartment(e.target.value)}
+              className={`mt-1 ${surfaceFieldCompactClass}`}
+              placeholder="№"
+              maxLength={4}
+            />
+          </label>
+        </div>
+      </AdminModalShell>
 
       <AdminModalShell
         open={tagsPopupOpen}
@@ -3219,14 +3603,14 @@ export default function AdminOrderCreateForm({
                           />
                         ) : null}
                       </div>
-                      <div className={`${orderLineColFrom} self-start space-y-1 pt-0.5`}>
+                      <div className={`${orderLineColFrom} self-start space-y-0.5 pt-0.5`}>
                         {!canPickChannel && !channel ? (
                           <p className="text-xs leading-snug text-admin-text-secondary">
                             Нет склада и офера — выбирать не из чего
                           </p>
                         ) : itemsLocked || !canPickChannel ? (
-                          <p className="text-xs leading-snug text-admin-text">
-                            {channel === "main" ? "Склад" : channel === "offer" ? "Офер" : "—"}
+                          <p className="text-sm text-admin-text">
+                            {channel === "main" ? "Склад" : channel === "offer" ? "Поставщик" : "—"}
                           </p>
                         ) : (
                           <AdminStatusDropdown
@@ -3234,15 +3618,13 @@ export default function AdminOrderCreateForm({
                             onChangeAction={(value) => setLineChannel(idx, value as FulfillmentChannel)}
                             options={[
                               ...(line.can_fulfill_main
-                                ? [{ value: "main", label: "Склад", triggerLabel: "Склад", menuLabel: "Склад" }]
+                                ? [{ value: "main", label: "Склад" }]
                                 : []),
                               ...(line.can_fulfill_offer
-                                ? [{ value: "offer", label: "Офер", triggerLabel: "Офер", menuLabel: "Офер" }]
+                                ? [{ value: "offer", label: "Поставщик" }]
                                 : []),
                             ]}
-                            triggerVariant="text"
-                            triggerTextClassName="bg-admin-surface text-admin-text ring-1 ring-inset ring-admin-border/80"
-                            widthClassName="w-[6.25rem]"
+                            triggerVariant="underline"
                             menuWidthClassName="w-[180px]"
                           />
                         )}
@@ -3252,6 +3634,7 @@ export default function AdminOrderCreateForm({
                           ) : (
                             <AdminStatusDropdown
                               value={line.selected_lot_id != null ? String(line.selected_lot_id) : ""}
+                              placeholder="Партия"
                               onChangeAction={(nextValue) =>
                                 setLineSelectedLot(idx, nextValue ? Number(nextValue) : null)
                               }
@@ -3261,9 +3644,7 @@ export default function AdminOrderCreateForm({
                                 triggerLabel: `#${lot.lot_id}`,
                                 menuLabel: `#${lot.lot_id} · ${lot.label}`,
                               }))}
-                              triggerVariant="text"
-                              triggerTextClassName="bg-admin-surface text-admin-text ring-1 ring-inset ring-admin-border/80"
-                              widthClassName="w-[6.25rem]"
+                              triggerVariant="underline"
                               menuWidthClassName="w-max min-w-[22rem] max-w-[min(94vw,44rem)]"
                             />
                           )
@@ -3272,11 +3653,12 @@ export default function AdminOrderCreateForm({
                           itemsLocked ? (
                             <p className="truncate text-[11px] leading-snug text-admin-text-secondary">
                               {line.offer_choices.find((o) => o.offer_id === line.selected_offer_id)?.label ??
-                                "Офер"}
+                                "Поставщик"}
                             </p>
                           ) : (
                             <AdminStatusDropdown
                               value={line.selected_offer_id != null ? String(line.selected_offer_id) : ""}
+                              placeholder="Офер"
                               onChangeAction={(nextValue) =>
                                 setLineSelectedOffer(idx, nextValue ? Number(nextValue) : null)
                               }
@@ -3286,9 +3668,7 @@ export default function AdminOrderCreateForm({
                                 triggerLabel: offer.label.split(" · ")[0] || offer.label,
                                 menuLabel: offer.label,
                               }))}
-                              triggerVariant="text"
-                              triggerTextClassName="bg-admin-surface text-admin-text ring-1 ring-inset ring-admin-border/80"
-                              widthClassName="w-[6.25rem]"
+                              triggerVariant="underline"
                               menuWidthClassName="w-max min-w-[22rem] max-w-[min(94vw,44rem)]"
                             />
                           )
@@ -3589,32 +3969,16 @@ export default function AdminOrderCreateForm({
 
         <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
           <div className="flex h-full flex-col space-y-4 rounded-xl border border-admin-border bg-admin-muted/60 p-4">
-            <fieldset>
-              <legend className="mb-2 text-sm font-medium text-admin-text">Способ доставки *</legend>
-              <div className="flex flex-col gap-2 text-sm sm:flex-row sm:flex-wrap">
-                {DELIVERY_OPTIONS.map(({ value, label }) => {
-                  const blockedByShipment =
-                    shipmentBlocksNonRbDelivery &&
-                    (value === "minsk_courier" || value === "pickup");
-                  return (
-                    <label
-                      key={value}
-                      className={`flex min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text transition hover:bg-admin-muted/70 has-[:checked]:border-admin-primary/40 has-[:checked]:bg-admin-primary/5 sm:flex-1 ${
-                        blockedByShipment ? "cursor-not-allowed opacity-40" : ""
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="delivery_method"
-                        checked={deliveryMethod === value}
-                        disabled={blockedByShipment}
-                        onChange={() => handleDeliveryMethodChange(value)}
-                        className="h-4 w-4 shrink-0 appearance-none rounded-full border border-admin-border bg-transparent checked:border-[5px] checked:border-admin-primary disabled:cursor-not-allowed"
-                      />
-                      {label}
-                    </label>
-                  );
-                })}
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="shrink-0 text-sm font-medium text-admin-text">Способ доставки *</span>
+                <AdminStatusDropdown
+                  value={deliveryMethod}
+                  options={DELIVERY_OPTIONS}
+                  onChangeAction={(value) => handleDeliveryMethodChange(value as DeliveryValue)}
+                  triggerVariant="badge"
+                  menuAlign="right"
+                />
               </div>
               {shipmentBlocksNonRbDelivery ? (
                 <p className="mt-2 text-xs text-admin-text-secondary">
@@ -3622,7 +3986,7 @@ export default function AdminOrderCreateForm({
                   удалите ID отправки и сохраните заказ.
                 </p>
               ) : null}
-            </fieldset>
+            </div>
 
             {deliveryMethod !== "pickup" ? (
               <>
@@ -3755,7 +4119,38 @@ export default function AdminOrderCreateForm({
                   </label>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  {additionalAddressLine ? (
+                    <>
+                      <span className="min-w-0 text-sm text-admin-text-secondary">
+                        Доп. адрес: 
+                        </span>
+                        {additionalAddressLine}
+                      <button
+                        type="button"
+                        onClick={openAdditionalAddressPopup}
+                        className="inline-flex items-center rounded-full border border-dashed border-admin-border bg-admin-surface px-2.5 py-1 text-xs font-medium text-admin-primary transition hover:border-admin-primary hover:bg-admin-muted"
+                      >
+                        + Изменить
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={openAdditionalAddressPopup}
+                      className="inline-flex items-center gap-1 rounded-full border border-dashed border-admin-border bg-admin-surface px-2.5 py-1 text-xs font-medium text-admin-primary transition hover:border-admin-primary hover:bg-admin-muted"
+                    >
+                      <Plus size={13} strokeWidth={2.5} />
+                      Добавить дополнительный адрес
+                    </button>
+                  )}
+                </div>
+
+                <div
+                  className={`grid gap-4 sm:items-start ${
+                    deliveryMethod === "minsk_courier" ? "md:grid-cols-3" : "sm:grid-cols-2"
+                  }`}
+                >
                   <div>
                     <div className="mb-1 text-sm text-admin-text-secondary">Дата отправки</div>
                     <AdminDatePicker value={shipmentDate} onChangeAction={setShipmentDate} />
@@ -3768,42 +4163,7 @@ export default function AdminOrderCreateForm({
                         onChangeAction={setCourierDeliveryDate}
                       />
                     </div>
-                  ) : (
-                    <div>
-                      <div className="mb-1 text-sm text-admin-text-secondary">Время доставки</div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDraftDeliveryTimeFrom(
-                            deliveryTimeFrom ? snapDeliveryClockToTenMinutes(deliveryTimeFrom) : "",
-                          );
-                          setDraftDeliveryTimeTo(
-                            deliveryTimeTo ? snapDeliveryClockToTenMinutes(deliveryTimeTo) : "",
-                          );
-                          setDeliveryTimeModalOpen(true);
-                        }}
-                        className="flex w-full items-center justify-between gap-2 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-left text-sm text-admin-text transition hover:bg-admin-muted"
-                        title="Задать время доставки"
-                      >
-                        <span className="tabular-nums">
-                          {formatDeliveryClockTime(deliveryTimeFrom) ||
-                            formatDeliveryClockTime(deliveryTimeTo) ? (
-                            <>
-                              {formatDeliveryClockTime(deliveryTimeFrom) || "—"}
-                              {" – "}
-                              {formatDeliveryClockTime(deliveryTimeTo) || "—"}
-                            </>
-                          ) : (
-                            <span className="text-admin-text-secondary">Не задано</span>
-                          )}
-                        </span>
-                        <span className="shrink-0 text-xs text-admin-primary">Задать</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {deliveryMethod === "minsk_courier" ? (
+                  ) : null}
                   <div>
                     <div className="mb-1 text-sm text-admin-text-secondary">Время доставки</div>
                     <button
@@ -3817,7 +4177,7 @@ export default function AdminOrderCreateForm({
                         );
                         setDeliveryTimeModalOpen(true);
                       }}
-                      className="flex w-full items-center justify-between gap-2 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-left text-sm text-admin-text transition hover:bg-admin-muted"
+                      className="flex w-full items-center gap-2 whitespace-nowrap rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-left text-sm text-admin-text transition hover:bg-admin-muted"
                       title="Задать время доставки"
                     >
                       <span className="tabular-nums">
@@ -3832,10 +4192,9 @@ export default function AdminOrderCreateForm({
                           <span className="text-admin-text-secondary">Не задано</span>
                         )}
                       </span>
-                      <span className="shrink-0 text-xs text-admin-primary">Задать</span>
                     </button>
                   </div>
-                ) : null}
+                </div>
 
                 <label className="block text-sm text-admin-text-secondary">
                   Комментарий доставки
@@ -3868,7 +4227,7 @@ export default function AdminOrderCreateForm({
                         );
                         setDeliveryTimeModalOpen(true);
                       }}
-                      className="flex w-full items-center justify-between gap-2 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-left text-sm text-admin-text transition hover:bg-admin-muted"
+                      className="flex w-full items-center gap-2 whitespace-nowrap rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-left text-sm text-admin-text transition hover:bg-admin-muted"
                       title="Задать время доставки"
                     >
                       <span className="tabular-nums">
@@ -3883,7 +4242,6 @@ export default function AdminOrderCreateForm({
                           <span className="text-admin-text-secondary">Не задано</span>
                         )}
                       </span>
-                      <span className="shrink-0 text-xs text-admin-primary">Задать</span>
                     </button>
                   </div>
                 </div>
@@ -3960,31 +4318,20 @@ export default function AdminOrderCreateForm({
           </div>
 
           <div className="flex h-full flex-col space-y-4 rounded-xl border border-admin-border bg-admin-muted/60 p-4">
-            <fieldset>
-              <legend className="mb-2 text-sm font-medium text-admin-text">Способ оплаты *</legend>
-              <div className="flex flex-col gap-2 text-sm sm:flex-row sm:flex-wrap">
-                {PAYMENT_OPTIONS.map(({ value, label }) => (
-                  <label
-                    key={value}
-                    className={`flex min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text transition hover:bg-admin-muted/70 has-[:checked]:border-admin-primary/40 has-[:checked]:bg-admin-primary/5 sm:flex-1 ${value === "card" && deliveryMethod === "belarus_courier"
-                      ? "cursor-not-allowed opacity-40"
-                      : ""
-                      }`}
-                  >
-                    <input
-                      type="radio"
-                      name="payment_method"
-                      value={value}
-                      checked={paymentMethod === value}
-                      disabled={value === "card" && deliveryMethod === "belarus_courier"}
-                      onChange={() => setPaymentMethod(value)}
-                      className="h-4 w-4 shrink-0 appearance-none rounded-full border border-admin-border bg-transparent checked:border-[5px] checked:border-admin-primary disabled:cursor-not-allowed"
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="shrink-0 text-sm font-medium text-admin-text">Способ оплаты *</span>
+              <AdminStatusDropdown
+                value={paymentMethod}
+                options={
+                  deliveryMethod === "belarus_courier"
+                    ? PAYMENT_OPTIONS.filter((option) => option.value !== "card")
+                    : PAYMENT_OPTIONS
+                }
+                onChangeAction={(value) => setPaymentMethod(value as PaymentValue)}
+                triggerVariant="badge"
+                menuAlign="right"
+              />
+            </div>
 
             <label className="block text-sm text-admin-text-secondary">
               Доставка (руб.)
@@ -4019,28 +4366,22 @@ export default function AdminOrderCreateForm({
                         ×
                       </button>
                     ) : null}
-                    <div className={`grid grid-cols-1 gap-2 sm:grid-cols-3 ${itemsLocked ? "" : "pr-7"}`}>
-                      <div className="min-w-0">
-                        <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-admin-text-muted">
-                          Номер карты
-                        </div>
-                        <div className="break-words font-mono text-[13px] font-medium text-admin-text">
+                    <div className={`space-y-1 text-[13px] ${itemsLocked ? "" : "pr-7"}`}>
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-admin-text-secondary">Номер карты:</span>
+                        <span className="font-mono font-medium tabular-nums text-admin-text">
                           {discountCardNumberDisplay || "—"}
-                        </div>
+                        </span>
                       </div>
-                      <div className="min-w-0">
-                        <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-admin-text-muted">
-                          % скидки
-                        </div>
-                        <div className="text-[13px] font-medium text-admin-text">{discountPercentDisplay}%</div>
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-admin-text-secondary">% скидки:</span>
+                        <span className="font-medium tabular-nums text-admin-text">{discountPercentDisplay}%</span>
                       </div>
-                      <div className="min-w-0">
-                        <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-admin-text-muted">
-                          Сумма скидки
-                        </div>
-                        <div className="text-[13px] font-medium text-admin-text">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-admin-text-secondary">Сумма скидки:</span>
+                        <span className="font-medium tabular-nums text-admin-text">
                           {discountAmountDisplay} руб.
-                        </div>
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -4375,14 +4716,14 @@ export default function AdminOrderCreateForm({
       {context && ordersHistoryModal && typeof document !== "undefined"
         ? createPortal(
           <div
-            className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/50 p-4"
+            className="fixed inset-0 z-[10000] flex items-center justify-center overflow-hidden bg-slate-900/50 p-2"
             onClick={() => setOrdersHistoryModal(null)}
           >
             <div
-              className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-2xl border border-admin-border bg-admin-surface shadow-2xl"
+              className="flex max-h-[calc(100dvh-1rem)] min-h-0 w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-admin-border bg-admin-surface shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between border-b px-4 py-3">
+              <div className="flex flex-none items-center justify-between border-b px-4 py-3">
                 <h3 className="text-sm font-semibold text-admin-text">
                   {ORDERS_HISTORY_MODAL_TITLES[ordersHistoryModal]}
                 </h3>
@@ -4394,7 +4735,7 @@ export default function AdminOrderCreateForm({
                   Закрыть
                 </button>
               </div>
-              <div className="max-h-[72vh] overflow-auto p-4">
+              <div className="min-h-0 flex-1 overflow-auto p-4">
                 {ordersForHistoryModal(context, ordersHistoryModal).length === 0 ? (
                   <p className="text-sm text-admin-text-secondary">Заказы не найдены.</p>
                 ) : (

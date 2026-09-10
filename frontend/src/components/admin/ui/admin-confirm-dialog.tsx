@@ -1,17 +1,18 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { adminBtnDanger, adminBtnSecondary, adminModalOverlay } from "@/lib/admin-ui-classes";
 
 type Props = {
     open: boolean;
     title?: string;
-    message: string;
+    message: ReactNode;
     confirmText?: string;
     cancelText?: string;
     confirmLoadingText?: string;
     loading?: boolean;
+    hideConfirm?: boolean;
     onConfirmAction: () => void;
     onCloseAction: () => void;
 };
@@ -24,6 +25,7 @@ export default function AdminConfirmDialog({
     cancelText = "Отмена",
     confirmLoadingText,
     loading = false,
+    hideConfirm = false,
     onConfirmAction,
     onCloseAction,
 }: Props) {
@@ -49,7 +51,7 @@ export default function AdminConfirmDialog({
     return createPortal(
         <div className={adminModalOverlay} onClick={onCloseAction} role="presentation">
             <div
-                className="w-full max-w-md rounded-xl border border-admin-border bg-admin-surface p-5 shadow-2xl sm:rounded-xl"
+                className="flex max-h-[calc(100dvh-1rem)] w-full max-w-md overflow-y-auto rounded-xl border border-admin-border bg-admin-surface p-5 shadow-2xl sm:rounded-xl"
                 onClick={(e) => e.stopPropagation()}
                 role="dialog"
                 aria-modal="true"
@@ -68,14 +70,16 @@ export default function AdminConfirmDialog({
                         {cancelText}
                     </button>
 
-                    <button
-                        type="button"
-                        onClick={onConfirmAction}
-                        disabled={loading}
-                        className={`${adminBtnDanger} w-full sm:w-auto disabled:opacity-50`}
-                    >
-                        {loading ? (confirmLoadingText ?? "Удаление...") : confirmText}
-                    </button>
+                    {hideConfirm ? null : (
+                        <button
+                            type="button"
+                            onClick={onConfirmAction}
+                            disabled={loading}
+                            className={`${adminBtnDanger} w-full sm:w-auto disabled:opacity-50`}
+                        >
+                            {loading ? (confirmLoadingText ?? "Удаление...") : confirmText}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>,

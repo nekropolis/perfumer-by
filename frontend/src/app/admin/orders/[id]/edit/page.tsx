@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import Breadcrumbs from "@/components/ui/breadcrumbs";
+import AdminCrudHeader from "@/components/admin/ui/admin-crud-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminLoadingState from "@/components/admin/ui/admin-loading-state";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
@@ -36,23 +35,16 @@ export default function AdminOrderEditPage() {
 
   return (
     <AdminPageCard>
-      <Breadcrumbs
-        className="mb-4"
+      <AdminCrudHeader
+        backHref="/admin/orders"
+        backAriaLabel="Назад к заказам"
+        title={`Редактировать заказ #${params.id}`}
         items={[
           { label: "Админка", href: "/admin" },
           { label: "Заказы", href: "/admin/orders" },
           { label: "Редактирование" },
         ]}
       />
-
-      <div className="mb-6 flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Редактировать заказ #{params.id}</h1>
-        </div>
-        <Link href="/admin/orders" className="rounded-lg border px-4 py-2 text-sm">
-          Назад
-        </Link>
-      </div>
 
       {error ? (
         <div className="mb-4">

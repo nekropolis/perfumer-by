@@ -221,7 +221,7 @@ class VanilleImportService
                         if ($publishExisting) {
                             $product->update([
                                 'is_active' => true,
-                                'name' => $productShortName,
+                                'name' => ProductDisplayName::replaceCyrillicLookalikes($productShortName),
                                 'h1' => ProductDisplayName::replaceCyrillicLookalikes($displayName),
                             ]);
                             $log[] = 'INFO: одиночный импорт — товар опубликован и обновлены name/h1: ' . $displayName;
@@ -231,7 +231,7 @@ class VanilleImportService
                             'slug' => $slug,
                             'brand_id' => $brand?->id,
                             'main_category_id' => null,
-                            'name' => $productShortName,
+                            'name' => ProductDisplayName::replaceCyrillicLookalikes($productShortName),
                             'h1' => ProductDisplayName::replaceCyrillicLookalikes($displayName),
                             'short_description' => mb_substr(trim(strip_tags($item['description'] ?? '')), 0, 1000),
                             'description' => $item['description'] ?? null,
@@ -1783,7 +1783,7 @@ class VanilleImportService
                 }
 
                 $product->update([
-                    'name' => $resolved['short_name'],
+                    'name' => ProductDisplayName::replaceCyrillicLookalikes($resolved['short_name']),
                     'h1' => ProductDisplayName::replaceCyrillicLookalikes($resolved['display_name']),
                 ]);
 
@@ -2889,19 +2889,24 @@ class VanilleImportService
 
         $brandSlugForPath = (string) ($brand?->slug ?? ($catalogBrand['slug'] ?? VanilleHelper::slugify($brandName)));
         $vanilleUrl = trim((string) ($item['url'] ?? ''));
-        $fullTitle = $this->resolveProductName($item);
+        $fullTitle = ProductDisplayName::replaceCyrillicLookalikes($this->resolveProductName($item));
         $productShortName = ProductDisplayName::resolveCanonicalShortName(
             $brandName,
             $brandSlugForPath,
             $fullTitle,
             $vanilleUrl,
-            $this->resolveVanilleProductCasingSources($item),
+            array_map(
+                static fn (string $value): string => ProductDisplayName::replaceCyrillicLookalikes($value),
+                $this->resolveVanilleProductCasingSources($item),
+            ),
         );
 
         if ($productShortName === '') {
             $urlTail = trim((string) parse_url($vanilleUrl, PHP_URL_PATH), '/');
             $productShortName = $urlTail !== '' ? $urlTail : $fullTitle;
         }
+
+        $productShortName = ProductDisplayName::replaceCyrillicLookalikes($productShortName);
 
         return [
             'short_name' => $productShortName,

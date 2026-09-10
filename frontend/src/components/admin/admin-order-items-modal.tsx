@@ -7,6 +7,7 @@ import { ChevronRight } from "lucide-react";
 import type { OrderData } from "@/types/orders";
 import AdminOrderItemsTable from "@/components/admin/admin-order-items-table";
 import { giftCertificateStatusLabel } from "@/lib/admin-loyalty-api";
+import { adminModalOverlay, adminModalPanel } from "@/lib/admin-ui-classes";
 import { formatDeliveryClockTime } from "@/components/admin/orders/admin-delivery-time-input";
 import { formatDeliveryAddressLine } from "@/lib/format-delivery-address";
 import {
@@ -358,24 +359,24 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
     };
 
     const mainModal = createPortal(
-        <div
-            className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-900/55 p-0 sm:items-center sm:p-4"
-            onClick={onCloseAction}
-            role="presentation"
-        >
             <div
-                className="flex h-[94dvh] w-[calc(100vw-24px)] max-w-[1024px] flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface shadow-2xl sm:h-[min(90vh,920px)] sm:rounded-xl"
+                className={adminModalOverlay}
+                onClick={onCloseAction}
+                role="presentation"
+            >
+                <div
+                    className={`${adminModalPanel} w-[min(100%,calc(100vw-1rem))] max-w-[1024px]`}
                 onClick={(e) => e.stopPropagation()}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="admin-order-items-title"
             >
-                <div className="border-b border-admin-border px-4 py-3 sm:px-5">
+                <div className="flex-none border-b border-admin-border px-4 py-3 sm:px-5">
                     <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                             <h3
                                 id="admin-order-items-title"
-                                className="truncate text-xl font-semibold leading-tight text-admin-text sm:text-2xl"
+                                className="truncate text-lg font-semibold leading-tight text-admin-text sm:text-2xl"
                             >
                                 Заказ #{order.id} - {formatDate(order.created_at)}
                             </h3>
@@ -713,17 +714,17 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
             {customerContext && ordersHistoryModal
                 ? createPortal(
                       <div
-                          className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/50 p-4"
+                          className="fixed inset-0 z-[300] flex items-center justify-center overflow-hidden bg-slate-900/50 p-2"
                           onClick={() => setOrdersHistoryModal(null)}
                           role="presentation"
                       >
                           <div
-                              className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-2xl border border-admin-border bg-admin-surface shadow-2xl"
+                              className="flex max-h-[calc(100dvh-1rem)] min-h-0 w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-admin-border bg-admin-surface shadow-2xl"
                               onClick={(e) => e.stopPropagation()}
                               role="dialog"
                               aria-modal="true"
                           >
-                              <div className="flex items-center justify-between border-b border-admin-border px-4 py-3">
+                              <div className="flex flex-none items-center justify-between border-b border-admin-border px-4 py-3">
                                   <h3 className="text-sm font-semibold text-admin-text">
                                       {ORDERS_HISTORY_MODAL_TITLES[ordersHistoryModal]}
                                   </h3>
@@ -735,7 +736,7 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
                                       Закрыть
                                   </button>
                               </div>
-                              <div className="max-h-[72vh] overflow-auto p-4">
+                              <div className="min-h-0 flex-1 overflow-auto p-4">
                                   {ordersForHistoryModal(customerContext, ordersHistoryModal).length === 0 ? (
                                       <p className="text-sm text-admin-text-secondary">Заказы не найдены.</p>
                                   ) : (

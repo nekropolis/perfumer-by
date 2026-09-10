@@ -21,6 +21,7 @@ type HeaderActionsProps = {
     isMobileOpen: boolean;
     isBurgerOpen: boolean;
     burgerLinks: ReadonlyArray<HeaderNavLink>;
+    tabletBurgerLinks: ReadonlyArray<HeaderNavLink>;
     accountRef: RefObject<HTMLDivElement | null>;
     burgerMenuRef: RefObject<HTMLDivElement | null>;
     onToggleAccountAction: () => void;
@@ -42,6 +43,7 @@ export default function HeaderActions({
     isMobileOpen,
     isBurgerOpen,
     burgerLinks,
+    tabletBurgerLinks,
     accountRef,
     burgerMenuRef,
     onToggleAccountAction,
@@ -81,6 +83,7 @@ export default function HeaderActions({
             <Suspense fallback={<HeaderBurgerMenuFallback />}>
                 <HeaderBurgerMenu
                     links={burgerLinks}
+                    tabletLinks={tabletBurgerLinks}
                     isOpen={isBurgerOpen}
                     menuRef={burgerMenuRef}
                     onToggleAction={onToggleBurgerMenuAction}
