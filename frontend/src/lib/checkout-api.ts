@@ -26,6 +26,13 @@ export type CheckoutPayload = {
     delivery_house?: string | null;
     delivery_korpus?: string | null;
     delivery_apartment?: string | null;
+    additional_delivery_street_prefix?: string | null;
+    additional_delivery_address?: string | null;
+    additional_delivery_house?: string | null;
+    additional_delivery_korpus?: string | null;
+    additional_delivery_apartment?: string | null;
+    /** Время «с» на доп. адресе — в админке это «Время доставки до». */
+    delivery_time_to?: string | null;
     payment_method: CheckoutPaymentMethod;
     /** Обязательное принятие публичной оферты. */
     consent_offer: boolean;

@@ -17,6 +17,7 @@ use Modules\Checkout\Http\Controllers\Api\MyOrdersController;
 use Modules\Checkout\Http\Controllers\Api\StockNotificationController;
 use Modules\Checkout\Http\Controllers\Api\StockNotificationAdminController;
 use Modules\Checkout\Http\Controllers\Api\CallbackRequestController;
+use Modules\Checkout\Http\Controllers\Api\OneClickOrderController;
 use Modules\Checkout\Http\Controllers\Api\AdminDashboardController;
 use Modules\Communications\Http\Controllers\Admin\TelegramTestController;
 
@@ -28,11 +29,12 @@ Route::prefix('checkout')->group(function () {
     Route::post('/', [CheckoutController::class, 'checkout']);
 });
 
-// Публичные формы «сообщить о поступлении» и «заказать звонок» — с жёстким
-// троттлингом, чтобы не превращать формы в канал массовой рассылки/спама.
+// Публичные формы «сообщить о поступлении», «заказать звонок», «купить в один клик» —
+// с жёстким троттлингом, чтобы не превращать формы в канал массовой рассылки/спама.
 Route::middleware('throttle:10,1')->group(function () {
     Route::post('/stock-notifications', [StockNotificationController::class, 'store']);
     Route::post('/callback-requests', [CallbackRequestController::class, 'store']);
+    Route::post('/one-click-orders', [OneClickOrderController::class, 'store']);
 });
 
 Route::middleware(['auth:sanctum', 'is_admin_or_manager'])->prefix('admin/orders')->group(function () {

@@ -6,7 +6,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { BellRing } from "lucide-react";
 import StockNotificationModal from "@/components/product/stock-notification-modal";
-import CallbackRequestTrigger from "@/components/product/callback-request-trigger";
+import OneClickOrderTrigger from "@/components/product/one-click-order-trigger";
 import type { ProductVariantData } from "@/types/catalog";
 import {
     formatSetComponentLines,
@@ -188,12 +188,13 @@ export default function ProductBuyBox({
         };
     }, [showMobile]);
 
-    const callbackTriggerNode = (
-        <CallbackRequestTrigger
+    const oneClickTriggerNode = (
+        <OneClickOrderTrigger
             productId={productId}
             productName={productName}
             variantId={selectedVariantId}
             variantTitle={selectedVariantTitle}
+            disabled={!canAddToCart}
         />
     );
 
@@ -511,9 +512,11 @@ export default function ProductBuyBox({
                                 {canAddToCart ? renderCartAction(false) : null}
                             </div>
 
-                            <div className="mt-4 flex justify-center">
-                                {callbackTriggerNode}
-                            </div>
+                            {canAddToCart ? (
+                                <div className="mt-4 flex justify-center">
+                                    {oneClickTriggerNode}
+                                </div>
+                            ) : null}
 
                             {!canAddToCart && (
                                 <div className="mt-3 flex justify-center">
@@ -538,10 +541,6 @@ export default function ProductBuyBox({
                                 `${siteBtnPrimary} w-full px-5 py-3.5 text-base`,
                                 "h-5 w-5",
                             )}
-
-                            <div className="mt-4 flex justify-center">
-                                {callbackTriggerNode}
-                            </div>
                         </>
                     )}
                 </div>

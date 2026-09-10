@@ -1,30 +1,30 @@
 "use client";
 
 import { useState } from "react";
-import { PhoneCall } from "lucide-react";
-import CallbackRequestModal from "@/components/product/callback-request-modal";
+import { MousePointerClick } from "lucide-react";
+import OneClickOrderModal from "@/components/product/one-click-order-modal";
 
 type Props = {
-    productId?: number | null;
-    productName?: string | null;
+    productId: number;
+    productName: string;
     variantId?: number | null;
     variantTitle?: string | null;
     label?: string;
     className?: string;
-    iconClassName?: string;
+    disabled?: boolean;
 };
 
 const defaultLinkClass =
-    "inline-flex items-center gap-2.5 text-base font-medium text-admin-text transition duration-200 ease-out hover:scale-110 hover:text-admin-primary";
+    "inline-flex items-center gap-2.5 text-base font-medium text-admin-text transition duration-200 ease-out hover:scale-110 hover:text-admin-primary disabled:pointer-events-none disabled:opacity-50";
 
-export default function CallbackRequestTrigger({
+export default function OneClickOrderTrigger({
     productId,
     productName,
-    variantId,
+    variantId = null,
     variantTitle,
-    label = "Заказать звонок",
+    label = "Купить в один клик",
     className = defaultLinkClass,
-    iconClassName = "h-5 w-5 shrink-0",
+    disabled = false,
 }: Props) {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -35,13 +35,14 @@ export default function CallbackRequestTrigger({
                 onClick={() => setIsOpen(true)}
                 title={label}
                 aria-label={label}
+                disabled={disabled || variantId === null}
                 className={className}
             >
-                <PhoneCall className={iconClassName} strokeWidth={1.75} aria-hidden />
+                <MousePointerClick className="h-5 w-5 shrink-0" strokeWidth={1.75} aria-hidden />
                 <span className="underline underline-offset-4 decoration-admin-border-strong">{label}</span>
             </button>
 
-            <CallbackRequestModal
+            <OneClickOrderModal
                 open={isOpen}
                 onCloseAction={() => setIsOpen(false)}
                 productId={productId}

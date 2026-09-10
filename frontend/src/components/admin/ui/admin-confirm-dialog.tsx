@@ -51,7 +51,7 @@ export default function AdminConfirmDialog({
     return createPortal(
         <div className={adminModalOverlay} onClick={onCloseAction} role="presentation">
             <div
-                className="flex max-h-[calc(100dvh-1rem)] w-full max-w-md overflow-y-auto rounded-xl border border-admin-border bg-admin-surface p-5 shadow-2xl sm:rounded-xl"
+                className="flex max-h-[calc(100dvh-1rem)] w-full max-w-md flex-col overflow-y-auto rounded-xl border border-admin-border bg-admin-surface p-5 shadow-2xl sm:rounded-xl"
                 onClick={(e) => e.stopPropagation()}
                 role="dialog"
                 aria-modal="true"

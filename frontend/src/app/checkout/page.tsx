@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
@@ -153,6 +153,13 @@ export default function CheckoutPage() {
     const [deliveryHouse, setDeliveryHouse] = useState("");
     const [deliveryKorpus, setDeliveryKorpus] = useState("");
     const [deliveryApartment, setDeliveryApartment] = useState("");
+    const [additionalAddressOpen, setAdditionalAddressOpen] = useState(false);
+    const [additionalDeliveryStreetPrefix, setAdditionalDeliveryStreetPrefix] = useState(DEFAULT_VETER_STREET_PREFIX);
+    const [additionalDeliveryAddress, setAdditionalDeliveryAddress] = useState("");
+    const [additionalDeliveryHouse, setAdditionalDeliveryHouse] = useState("");
+    const [additionalDeliveryKorpus, setAdditionalDeliveryKorpus] = useState("");
+    const [additionalDeliveryApartment, setAdditionalDeliveryApartment] = useState("");
+    const [additionalDeliveryTimeFrom, setAdditionalDeliveryTimeFrom] = useState("");
     const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>("cash");
     const [cardSampleWarningOpen, setCardSampleWarningOpen] = useState(false);
     const [quote, setQuote] = useState<CheckoutQuote | null>(null);
@@ -356,6 +363,13 @@ export default function CheckoutPage() {
             setDeliveryHouse("");
             setDeliveryKorpus("");
             setDeliveryApartment("");
+            setAdditionalAddressOpen(false);
+            setAdditionalDeliveryStreetPrefix(DEFAULT_VETER_STREET_PREFIX);
+            setAdditionalDeliveryAddress("");
+            setAdditionalDeliveryHouse("");
+            setAdditionalDeliveryKorpus("");
+            setAdditionalDeliveryApartment("");
+            setAdditionalDeliveryTimeFrom("");
         }
     }, []);
 
@@ -423,6 +437,16 @@ export default function CheckoutPage() {
             return;
         }
 
+        const extraAddressFilled =
+            deliveryMethod !== "pickup" &&
+            additionalAddressOpen &&
+            Boolean(
+                additionalDeliveryAddress.trim() ||
+                    additionalDeliveryHouse.trim() ||
+                    additionalDeliveryKorpus.trim() ||
+                    additionalDeliveryApartment.trim(),
+            );
+
         const orderDeliveryAddress = deliveryMethod === "pickup"
             ? "Самовывоз"
             : deliveryAddress.trim();
@@ -445,6 +469,20 @@ export default function CheckoutPage() {
                     delivery_korpus: deliveryMethod === "pickup" ? null : deliveryKorpus.trim() || null,
                     delivery_apartment:
                         deliveryMethod === "pickup" ? null : deliveryApartment.trim() || null,
+                    additional_delivery_street_prefix:
+                        extraAddressFilled ? additionalDeliveryStreetPrefix.trim() || null : null,
+                    additional_delivery_address:
+                        extraAddressFilled ? additionalDeliveryAddress.trim() || null : null,
+                    additional_delivery_house:
+                        extraAddressFilled ? additionalDeliveryHouse.trim() || null : null,
+                    additional_delivery_korpus:
+                        extraAddressFilled ? additionalDeliveryKorpus.trim() || null : null,
+                    additional_delivery_apartment:
+                        extraAddressFilled ? additionalDeliveryApartment.trim() || null : null,
+                    delivery_time_to:
+                        extraAddressFilled && additionalDeliveryTimeFrom.trim()
+                            ? additionalDeliveryTimeFrom.trim().slice(0, 5)
+                            : null,
                     payment_method: paymentMethod,
                     consent_offer: true,
                     consent_privacy: true,
@@ -807,6 +845,120 @@ export default function CheckoutPage() {
                                     />
                                 </div>
                             </div>
+                        </div>
+                    ) : null}
+
+                    {deliveryMethod !== "pickup" ? (
+                        <div className="mb-5">
+                            {!additionalAddressOpen ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setAdditionalAddressOpen(true)}
+                                    className="inline-flex items-center gap-1 rounded-full border border-dashed border-admin-border bg-admin-surface px-3 py-1.5 text-sm font-medium text-admin-primary transition hover:border-admin-primary hover:bg-admin-muted"
+                                >
+                                    <Plus size={14} strokeWidth={2.5} />
+                                    Добавить дополнительный адрес
+                                </button>
+                            ) : (
+                                <div className="rounded-2xl border border-admin-border bg-admin-muted/30 p-3 sm:p-4">
+                                    <div className="mb-3 flex items-center justify-between gap-2">
+                                        <div className="text-sm font-medium">Дополнительный адрес доставки</div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setAdditionalAddressOpen(false);
+                                                setAdditionalDeliveryStreetPrefix(DEFAULT_VETER_STREET_PREFIX);
+                                                setAdditionalDeliveryAddress("");
+                                                setAdditionalDeliveryHouse("");
+                                                setAdditionalDeliveryKorpus("");
+                                                setAdditionalDeliveryApartment("");
+                                                setAdditionalDeliveryTimeFrom("");
+                                            }}
+                                            className="text-xs font-medium text-admin-text-secondary hover:text-admin-text"
+                                        >
+                                            Убрать
+                                        </button>
+                                    </div>
+                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-2">
+                                        <div className="w-full shrink-0 sm:w-[6rem]">
+                                            <label className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                                Тип
+                                            </label>
+                                            <StreetPrefixSelect
+                                                value={additionalDeliveryStreetPrefix}
+                                                onChange={setAdditionalDeliveryStreetPrefix}
+                                                variant="site"
+                                            />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <label className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                                Адрес *
+                                            </label>
+                                            <input
+                                                value={additionalDeliveryAddress}
+                                                onChange={(e) => setAdditionalDeliveryAddress(e.target.value)}
+                                                className={siteInput}
+                                                placeholder="Улица"
+                                            />
+                                        </div>
+                                        <div className="w-full shrink-0 sm:w-14">
+                                            <label className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                                Дом
+                                            </label>
+                                            <input
+                                                value={additionalDeliveryHouse}
+                                                onChange={(e) => setAdditionalDeliveryHouse(e.target.value)}
+                                                className={`${siteInput} px-1.5`}
+                                                placeholder="№"
+                                                maxLength={4}
+                                            />
+                                        </div>
+                                        <div className="w-full shrink-0 sm:w-14">
+                                            <label className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                                Корп.
+                                            </label>
+                                            <input
+                                                value={additionalDeliveryKorpus}
+                                                onChange={(e) => setAdditionalDeliveryKorpus(e.target.value)}
+                                                className={`${siteInput} px-1.5`}
+                                                placeholder="№"
+                                                maxLength={4}
+                                            />
+                                        </div>
+                                        <div className="w-full shrink-0 sm:w-14">
+                                            <label className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                                Кв.
+                                            </label>
+                                            <input
+                                                value={additionalDeliveryApartment}
+                                                onChange={(e) => setAdditionalDeliveryApartment(e.target.value)}
+                                                className={`${siteInput} px-1.5`}
+                                                placeholder="№"
+                                                maxLength={4}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="mt-3">
+                                        <label className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                            Время доставки на этот адрес
+                                        </label>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm text-admin-text">с</span>
+                                            <input
+                                                type="time"
+                                                step={600}
+                                                value={additionalDeliveryTimeFrom}
+                                                onChange={(e) => setAdditionalDeliveryTimeFrom(e.target.value)}
+                                                className="min-h-10 w-[8.25rem] rounded-2xl border border-admin-border bg-admin-surface px-2 py-2 text-sm tabular-nums text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15"
+                                                aria-label="Время с"
+                                            />
+                                        </div>
+                                        <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                                            Укажите время
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     ) : null}
 

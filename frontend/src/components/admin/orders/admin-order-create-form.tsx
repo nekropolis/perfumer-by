@@ -52,7 +52,7 @@ import { getOrderStatusColor, getOrderStatusLabel, solidColorPillStyle, SOLID_PI
 import { useOrderStatusOptions } from "@/hooks/use-order-status-options";
 import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
 import { formatMoneyRub } from "@/lib/format-money-display";
-import { ChevronRight, Plus, Trash2, X } from "lucide-react";
+import { ChevronRight, Pencil, Plus, Trash2, X } from "lucide-react";
 import type { AdminOrderCustomerContextOrderRow } from "@/lib/admin-orders-api";
 import AdminDeliveryTimeInput, {
   AdminDeliveryTimePresets,
@@ -84,14 +84,14 @@ const DELIVERY_DAY_LABELS: {
   /** JS Date.getDay(): 0=Sun … 6=Sat */
   jsDay: number;
 }[] = [
-  { key: "monday", short: "Пн", jsDay: 1 },
-  { key: "tuesday", short: "Вт", jsDay: 2 },
-  { key: "wednesday", short: "Ср", jsDay: 3 },
-  { key: "thursday", short: "Чт", jsDay: 4 },
-  { key: "friday", short: "Пт", jsDay: 5 },
-  { key: "saturday", short: "Сб", jsDay: 6 },
-  { key: "sunday", short: "Вс", jsDay: 0 },
-];
+    { key: "monday", short: "Пн", jsDay: 1 },
+    { key: "tuesday", short: "Вт", jsDay: 2 },
+    { key: "wednesday", short: "Ср", jsDay: 3 },
+    { key: "thursday", short: "Чт", jsDay: 4 },
+    { key: "friday", short: "Пт", jsDay: 5 },
+    { key: "saturday", short: "Сб", jsDay: 6 },
+    { key: "sunday", short: "Вс", jsDay: 0 },
+  ];
 
 /** Ближайшая дата weekday начиная с сегодня (Минск) или завтра (остальные). */
 function nextDateForWeekday(jsDay: number, allowToday: boolean): string {
@@ -146,13 +146,12 @@ function DeliveryDaysBadges({
       {DELIVERY_DAY_LABELS.map(({ key, short, jsDay }) => {
         const on = days[key] === 1;
         const selected = on && selectedKey === key;
-        const className = `inline-flex h-5 min-w-[1.4rem] items-center justify-center rounded px-1 text-[10px] font-medium ${
-          selected
+        const className = `inline-flex h-5 min-w-[1.4rem] items-center justify-center rounded px-1 text-[10px] font-medium ${selected
             ? "bg-emerald-600 text-white"
             : on
               ? "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100"
               : "bg-admin-muted text-admin-text-secondary/50"
-        }`;
+          }`;
         const title = on
           ? selected
             ? `${short}: выбрано ${selectedDate ? formatIsoDateShortRu(selectedDate) : ""}`
@@ -196,14 +195,9 @@ const surfaceFieldClass =
 const surfaceFieldCompactClass =
   "w-full rounded-lg border border-admin-border bg-admin-surface px-1.5 py-2 text-sm text-admin-text placeholder:text-admin-text-secondary/70 outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15";
 
-const orderLineTableRow =
-  "flex min-w-[52rem] items-start gap-x-3";
-const orderLineColName = "min-w-0 flex-1 overflow-hidden";
-const orderLineColFrom = "w-[8rem] shrink-0";
-const orderLineColQty = "w-11 shrink-0";
-const orderLineColPrice = "w-[5.75rem] shrink-0";
-const orderLineColTotal = "w-[6.5rem] shrink-0";
-const orderLineColActions = "w-8 shrink-0";
+const orderLineThClass =
+  "px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary";
+const orderLineTdClass = "px-2 py-1.5 align-top";
 
 type DeliveryValue = (typeof DELIVERY_OPTIONS)[number]["value"];
 type PaymentValue = (typeof PAYMENT_OPTIONS)[number]["value"];
@@ -1262,18 +1256,18 @@ export default function AdminOrderCreateForm({
           prev.map((row, i) =>
             i === lineIdx
               ? {
-                  ...row,
-                  main_lot_choices: choices,
-                  selected_lot_id: row.selected_lot_id ?? selected_lot_id,
-                  offer_choices: nextOfferChoices.length > 0 ? nextOfferChoices : row.offer_choices,
-                  selected_offer_id:
-                    channelFromSource(row.availability_source) === "offer"
-                      ? (row.selected_offer_id ??
-                        pickPreferredOfferId(
-                          nextOfferChoices.length > 0 ? nextOfferChoices : row.offer_choices,
-                        ))
-                      : row.selected_offer_id,
-                }
+                ...row,
+                main_lot_choices: choices,
+                selected_lot_id: row.selected_lot_id ?? selected_lot_id,
+                offer_choices: nextOfferChoices.length > 0 ? nextOfferChoices : row.offer_choices,
+                selected_offer_id:
+                  channelFromSource(row.availability_source) === "offer"
+                    ? (row.selected_offer_id ??
+                      pickPreferredOfferId(
+                        nextOfferChoices.length > 0 ? nextOfferChoices : row.offer_choices,
+                      ))
+                    : row.selected_offer_id,
+              }
               : row,
           ),
         );
@@ -1304,14 +1298,14 @@ export default function AdminOrderCreateForm({
           prev.map((row, i) =>
             i === lineIdx
               ? {
-                  ...row,
-                  fulfillment_options: options,
-                  offer_choices: choices,
-                  selected_offer_id:
-                    channelFromSource(row.availability_source) === "offer"
-                      ? (row.selected_offer_id ?? selected_offer_id)
-                      : row.selected_offer_id,
-                }
+                ...row,
+                fulfillment_options: options,
+                offer_choices: choices,
+                selected_offer_id:
+                  channelFromSource(row.availability_source) === "offer"
+                    ? (row.selected_offer_id ?? selected_offer_id)
+                    : row.selected_offer_id,
+              }
               : row,
           ),
         );
@@ -1447,7 +1441,7 @@ export default function AdminOrderCreateForm({
           setDeliveryCity(hit.full_name.trim());
         }
       })
-      .catch(() => {});
+      .catch(() => { });
     return () => {
       cancelled = true;
     };
@@ -1556,8 +1550,8 @@ export default function AdminOrderCreateForm({
         const merchandise = Number.isFinite(fromQuote)
           ? fromQuote
           : lines
-              .filter(isCompleteOrderLine)
-              .reduce((a, l) => a + Math.max(0, l.qty) * Math.max(0, l.price), 0);
+            .filter(isCompleteOrderLine)
+            .reduce((a, l) => a + Math.max(0, l.qty) * Math.max(0, l.price), 0);
         setDeliveryFee(merchandise + 0.0001 >= 50 ? 0 : 3);
         setDeliveryCity(MINSK_COURIER_CITY);
         setCitySelect("");
@@ -1597,10 +1591,10 @@ export default function AdminOrderCreateForm({
             cityId != null
               ? ""
               : (() => {
-                  const city = (initialOrder.delivery_city ?? "").trim();
-                  if (!city) return "";
-                  return city.includes(",") ? city.slice(0, city.indexOf(",")).trim() : city;
-                })(),
+                const city = (initialOrder.delivery_city ?? "").trim();
+                if (!city) return "";
+                return city.includes(",") ? city.slice(0, city.indexOf(",")).trim() : city;
+              })(),
           );
           setDeliveryAddress(initialOrder.delivery_address ?? "");
           setDeliveryStreetPrefix(
@@ -2586,9 +2580,9 @@ export default function AdminOrderCreateForm({
       deliveryMethod === "pickup" ? "Самовывоз" : deliveryAddress.trim();
     const hasAdditionalDeliveryAddress = Boolean(
       additionalDeliveryAddress.trim() ||
-        additionalDeliveryHouse.trim() ||
-        additionalDeliveryKorpus.trim() ||
-        additionalDeliveryApartment.trim(),
+      additionalDeliveryHouse.trim() ||
+      additionalDeliveryKorpus.trim() ||
+      additionalDeliveryApartment.trim(),
     );
 
     const payload: AdminOrderPayload = {
@@ -2666,10 +2660,10 @@ export default function AdminOrderCreateForm({
         waiting_discount: item.waiting_discount,
         ...(channelFromSource(item.availability_source) === "main" && item.selected_lot_id
           ? {
-              stock_lot_allocations: [
-                { lot_id: item.selected_lot_id, qty: Math.max(1, item.qty) },
-              ],
-            }
+            stock_lot_allocations: [
+              { lot_id: item.selected_lot_id, qty: Math.max(1, item.qty) },
+            ],
+          }
           : {}),
         ...(channelFromSource(item.availability_source) === "offer" && item.selected_offer_id
           ? { supplier_variant_offer_id: item.selected_offer_id }
@@ -2877,18 +2871,18 @@ export default function AdminOrderCreateForm({
 
   const additionalAddressFilled = Boolean(
     additionalDeliveryAddress.trim() ||
-      additionalDeliveryHouse.trim() ||
-      additionalDeliveryKorpus.trim() ||
-      additionalDeliveryApartment.trim(),
+    additionalDeliveryHouse.trim() ||
+    additionalDeliveryKorpus.trim() ||
+    additionalDeliveryApartment.trim(),
   );
   const additionalAddressLine = additionalAddressFilled
     ? formatDeliveryAddressLine({
-        prefix: additionalDeliveryStreetPrefix,
-        street: additionalDeliveryAddress,
-        house: additionalDeliveryHouse,
-        korpus: additionalDeliveryKorpus,
-        apartment: additionalDeliveryApartment,
-      })
+      prefix: additionalDeliveryStreetPrefix,
+      street: additionalDeliveryAddress,
+      house: additionalDeliveryHouse,
+      korpus: additionalDeliveryKorpus,
+      apartment: additionalDeliveryApartment,
+    })
     : "";
 
   const openAdditionalAddressPopup = () => {
@@ -2922,6 +2916,9 @@ export default function AdminOrderCreateForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
+      <div className="grid gap-8 min-[1600px]:grid-cols-[minmax(0,1fr)_22rem] min-[1600px]:items-start min-[1600px]:gap-6">
+      {/* левая колонка: клиент, товары, доставка и оплата */}
+      <div className="min-w-0 space-y-8">
 
       <SectionCard>
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
@@ -2983,29 +2980,32 @@ export default function AdminOrderCreateForm({
 
         <div className="flex flex-wrap items-stretch gap-3">
           <div className="flex min-w-[16rem] flex-1 flex-col gap-3 rounded-xl border border-admin-border/90 bg-admin-muted/50 p-3">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              {customerDisplayName ? (
-                <span className="min-w-0 truncate text-sm font-medium text-admin-text">
-                  {customerDisplayName}
-                </span>
-              ) : (
-                <span className="text-sm text-admin-text-secondary">ФИО не задано</span>
-              )}
-              <button
-                type="button"
-                onClick={openNamePopup}
-                className="inline-flex items-center gap-1 rounded-full border border-dashed border-admin-border bg-admin-surface px-2.5 py-1 text-xs font-medium text-admin-primary transition hover:border-admin-primary hover:bg-admin-muted"
-                title={customerDisplayName ? "Редактировать имя" : "Задать имя"}
-              >
-                <Plus size={13} strokeWidth={2.5} />
-                {customerDisplayName ? "Редактировать" : "Задать имя"}
-              </button>
+            <div>
+              <div className="mb-0.5 text-[11px] font-medium text-admin-text-secondary">Имя</div>
+              <div className="flex min-w-0 items-center gap-1">
+                {customerDisplayName ? (
+                  <span className="min-w-0 truncate text-base font-semibold leading-tight text-admin-text">
+                    {customerDisplayName}
+                  </span>
+                ) : (
+                  <span className="text-sm text-admin-text-secondary">не задано</span>
+                )}
+                <button
+                  type="button"
+                  onClick={openNamePopup}
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-admin-text-secondary transition hover:bg-admin-surface hover:text-admin-primary"
+                  title={customerDisplayName ? "Редактировать имя" : "Задать имя"}
+                  aria-label={customerDisplayName ? "Редактировать имя" : "Задать имя"}
+                >
+                  <Pencil size={14} strokeWidth={2} />
+                </button>
+              </div>
             </div>
 
             <div>
               <div className="relative">
-                <div className="mb-1 flex items-center justify-between gap-2">
-                  <label className="block text-xs font-medium text-admin-text-secondary">Телефон *</label>
+                <div className="mb-0.5 flex items-center justify-between gap-2">
+                  <label className="text-[11px] font-medium text-admin-text-secondary">Номер телефона *</label>
                   <button
                     type="button"
                     className="text-[11px] font-medium text-admin-primary hover:underline"
@@ -3038,6 +3038,7 @@ export default function AdminOrderCreateForm({
                     {plainPhoneMode ? "Белорусский мобильный" : "Международный номер"}
                   </button>
                 </div>
+                <div className="flex min-w-0 items-center gap-2">
                   {plainPhoneMode ? (
                     <input
                       value={digitsOnly(phoneDigits)}
@@ -3047,7 +3048,7 @@ export default function AdminOrderCreateForm({
                       }}
                       onFocus={() => setPhoneHitsOpen(true)}
                       onBlur={() => setTimeout(() => setPhoneHitsOpen(false), 150)}
-                      className="w-full rounded-lg border border-admin-border bg-admin-bg px-2.5 py-2 font-mono text-sm text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/20"
+                      className="min-w-0 flex-1 rounded-lg border border-admin-border bg-admin-bg px-2.5 py-1.5 font-mono text-base font-semibold tabular-nums text-admin-text outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/20"
                       placeholder="79001234567"
                       inputMode="numeric"
                       autoComplete="new-password"
@@ -3056,8 +3057,8 @@ export default function AdminOrderCreateForm({
                       spellCheck={false}
                     />
                   ) : (
-                    <div className="flex overflow-hidden rounded-lg border border-admin-border bg-admin-bg transition focus-within:border-admin-primary focus-within:ring-2 focus-within:ring-admin-primary/20">
-                      <span className="flex shrink-0 items-center border-r border-admin-border px-2.5 text-sm tabular-nums text-admin-text-secondary">
+                    <div className="flex min-w-0 flex-1 overflow-hidden rounded-lg border border-admin-border bg-admin-bg transition focus-within:border-admin-primary focus-within:ring-2 focus-within:ring-admin-primary/20">
+                      <span className="flex shrink-0 items-center border-r border-admin-border px-2.5 font-mono text-base font-semibold tabular-nums text-admin-text">
                         +375
                       </span>
                       <input
@@ -3078,7 +3079,7 @@ export default function AdminOrderCreateForm({
                         }}
                         onFocus={() => setPhoneHitsOpen(true)}
                         onBlur={() => setTimeout(() => setPhoneHitsOpen(false), 150)}
-                        className="min-w-0 flex-1 border-0 bg-transparent px-2.5 py-2 text-sm text-admin-text outline-none ring-0 placeholder:text-admin-text-secondary/70 focus:ring-0"
+                        className="min-w-0 flex-1 border-0 bg-transparent px-2.5 py-1.5 font-mono text-base font-semibold tabular-nums text-admin-text outline-none ring-0 placeholder:text-admin-text-secondary/70 placeholder:font-medium focus:ring-0"
                         placeholder="29 123-45-67"
                         inputMode="numeric"
                         autoComplete="new-password"
@@ -3088,66 +3089,86 @@ export default function AdminOrderCreateForm({
                       />
                     </div>
                   )}
-
-                  {showPhoneClientPanel ? (
-                    <div className="absolute z-30 mt-1 max-h-52 w-full min-w-[16rem] overflow-auto rounded-lg border border-admin-border bg-admin-surface py-1 shadow-lg">
-                      {phoneHitsLoading ||
-                        (plainPhoneMode
-                          ? digitsOnly(debouncedPhone).length < PHONE_CLIENT_HINT_MIN_NATIONAL
-                          : nationalDebounced.length < PHONE_CLIENT_HINT_MIN_NATIONAL) ? (
-                        <div className="px-3 py-2 text-xs text-admin-text-secondary">Поиск клиентов…</div>
-                      ) : phoneHits.length === 0 ? (
-                        <div className="px-3 py-2 text-xs text-admin-text-secondary">
-                          {hasOrderHistoryByPhone
-                            ? (() => {
-                              const guestName =
-                                context?.customer_name?.trim() ||
-                                context?.matched_user?.name?.trim() ||
-                                "";
-                              return guestName
-                                ? `${guestName} · заказов: ${totalOrdersCount(context)}`
-                                : `Клиент не зарегистрирован, но есть заказов: ${totalOrdersCount(context)}`;
-                            })()
-                            : "Клиенты не найдены"}
-                        </div>
-                      ) : (
-                        phoneHits.map((u) => {
-                          const hitName = u.name?.trim() || "";
-                          return (
-                            <button
-                              key={u.id}
-                              type="button"
-                              className="flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-admin-muted"
-                              onMouseDown={(ev) => ev.preventDefault()}
-                              onClick={() => selectPhoneHit(u)}
-                            >
-                              <span className="font-medium text-admin-text">
-                                {hitName || u.phone}
-                              </span>
-                              <span className="text-xs text-admin-text-secondary">{u.phone}</span>
-                            </button>
-                          );
-                        })
-                      )}
-                    </div>
+                  {context?.matched_user ? (
+                    <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+                      В базе
+                    </span>
                   ) : null}
                 </div>
 
-              <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
-                {additionalPhoneLabel ? (
-                  <span className="min-w-0 truncate font-mono text-sm text-admin-text">
-                    {additionalPhoneLabel}
-                  </span>
+                {showPhoneClientPanel ? (
+                  <div className="absolute z-30 mt-1 max-h-52 w-full min-w-[16rem] overflow-auto rounded-lg border border-admin-border bg-admin-surface py-1 shadow-lg">
+                    {phoneHitsLoading ||
+                      (plainPhoneMode
+                        ? digitsOnly(debouncedPhone).length < PHONE_CLIENT_HINT_MIN_NATIONAL
+                        : nationalDebounced.length < PHONE_CLIENT_HINT_MIN_NATIONAL) ? (
+                      <div className="px-3 py-2 text-xs text-admin-text-secondary">Поиск клиентов…</div>
+                    ) : phoneHits.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-admin-text-secondary">
+                        {hasOrderHistoryByPhone
+                          ? (() => {
+                            const guestName =
+                              context?.customer_name?.trim() ||
+                              context?.matched_user?.name?.trim() ||
+                              "";
+                            return guestName
+                              ? `${guestName} · заказов: ${totalOrdersCount(context)}`
+                              : `Клиент не зарегистрирован, но есть заказов: ${totalOrdersCount(context)}`;
+                          })()
+                          : "Клиенты не найдены"}
+                      </div>
+                    ) : (
+                      phoneHits.map((u) => {
+                        const hitName = u.name?.trim() || "";
+                        return (
+                          <button
+                            key={u.id}
+                            type="button"
+                            className="flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-admin-muted"
+                            onMouseDown={(ev) => ev.preventDefault()}
+                            onClick={() => selectPhoneHit(u)}
+                          >
+                            <span className="font-medium text-admin-text">
+                              {hitName || u.phone}
+                            </span>
+                            <span className="text-xs text-admin-text-secondary">{u.phone}</span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
                 ) : null}
-                <button
-                  type="button"
-                  onClick={openAdditionalPhonePopup}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-admin-border bg-admin-surface px-2.5 py-1 text-xs font-medium text-admin-primary transition hover:border-admin-primary hover:bg-admin-muted"
-                  title={additionalPhoneLabel ? "Редактировать номер" : "Добавить номер"}
-                >
-                  <Plus size={13} strokeWidth={2.5} />
-                  {additionalPhoneLabel ? "Редактировать" : "Добавить номер"}
-                </button>
+              </div>
+
+              <div className="mt-2">
+                {additionalPhoneLabel ? (
+                  <div>
+                    <div className="mb-0.5 text-[11px] font-medium text-admin-text-secondary">Доп. контакт</div>
+                    <div className="flex min-w-0 items-center gap-1">
+                      <span className="min-w-0 truncate font-mono text-base font-semibold tabular-nums text-admin-text">
+                        {additionalPhoneLabel}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={openAdditionalPhonePopup}
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-admin-text-secondary transition hover:bg-admin-surface hover:text-admin-primary"
+                        title="Редактировать номер"
+                        aria-label="Редактировать номер"
+                      >
+                        <Pencil size={14} strokeWidth={2} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={openAdditionalPhonePopup}
+                    className="inline-flex items-center gap-1 rounded-full border border-dashed border-admin-border bg-admin-surface px-2.5 py-1 text-xs font-medium text-admin-primary transition hover:border-admin-primary hover:bg-admin-muted"
+                  >
+                    <Plus size={13} strokeWidth={2.5} />
+                    Добавить номер
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -3547,200 +3568,204 @@ export default function AdminOrderCreateForm({
         <div className="space-y-2">
           {lines.some(isCompleteOrderLine) ? (
             <div className="overflow-x-auto rounded-xl ring-1 ring-inset ring-admin-border/60">
-              <div
-                className={`${orderLineTableRow} border-b border-admin-border/80 bg-admin-muted/55 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-admin-text-secondary`}
-              >
-                <span className={orderLineColName}>Наименование</span>
-                <span className={orderLineColFrom}>Откуда</span>
-                <span className={`${orderLineColQty} text-center`}>Кол-во</span>
-                <span className={`${orderLineColPrice} text-right`}>Цена</span>
-                <span className={`${orderLineColTotal} text-right`}>Итого</span>
-                <span className={orderLineColActions} aria-hidden />
-              </div>
-              <div className="divide-y divide-admin-border/70">
-                {lines.map((line, idx) => {
-                  if (!isCompleteOrderLine(line)) return null;
-                  const channel = channelFromSource(line.availability_source);
-                  const canPickChannel = line.can_fulfill_main || line.can_fulfill_offer;
-                  const selectValue: FulfillmentChannel =
-                    channel === "offer" || (!line.can_fulfill_main && line.can_fulfill_offer)
-                      ? "offer"
-                      : "main";
-                  const hasAvailabilityIssue = Boolean(line.availability_issue);
-                  return (
-                    <div
-                      key={`line-${idx}`}
-                      className={`${orderLineTableRow} px-3 py-2 ${
-                        hasAvailabilityIssue
-                          ? "border-l-4 border-l-amber-500 bg-amber-50/80"
-                          : "bg-admin-muted/25"
-                      }`}
-                    >
-                      <div className={`${orderLineColName} space-y-1`}>
-                        <p className="truncate text-sm leading-snug text-admin-text">
-                          <span className="font-medium">
-                            {formatOrderLineProductLabel(line)}
-                          </span>
-                          {line.variant_title ? (
-                            <span className="font-normal text-admin-text-secondary"> - {line.variant_title}</span>
-                          ) : null}
-                        </p>
-                        {line.availability_issue ? (
-                          <p className="text-[11px] font-medium leading-snug text-amber-800">
-                            {line.availability_issue}
-                          </p>
-                        ) : null}
-                        {line.fulfillment_options.length > 0 ? (
-                          <OrderLineFulfillmentDetails
-                            options={line.fulfillment_options}
-                            lotsExpanded={Boolean(expandedWarehouseLotsByLine[idx])}
-                            onToggleLotsAction={() =>
-                              setExpandedWarehouseLotsByLine((prev) => ({
-                                ...prev,
-                                [idx]: !prev[idx],
-                              }))
-                            }
-                          />
-                        ) : null}
-                      </div>
-                      <div className={`${orderLineColFrom} flex flex-col items-start gap-0.5 self-start pt-0.5`}>
-                        {!canPickChannel && !channel ? (
-                          <p className="text-xs leading-snug text-admin-text-secondary">
-                            Нет склада и офера — выбирать не из чего
-                          </p>
-                        ) : itemsLocked || !canPickChannel ? (
-                          <p className="text-sm text-admin-text">
-                            {channel === "main" ? "Склад" : channel === "offer" ? "Поставщик" : "—"}
-                          </p>
-                        ) : (
-                          <AdminStatusDropdown
-                            value={selectValue}
-                            onChangeAction={(value) => setLineChannel(idx, value as FulfillmentChannel)}
-                            options={[
-                              ...(line.can_fulfill_main
-                                ? [{ value: "main", label: "Склад" }]
-                                : []),
-                              ...(line.can_fulfill_offer
-                                ? [{ value: "offer", label: "Поставщик" }]
-                                : []),
-                            ]}
-                            triggerVariant="underline"
-                            menuWidthClassName="w-[180px]"
-                          />
-                        )}
-                        {selectValue === "main" && line.main_lot_choices.length > 0 ? (
-                          itemsLocked ? (
-                            null
-                          ) : (
-                            <AdminStatusDropdown
-                              value={line.selected_lot_id != null ? String(line.selected_lot_id) : ""}
-                              placeholder="Партия"
-                              onChangeAction={(nextValue) =>
-                                setLineSelectedLot(idx, nextValue ? Number(nextValue) : null)
-                              }
-                              options={line.main_lot_choices.map((lot) => ({
-                                value: String(lot.lot_id),
-                                label: `#${lot.lot_id}`,
-                                triggerLabel: `#${lot.lot_id}`,
-                                menuLabel: `#${lot.lot_id} · ${lot.label}`,
-                              }))}
-                              triggerVariant="underline"
-                              menuWidthClassName="w-max min-w-[22rem] max-w-[min(94vw,44rem)]"
-                            />
-                          )
-                        ) : null}
-                        {selectValue === "offer" && line.offer_choices.length > 0 ? (
-                          itemsLocked ? (
-                            <p className="truncate text-[11px] leading-snug text-admin-text-secondary">
-                              {line.offer_choices.find((o) => o.offer_id === line.selected_offer_id)?.label ??
-                                "Поставщик"}
+              <table className="w-full min-w-[42rem] border-collapse">
+                <thead>
+                  <tr className="border-b border-admin-border/80 bg-admin-muted/55">
+                    <th className={`${orderLineThClass} text-left`}>Наименование</th>
+                    <th className={`${orderLineThClass} w-[8.75rem] text-left`}>Откуда</th>
+                    <th className={`${orderLineThClass} w-14 text-center`}>Кол-во</th>
+                    <th className={`${orderLineThClass} w-[4.75rem] text-right`}>Цена</th>
+                    <th className={`${orderLineThClass} w-[5.25rem] text-right`}>Итого</th>
+                    <th className={`${orderLineThClass} w-7`} aria-label="Действия" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {lines.map((line, idx) => {
+                    if (!isCompleteOrderLine(line)) return null;
+                    const channel = channelFromSource(line.availability_source);
+                    const canPickChannel = line.can_fulfill_main || line.can_fulfill_offer;
+                    const selectValue: FulfillmentChannel =
+                      channel === "offer" || (!line.can_fulfill_main && line.can_fulfill_offer)
+                        ? "offer"
+                        : "main";
+                    const hasAvailabilityIssue = Boolean(line.availability_issue);
+                    return (
+                      <tr
+                        key={`line-${idx}`}
+                        className={`border-b border-admin-border/70 last:border-b-0 ${hasAvailabilityIssue ? "bg-amber-50/80" : "bg-admin-muted/25"
+                          }`}
+                      >
+                        <td
+                          className={`${orderLineTdClass} min-w-0 ${hasAvailabilityIssue ? "border-l-4 border-l-amber-500" : ""
+                            }`}
+                        >
+                          <div className="space-y-0.5">
+                            <p className="truncate text-sm leading-5 text-admin-text">
+                              <span className="font-medium">
+                                {formatOrderLineProductLabel(line)}
+                              </span>
+                              {line.variant_title ? (
+                                <span className="font-normal text-admin-text-secondary"> - {line.variant_title}</span>
+                              ) : null}
                             </p>
-                          ) : (
-                            <AdminStatusDropdown
-                              value={line.selected_offer_id != null ? String(line.selected_offer_id) : ""}
-                              placeholder="Офер"
-                              onChangeAction={(nextValue) =>
-                                setLineSelectedOffer(idx, nextValue ? Number(nextValue) : null)
-                              }
-                              options={line.offer_choices.map((offer) => ({
-                                value: String(offer.offer_id),
-                                label: offer.label,
-                                triggerLabel: offer.label.split(" · ")[0] || offer.label,
-                                menuLabel: offer.label,
-                              }))}
-                              triggerVariant="underline"
-                              menuWidthClassName="w-max min-w-[22rem] max-w-[min(94vw,44rem)]"
-                            />
-                          )
-                        ) : null}
-                      </div>
-                      <div className={`${orderLineColQty} self-start pt-0.5`}>
-                        {itemsLocked ? (
-                          <span className="inline-flex h-8 w-11 items-center justify-center rounded-lg bg-admin-surface text-sm font-medium tabular-nums ring-1 ring-inset ring-admin-border/70">
-                            {line.qty}
-                          </span>
-                        ) : (
-                          <input
-                            type="number"
-                            min={1}
-                            aria-label={`Количество: ${formatOrderLineProductLabel(line)}`}
-                            className="h-8 w-11 rounded-lg bg-admin-surface text-center text-sm font-medium tabular-nums ring-1 ring-inset ring-admin-border/70 outline-none transition focus:ring-2 focus:ring-admin-primary/25"
-                            value={line.qty}
-                            onChange={(e) => setLineQty(idx, Number(e.target.value))}
-                          />
-                        )}
-                      </div>
-                      <div className={`${orderLineColPrice} self-start pt-0.5 text-right`}>
-                        {itemsLocked ? (
-                          <p className="flex h-8 items-center justify-end text-sm tabular-nums text-admin-text">
-                            {formatMoneyRub(line.price)}
-                          </p>
-                        ) : (
-                          <input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            aria-label={`Цена: ${formatOrderLineProductLabel(line)}`}
-                            className="h-8 w-full rounded-lg bg-admin-surface px-1.5 text-right text-sm tabular-nums ring-1 ring-inset ring-admin-border/70 outline-none transition focus:ring-2 focus:ring-admin-primary/25"
-                            value={line.price}
-                            onChange={(e) => setLinePrice(idx, Number(e.target.value))}
-                          />
-                        )}
-                        {line.waiting_discount ? (
-                          <div className="mt-0.5 space-y-0.5">
-                            {line.base_price > 0 && line.base_price !== line.price ? (
-                              <p className="text-[10px] tabular-nums text-admin-text-secondary line-through">
-                                {formatMoneyRub(line.base_price)}
+                            {line.availability_issue ? (
+                              <p className="text-[11px] font-medium leading-snug text-amber-800">
+                                {line.availability_issue}
                               </p>
                             ) : null}
-                            <p className="text-[10px] font-medium leading-tight text-amber-800">
-                              −{WAITING_DISCOUNT_PERCENT}% ожидание
-                            </p>
+                            {line.fulfillment_options.length > 0 ? (
+                              <OrderLineFulfillmentDetails
+                                options={line.fulfillment_options}
+                                lotsExpanded={Boolean(expandedWarehouseLotsByLine[idx])}
+                                onToggleLotsAction={() =>
+                                  setExpandedWarehouseLotsByLine((prev) => ({
+                                    ...prev,
+                                    [idx]: !prev[idx],
+                                  }))
+                                }
+                              />
+                            ) : null}
                           </div>
-                        ) : null}
-                      </div>
-                      <p
-                        className={`${orderLineColTotal} self-start pt-0.5 text-right text-sm font-semibold leading-8 tabular-nums text-admin-text`}
-                      >
-                        {formatMoneyRub(orderLineMerchandiseTotal(line))}
-                      </p>
-                      <div className={`${orderLineColActions} self-start pt-0.5`}>
-                        {!itemsLocked ? (
-                          <button
-                            type="button"
-                            onClick={() => removeLine(idx)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-admin-text-secondary transition hover:bg-red-50 hover:text-red-600"
-                            aria-label={`Удалить ${formatOrderLineProductLabel(line)}`}
-                            title="Удалить"
-                          >
-                            <Trash2 size={16} strokeWidth={1.75} />
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                        </td>
+                        <td className={orderLineTdClass}>
+                          <div className="flex flex-col items-start gap-0.5">
+                            {!canPickChannel && !channel ? (
+                              <p className="text-xs leading-snug text-admin-text-secondary">
+                                Нет склада и офера — выбирать не из чего
+                              </p>
+                            ) : itemsLocked || !canPickChannel ? (
+                              <p className="inline-flex max-w-full items-center rounded-full border border-admin-border bg-admin-surface px-2 py-0.5 text-xs font-medium text-admin-text">
+                                {channel === "main" ? "Склад" : channel === "offer" ? "Поставщик" : "—"}
+                              </p>
+                            ) : (
+                              <AdminStatusDropdown
+                                value={selectValue}
+                                onChangeAction={(value) => setLineChannel(idx, value as FulfillmentChannel)}
+                                options={[
+                                  ...(line.can_fulfill_main
+                                    ? [{ value: "main", label: "Склад" }]
+                                    : []),
+                                  ...(line.can_fulfill_offer
+                                    ? [{ value: "offer", label: "Поставщик" }]
+                                    : []),
+                                ]}
+                                triggerVariant="badge"
+                                menuWidthClassName="w-[180px]"
+                              />
+                            )}
+                            {selectValue === "main" && line.main_lot_choices.length > 0 ? (
+                              itemsLocked ? (
+                                null
+                              ) : (
+                                <AdminStatusDropdown
+                                  value={line.selected_lot_id != null ? String(line.selected_lot_id) : ""}
+                                  placeholder="Партия"
+                                  onChangeAction={(nextValue) =>
+                                    setLineSelectedLot(idx, nextValue ? Number(nextValue) : null)
+                                  }
+                                  options={line.main_lot_choices.map((lot) => ({
+                                    value: String(lot.lot_id),
+                                    label: `#${lot.lot_id}`,
+                                    triggerLabel: `#${lot.lot_id}`,
+                                    menuLabel: `#${lot.lot_id} · ${lot.label}`,
+                                  }))}
+                                  triggerVariant="badge"
+                                  menuWidthClassName="w-max min-w-[22rem] max-w-[min(94vw,44rem)]"
+                                />
+                              )
+                            ) : null}
+                            {selectValue === "offer" && line.offer_choices.length > 0 ? (
+                              itemsLocked ? (
+                                <p className="truncate text-[11px] leading-snug text-admin-text-secondary">
+                                  {line.offer_choices.find((o) => o.offer_id === line.selected_offer_id)?.label ??
+                                    "Поставщик"}
+                                </p>
+                              ) : (
+                                <AdminStatusDropdown
+                                  value={line.selected_offer_id != null ? String(line.selected_offer_id) : ""}
+                                  placeholder="Офер"
+                                  onChangeAction={(nextValue) =>
+                                    setLineSelectedOffer(idx, nextValue ? Number(nextValue) : null)
+                                  }
+                                  options={line.offer_choices.map((offer) => ({
+                                    value: String(offer.offer_id),
+                                    label: offer.label,
+                                    triggerLabel: offer.label.split(" · ")[0] || offer.label,
+                                    menuLabel: offer.label,
+                                  }))}
+                                  triggerVariant="badge"
+                                  menuWidthClassName="w-max min-w-[22rem] max-w-[min(94vw,44rem)]"
+                                />
+                              )
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className={`${orderLineTdClass} text-center`}>
+                          {itemsLocked ? (
+                            <span className="inline-flex h-7 w-11 items-center justify-center rounded-md bg-admin-surface text-sm font-medium tabular-nums ring-1 ring-inset ring-admin-border/70">
+                              {line.qty}
+                            </span>
+                          ) : (
+                            <input
+                              type="number"
+                              min={1}
+                              aria-label={`Количество: ${formatOrderLineProductLabel(line)}`}
+                              className="h-7 w-11 rounded-md bg-admin-surface px-1 text-right text-sm font-medium tabular-nums ring-1 ring-inset ring-admin-border/70 outline-none transition [appearance:textfield] focus:ring-2 focus:ring-admin-primary/25 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              value={line.qty}
+                              onChange={(e) => setLineQty(idx, Number(e.target.value))}
+                            />
+                          )}
+                        </td>
+                        <td className={`${orderLineTdClass} text-right`}>
+                          {itemsLocked ? (
+                            <p className="flex h-7 items-center justify-end text-sm tabular-nums text-admin-text">
+                              {formatMoneyRub(line.price)}
+                            </p>
+                          ) : (
+                            <input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              aria-label={`Цена: ${formatOrderLineProductLabel(line)}`}
+                              className="h-7 w-full rounded-md bg-admin-surface px-1.5 text-right text-sm tabular-nums ring-1 ring-inset ring-admin-border/70 outline-none transition [appearance:textfield] focus:ring-2 focus:ring-admin-primary/25 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              value={line.price}
+                              onChange={(e) => setLinePrice(idx, Number(e.target.value))}
+                            />
+                          )}
+                          {line.waiting_discount ? (
+                            <div className="mt-0.5 space-y-0.5">
+                              {line.base_price > 0 && line.base_price !== line.price ? (
+                                <p className="text-[10px] tabular-nums text-admin-text-secondary line-through">
+                                  {formatMoneyRub(line.base_price)}
+                                </p>
+                              ) : null}
+                              <p className="text-[10px] font-medium leading-tight text-amber-800">
+                                −{WAITING_DISCOUNT_PERCENT}% ожидание
+                              </p>
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className={`${orderLineTdClass} text-right text-sm font-semibold leading-7 tabular-nums text-admin-text`}>
+                          {formatMoneyRub(orderLineMerchandiseTotal(line))}
+                        </td>
+                        <td className={`${orderLineTdClass} text-right`}>
+                          {!itemsLocked ? (
+                            <button
+                              type="button"
+                              onClick={() => removeLine(idx)}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-admin-text-secondary transition hover:bg-red-50 hover:text-red-600"
+                              aria-label={`Удалить ${formatOrderLineProductLabel(line)}`}
+                              title="Удалить"
+                            >
+                              <Trash2 size={15} strokeWidth={1.75} />
+                            </button>
+                          ) : null}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           ) : null}
           {lines.map((line, idx) => {
@@ -4123,15 +4148,17 @@ export default function AdminOrderCreateForm({
                   {additionalAddressLine ? (
                     <>
                       <span className="min-w-0 text-sm text-admin-text-secondary">
-                        Доп. адрес: 
-                        </span>
-                        {additionalAddressLine}
+                        Доп. адрес:
+                      </span>
+                      <span className="min-w-0 text-sm text-admin-text">{additionalAddressLine}</span>
                       <button
                         type="button"
                         onClick={openAdditionalAddressPopup}
-                        className="inline-flex items-center rounded-full border border-dashed border-admin-border bg-admin-surface px-2.5 py-1 text-xs font-medium text-admin-primary transition hover:border-admin-primary hover:bg-admin-muted"
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-admin-text-secondary transition hover:bg-admin-surface hover:text-admin-primary"
+                        title="Редактировать доп. адрес"
+                        aria-label="Редактировать доп. адрес"
                       >
-                        + Изменить
+                        <Pencil size={14} strokeWidth={2} />
                       </button>
                     </>
                   ) : (
@@ -4147,9 +4174,8 @@ export default function AdminOrderCreateForm({
                 </div>
 
                 <div
-                  className={`grid gap-4 sm:items-start ${
-                    deliveryMethod === "minsk_courier" ? "md:grid-cols-3" : "sm:grid-cols-2"
-                  }`}
+                  className={`grid gap-4 sm:items-start ${deliveryMethod === "minsk_courier" ? "md:grid-cols-3" : "sm:grid-cols-2"
+                    }`}
                 >
                   <div>
                     <div className="mb-1 text-sm text-admin-text-secondary">Дата отправки</div>
@@ -4590,6 +4616,11 @@ export default function AdminOrderCreateForm({
         />
       ) : null}
 
+      </div>
+
+      {/* правая колонка: итог заказа */}
+      <div className="min-w-0 min-[1600px]:sticky min-[1600px]:top-4">
+
       <div className="overflow-hidden rounded-xl border border-admin-border bg-admin-surface shadow-admin-card">
         <div className="border-b border-admin-border bg-admin-muted/50 px-4 py-2.5">
           <div className="flex items-center justify-between gap-3">
@@ -4689,7 +4720,38 @@ export default function AdminOrderCreateForm({
         </div>
       </div>
 
-      {error ? <div className="text-sm text-red-600">{error}</div> : null}
+      {error ? <div className="mt-3 text-sm text-red-600">{error}</div> : null}
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="submit"
+          disabled={saving || deleting}
+          className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white disabled:opacity-50"
+        >
+          {saving ? (isEdit ? "Сохранение…" : "Создание…") : isEdit ? "Сохранить" : "Создать заказ"}
+        </button>
+        <button
+          type="button"
+          disabled={saving || deleting}
+          onClick={() => router.push("/admin/orders")}
+          className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"
+        >
+          Отмена
+        </button>
+        {canDeleteOrder ? (
+          <button
+            type="button"
+            disabled={saving || deleting}
+            onClick={() => setConfirmDeleteOpen(true)}
+            className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+          >
+            Удалить
+          </button>
+        ) : null}
+      </div>
+
+      </div>
+      </div>
 
       {typeof document !== "undefined" && variantTooltip
         ? createPortal(
@@ -4802,30 +4864,6 @@ export default function AdminOrderCreateForm({
           document.body,
         )
         : null}
-
-      <div className="flex flex-wrap gap-2">
-        <button type="submit" disabled={saving || deleting} className="rounded-lg bg-admin-primary px-5 py-2.5 text-sm text-white disabled:opacity-50">
-          {saving ? (isEdit ? "Сохранение…" : "Создание…") : isEdit ? "Сохранить изменения" : "Создать заказ"}
-        </button>
-        <button
-          type="button"
-          disabled={saving || deleting}
-          onClick={() => router.push("/admin/orders")}
-          className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50"
-        >
-          Отмена
-        </button>
-        {canDeleteOrder ? (
-          <button
-            type="button"
-            disabled={saving || deleting}
-            onClick={() => setConfirmDeleteOpen(true)}
-            className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-50"
-          >
-            Удалить
-          </button>
-        ) : null}
-      </div>
 
       <AdminConfirmDialog
         open={confirmDeleteOpen}

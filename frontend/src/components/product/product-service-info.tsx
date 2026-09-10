@@ -1,7 +1,8 @@
 "use client";
 
-import { CreditCard, Phone, Truck } from "lucide-react";
+import { CreditCard, MessageCircleQuestion, Truck } from "lucide-react";
 import SitePhoneDropdown from "@/components/ui/site-phone-dropdown";
+import CallbackRequestTrigger from "@/components/product/callback-request-trigger";
 
 export type ProductServiceDeliveryInfo = {
     minskFreeThreshold: number;
@@ -73,11 +74,19 @@ export default function ProductServiceInfo({ delivery }: Props) {
 
             <div className="rounded-2xl border border-admin-border bg-admin-surface p-5 sm:p-6">
                 <div className="mb-3 flex items-center gap-2 text-admin-text">
-                    <Phone size={16} strokeWidth={1.75} aria-hidden />
+                    <MessageCircleQuestion size={16} strokeWidth={1.75} aria-hidden />
                     <div className="text-sm font-semibold">Есть вопросы?</div>
                 </div>
 
                 <SitePhoneDropdown size="plain" />
+
+                <div className="mt-2">
+                    <CallbackRequestTrigger
+                        label="Заказать звонок"
+                        className="inline-flex items-center gap-1.5 text-sm font-medium text-admin-text-secondary transition hover:text-admin-text"
+                        iconClassName="h-3.5 w-3.5 shrink-0"
+                    />
+                </div>
             </div>
         </div>
     );

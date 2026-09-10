@@ -28,6 +28,7 @@ final class DeliveryCityResolver
             $validated['additional_delivery_korpus'] = null;
             $validated['additional_delivery_apartment'] = null;
             $validated['delivery_comment'] = null;
+            $validated['delivery_time_to'] = null;
 
             return $validated;
         }
