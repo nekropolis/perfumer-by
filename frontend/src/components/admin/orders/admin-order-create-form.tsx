@@ -3603,7 +3603,7 @@ export default function AdminOrderCreateForm({
                           />
                         ) : null}
                       </div>
-                      <div className={`${orderLineColFrom} self-start space-y-0.5 pt-0.5`}>
+                      <div className={`${orderLineColFrom} flex flex-col items-start gap-0.5 self-start pt-0.5`}>
                         {!canPickChannel && !channel ? (
                           <p className="text-xs leading-snug text-admin-text-secondary">
                             Нет склада и офера — выбирать не из чего
