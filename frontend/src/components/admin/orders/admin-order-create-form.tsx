@@ -3555,7 +3555,7 @@ export default function AdminOrderCreateForm({
                 <span className={`${orderLineColQty} text-center`}>Кол-во</span>
                 <span className={`${orderLineColPrice} text-right`}>Цена</span>
                 <span className={`${orderLineColTotal} text-right`}>Итого</span>
-                <span className={`${orderLineColActions} sr-only`}>Действия</span>
+                <span className={orderLineColActions} aria-hidden />
               </div>
               <div className="divide-y divide-admin-border/70">
                 {lines.map((line, idx) => {
