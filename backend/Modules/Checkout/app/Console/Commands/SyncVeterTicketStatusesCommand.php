@@ -21,6 +21,13 @@ class SyncVeterTicketStatusesCommand extends Command
             return self::SUCCESS;
         }
 
+        $hour = (int) now('Europe/Minsk')->format('G');
+        if ($hour >= 21 || $hour < 8) {
+            $this->warn('Quiet hours 21:00–08:00 Europe/Minsk — skip getStatus.');
+
+            return self::SUCCESS;
+        }
+
         $this->info('Syncing Veter ticket statuses…');
 
         try {

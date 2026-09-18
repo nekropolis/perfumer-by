@@ -110,13 +110,38 @@ export function loyaltyExtraPercent(
     return Math.max(0, card - productDiscountPercent(price, oldPrice));
 }
 
-/** Сумма скидки карты на единицу (текущая цена × доп.%). */
+/** Цена единицы после скидки карты, вниз до десятых BYN (145.67 → 145.60). */
+export function loyaltyDiscountedUnitPrice(
+    price: string | null | undefined,
+    oldPrice: string | null | undefined,
+    cardPercent: number,
+    isPromotion?: boolean | null,
+): string | null {
+    if (!price || isPromotion) {
+        return price ?? null;
+    }
+
+    const current = Number(price);
+    if (!Number.isFinite(current) || current <= 0) {
+        return price;
+    }
+
+    const extra = loyaltyExtraPercent(price, oldPrice, cardPercent);
+    if (extra <= 0) {
+        return Number(current).toFixed(2);
+    }
+
+    return floorMoneyToTenths((current * (1 - extra / 100)).toFixed(4)) ?? "0.00";
+}
+
+/** Сумма скидки карты на единицу: цена − округлённая вниз до десятых цена со скидкой. */
 export function loyaltyUnitDiscountAmount(
     price: string | null | undefined,
     oldPrice: string | null | undefined,
     cardPercent: number,
+    isPromotion?: boolean | null,
 ): number {
-    if (!price) {
+    if (!price || isPromotion) {
         return 0;
     }
 
@@ -125,12 +150,17 @@ export function loyaltyUnitDiscountAmount(
         return 0;
     }
 
-    const extra = loyaltyExtraPercent(price, oldPrice, cardPercent);
-    if (extra <= 0) {
+    const discounted = loyaltyDiscountedUnitPrice(price, oldPrice, cardPercent, isPromotion);
+    if (!discounted) {
         return 0;
     }
 
-    return Math.round(current * (extra / 100) * 100) / 100;
+    const discountedValue = Number(discounted);
+    if (!Number.isFinite(discountedValue) || discountedValue >= current) {
+        return 0;
+    }
+
+    return Math.round((current - discountedValue) * 100) / 100;
 }
 
 /** Скидка по накопительной карте не применяется к акционным вариантам. */
@@ -171,6 +201,24 @@ export function roundMoneyToTenths(raw: string | null): string | null {
     return (Math.round(value * 10) / 10).toFixed(2);
 }
 
+/** Округлить вниз до десятых BYN в пользу клиента (145,67 → 145,60). */
+export function floorMoneyToTenths(raw: string | null): string | null {
+    if (!raw) {
+        return null;
+    }
+
+    const value = Number(raw);
+    if (!Number.isFinite(value)) {
+        return null;
+    }
+
+    if (value <= 0) {
+        return "0.00";
+    }
+
+    return (Math.floor(value * 10 + 1e-8) / 10).toFixed(2);
+}
+
 /** Итоговая цена с учётом накопительной карты и скидки за ожидание.
  *  Порядок как в корзине: waiting от каталожной цены, затем вычитается сумма доп. скидки карты
  *  (max(0, C−D)% от текущей цены; D из old_price). */
@@ -208,7 +256,7 @@ export function resolveDiscountedPrice(
         return "0.00";
     }
 
-    return final.toFixed(2);
+    return floorMoneyToTenths(final.toFixed(4)) ?? "0.00";
 }
 
 type LoyaltyCardPriceRange = {

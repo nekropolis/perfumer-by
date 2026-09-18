@@ -6,6 +6,7 @@ import type { OrderData, OrderItem } from "@/types/orders";
 import { lineItemProductTitle } from "@/lib/product-display-name";
 import { syncReceiptMadeInCountries } from "@/lib/admin-orders-api";
 import { adminModalOverlay, adminModalPanel } from "@/lib/admin-ui-classes";
+import { loyaltyDiscountedUnitPrice } from "@/lib/loyalty-pricing";
 
 type ReceiptItemDraft = {
     key: string;
@@ -58,6 +59,15 @@ function moneyToCents(value?: string | null): number {
 
     const [rubles, cents = ""] = normalized.split(".");
     return Number(rubles) * 100 + Number(cents.padEnd(2, "0"));
+}
+
+function centsToMoney(cents: number): string {
+    return (Math.max(0, cents) / 100).toFixed(2);
+}
+
+function parsePercent(value?: string | null): number {
+    const n = Number.parseFloat(String(value ?? "").replace(",", "."));
+    return Number.isFinite(n) ? n : 0;
 }
 
 const CONCENTRATION_LABELS: Record<string, string> = {
@@ -133,15 +143,8 @@ function receiptPrintDate(order: OrderData): string {
 }
 
 function buildReceiptDrafts(orders: OrderData[]): ReceiptDraft[] {
-    return orders.map((order) => ({
-        orderId: order.id,
-        printDate: receiptPrintDate(order),
-        deliveryLabel: deliveryLabel(order),
-        deliveryFee: order.delivery_fee ?? "0.00",
-        discountAmount: order.discount_amount ?? "0.00",
-        giftCertificateAmount: order.gift_certificate_amount ?? "0.00",
-        total: order.total,
-        items: order.items.map((item) => {
+    return orders.map((order) => {
+        const items: ReceiptItemDraft[] = order.items.map((item) => {
             const country = item.product_country?.trim() ?? "";
             return {
                 key: `${order.id}-${item.id}`,
@@ -153,8 +156,61 @@ function buildReceiptDrafts(orders: OrderData[]): ReceiptDraft[] {
                 country,
                 originalCountry: country,
             };
-        }),
-    }));
+        });
+
+        const { items: pricedItems, discountAmount } = applyCardRoundingToReceiptItems(
+            items,
+            parsePercent(order.discount_percent_snapshot),
+            order.discount_amount ?? "0.00",
+        );
+
+        return {
+            orderId: order.id,
+            printDate: receiptPrintDate(order),
+            deliveryLabel: deliveryLabel(order),
+            deliveryFee: order.delivery_fee ?? "0.00",
+            discountAmount,
+            giftCertificateAmount: order.gift_certificate_amount ?? "0.00",
+            total: order.total,
+            items: pricedItems,
+        };
+    });
+}
+
+/**
+ * Если скидка карты одинаково ложится на все позиции, цены в чеке — уже
+ * округлённые вниз до десятых, без отдельной строки скидки.
+ * Иначе оставляем исходные цены и сумму скидки заказа, чтобы ИТОГО сходился.
+ */
+function applyCardRoundingToReceiptItems(
+    items: ReceiptItemDraft[],
+    cardPercent: number,
+    storedDiscountAmount: string,
+): { items: ReceiptItemDraft[]; discountAmount: string } {
+    const storedDiscountCents = moneyToCents(storedDiscountAmount);
+    if (cardPercent <= 0.0001 || storedDiscountCents <= 0) {
+        return { items, discountAmount: storedDiscountAmount };
+    }
+
+    const netItems = items.map((item) => {
+        const netUnit = loyaltyDiscountedUnitPrice(item.price, null, cardPercent) ?? item.price;
+        const netUnitCents = moneyToCents(netUnit);
+        return {
+            ...item,
+            price: netUnit,
+            total: centsToMoney(netUnitCents * item.qty),
+        };
+    });
+
+    const originalSum = items.reduce((sum, item) => sum + moneyToCents(item.total), 0);
+    const netSum = netItems.reduce((sum, item) => sum + moneyToCents(item.total), 0);
+    const bakedDiscountCents = originalSum - netSum;
+
+    if (bakedDiscountCents === storedDiscountCents) {
+        return { items: netItems, discountAmount: "0.00" };
+    }
+
+    return { items, discountAmount: storedDiscountAmount };
 }
 
 export default function AdminOrderReceiptsModal({ orders, countryOptions, onCloseAction }: Props) {

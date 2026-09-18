@@ -1,6 +1,6 @@
 "use client";
 
-import type { ChangeEvent, ReactNode, TextareaHTMLAttributes } from "react";
+import type { ChangeEvent, ReactNode, Ref, TextareaHTMLAttributes } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
@@ -1003,6 +1003,114 @@ function formatOrderLineProductLabel(line: {
   return title;
 }
 
+function AdminOrderProductSearchHits({
+  hits,
+  loading,
+  query,
+  position,
+  listRef,
+  onPickVariantAction,
+}: {
+  hits: ProductSmartSearchItem[];
+  loading: boolean;
+  query: string;
+  position: {
+    left: number;
+    width: number;
+    top: number;
+    maxHeight: number;
+    openUp: boolean;
+  };
+  listRef: Ref<HTMLDivElement>;
+  onPickVariantAction: (
+    hit: ProductSmartSearchItem,
+    variant: ProductSmartSearchVariantPreview,
+  ) => void;
+}) {
+  if (typeof document === "undefined") return null;
+  const flatProductHits = flattenProductSmartSearchHits(hits);
+  const q = query.trim();
+  return createPortal(
+    <div
+      ref={listRef}
+      className="fixed z-[9999] overflow-auto rounded-xl border border-admin-border bg-admin-surface shadow-lg"
+      style={{
+        left: position.left,
+        width: position.width,
+        maxHeight: position.maxHeight,
+        top: position.top,
+        transform: position.openUp ? "translateY(-100%)" : undefined,
+      }}
+    >
+      {loading ? (
+        <div className="px-3 py-2 text-xs text-admin-text-secondary">Поиск…</div>
+      ) : flatProductHits.length === 0 ? (
+        <div className="px-3 py-2 text-xs text-admin-text-secondary">Ничего не найдено</div>
+      ) : (
+        flatProductHits.map((option) => {
+          const hit = option.hit;
+          if (option.kind === "no-variants") {
+            return (
+              <div
+                key={option.key}
+                className="border-b border-gray-50 px-3 py-2 text-left text-xs text-admin-text-secondary last:border-0"
+              >
+                <span className="tabular-nums text-gray-400">
+                  {highlightQueryInText(String(hit.id), q)}
+                </span>{" "}
+                {hit.brand_name ? (
+                  <span>{highlightQueryInText(hit.brand_name, q)} </span>
+                ) : null}
+                <span className="text-admin-text">{highlightQueryInText(hit.name, q)}</span>
+                <span className="text-admin-text-secondary"> — нет вариантов</span>
+              </div>
+            );
+          }
+          const variant = option.variant;
+          const availability = productSmartSearchAvailabilityLabel(variant);
+          return (
+            <button
+              key={option.key}
+              type="button"
+              className="block w-full border-b border-gray-50 px-3 py-2 text-left text-xs last:border-0 hover:bg-admin-muted"
+              onMouseDown={(ev) => ev.preventDefault()}
+              onClick={() => onPickVariantAction(hit, variant)}
+            >
+              <span className="tabular-nums text-gray-400">
+                {highlightQueryInText(String(hit.id), q)}
+              </span>{" "}
+              {hit.brand_name ? (
+                <span className="text-admin-text-secondary">
+                  {highlightQueryInText(hit.brand_name, q)}{" "}
+                </span>
+              ) : null}
+              <span className="font-medium text-admin-text">
+                {highlightQueryInText(hit.name, q)}
+              </span>{" "}
+              <span className="text-admin-text">
+                {highlightQueryInText(variant.title, q)}
+              </span>
+              <span className="text-admin-text-secondary"> — </span>
+              <span className={productSmartSearchAvailabilityClass(variant)}>
+                {highlightQueryInText(availability, q)}
+              </span>
+              {productSmartSearchShowsPrice(variant) ? (
+                <>
+                  <span className="text-admin-text-secondary"> — </span>
+                  <span className="tabular-nums text-admin-text">
+                    {productSmartSearchPriceLabel(variant)}
+                  </span>
+                </>
+              ) : null}
+            </button>
+          );
+        })
+      )}
+    </div>,
+    document.body,
+  );
+}
+
 export type AdminOrderCreateFormProps = {
   mode?: "create" | "edit";
   initialOrder?: OrderData;
@@ -1219,6 +1327,8 @@ export default function AdminOrderCreateForm({
   const [draftDeliveryTimeTo, setDraftDeliveryTimeTo] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentValue>(() => normalizePayment(seedOrder?.payment_method));
   const [deliveryFee, setDeliveryFee] = useState(() => Math.max(0, Number(seedOrder?.delivery_fee ?? 0) || 0));
+  /** Ручная стоимость доставки (в т.ч. сохранённая в заказе) — не затирать ответом quote. */
+  const deliveryFeeManualRef = useRef(isEdit);
   const [discountCardInput, setDiscountCardInput] = useState(() => seedOrder?.discount_card_number?.trim() ?? "");
   const [appliedDiscountCardNumber, setAppliedDiscountCardNumber] = useState(
     () => seedOrder?.discount_card_number?.trim() ?? "",
@@ -1384,7 +1494,14 @@ export default function AdminOrderCreateForm({
   const debouncedPhone = useDebouncedValue(phoneDigits, 280);
 
   const [activeLine, setActiveLine] = useState<number | null>(null);
-  const activeProductSearchQ = activeLine !== null ? (lines[activeLine]?.product_name ?? "") : "";
+  const [reselectingLineIdx, setReselectingLineIdx] = useState<number | null>(null);
+  const [reselectQuery, setReselectQuery] = useState("");
+  const activeProductSearchQ =
+    activeLine === null
+      ? ""
+      : reselectingLineIdx === activeLine
+        ? reselectQuery
+        : (lines[activeLine]?.product_name ?? "");
   const debouncedProductQ = useDebouncedValue(activeProductSearchQ, 250);
   const [productHits, setProductHits] = useState<ProductSmartSearchItem[]>([]);
   const [productHitsLoading, setProductHitsLoading] = useState(false);
@@ -1542,6 +1659,7 @@ export default function AdminOrderCreateForm({
 
       setError("");
       setDeliveryMethod(value);
+      deliveryFeeManualRef.current = false;
 
       if (value === "pickup") {
         setDeliveryFee(0);
@@ -1894,9 +2012,11 @@ export default function AdminOrderCreateForm({
       .then((response) => {
         if (!cancelled) {
           setOrderQuote(response.data);
-          const fee = Number.parseFloat(String(response.data.delivery_fee ?? "").replace(",", "."));
-          if (Number.isFinite(fee)) {
-            setDeliveryFee(Math.max(0, fee));
+          if (!deliveryFeeManualRef.current) {
+            const fee = Number.parseFloat(String(response.data.delivery_fee ?? "").replace(",", "."));
+            if (Number.isFinite(fee)) {
+              setDeliveryFee(Math.max(0, fee));
+            }
           }
           setDiscountCardError("");
           setGiftCertificateError("");
@@ -2021,9 +2141,11 @@ export default function AdminOrderCreateForm({
         setAppliedDiscountCardNumber(confirmed);
         setDiscountCardInput(confirmed);
         setOrderQuote(response.data);
-        const fee = Number.parseFloat(String(response.data.delivery_fee ?? "").replace(",", "."));
-        if (Number.isFinite(fee)) {
-          setDeliveryFee(Math.max(0, fee));
+        if (!deliveryFeeManualRef.current) {
+          const fee = Number.parseFloat(String(response.data.delivery_fee ?? "").replace(",", "."));
+          if (Number.isFinite(fee)) {
+            setDeliveryFee(Math.max(0, fee));
+          }
         }
         setDiscountCardManuallyCleared(false);
       } catch (err) {
@@ -2129,9 +2251,11 @@ export default function AdminOrderCreateForm({
         setAppliedGiftCertificateCode(confirmed);
         setGiftCertificateInput(confirmed);
         setOrderQuote(response.data);
-        const fee = Number.parseFloat(String(response.data.delivery_fee ?? "").replace(",", "."));
-        if (Number.isFinite(fee)) {
-          setDeliveryFee(Math.max(0, fee));
+        if (!deliveryFeeManualRef.current) {
+          const fee = Number.parseFloat(String(response.data.delivery_fee ?? "").replace(",", "."));
+          if (Number.isFinite(fee)) {
+            setDeliveryFee(Math.max(0, fee));
+          }
         }
       } catch (err) {
         setAppliedGiftCertificateCode("");
@@ -2216,6 +2340,8 @@ export default function AdminOrderCreateForm({
     setActiveLine(null);
     setProductHits([]);
     setPickerProductId(null);
+    setReselectingLineIdx(null);
+    setReselectQuery("");
   }, []);
 
   const productPickerOpen = activeLine !== null || pickerProductId !== null;
@@ -2274,11 +2400,26 @@ export default function AdminOrderCreateForm({
     updateProductHitsPosition,
   ]);
 
-  const openProductPicker = (lineIdx: number) => {
+  const openProductPicker = (lineIdx: number, opts?: { reselect?: boolean }) => {
     if (itemsLocked) return;
     setError("");
     setActiveLine(lineIdx);
     setPickerProductId(null);
+    if (!opts?.reselect) {
+      setReselectingLineIdx(null);
+      setReselectQuery("");
+    }
+  };
+
+  const beginReselectLine = (lineIdx: number) => {
+    if (itemsLocked) return;
+    const line = lines[lineIdx];
+    const seed = line
+      ? [line.brand_name?.trim(), line.product_name.trim()].filter(Boolean).join(" ")
+      : "";
+    setReselectingLineIdx(lineIdx);
+    setReselectQuery(seed);
+    openProductPicker(lineIdx, { reselect: true });
   };
 
   const pickProductVariantFromSearch = async (
@@ -2321,14 +2462,11 @@ export default function AdminOrderCreateForm({
               sku: variant.display_name ?? row.sku,
               base_price: catalogPrice,
               price: priceWithOptionalWaiting(catalogPrice, fulfillment.waiting_discount),
-              fulfillment_options: row.fulfillment_options,
+              fulfillment_options: [],
               main_lot_choices: [],
               selected_lot_id: null,
-              offer_choices: offerChoicesFromFulfillment(row.fulfillment_options),
-              selected_offer_id:
-                channelFromSource(fulfillment.availability_source) === "offer"
-                  ? pickPreferredOfferId(offerChoicesFromFulfillment(row.fulfillment_options))
-                  : null,
+              offer_choices: [],
+              selected_offer_id: null,
               ...fulfillment,
               availability_issue: availabilityIssueForLine(
                 channelFromSource(fulfillment.availability_source),
@@ -2341,7 +2479,9 @@ export default function AdminOrderCreateForm({
       );
       setActiveLine(null);
       setPickerProductId(null);
-      const priorOptions = lines[lineIdx]?.fulfillment_options ?? [];
+      setReselectingLineIdx(null);
+      setReselectQuery("");
+      const priorOptions: OrderItemFulfillmentOption[] = [];
       if (variant.can_fulfill_main ?? variantPreview.can_fulfill_main) {
         void syncMainLotsForLine(lineIdx, variant.id, priorOptions);
       }
@@ -3272,6 +3412,7 @@ export default function AdminOrderCreateForm({
       <AdminModalShell
         open={namePopupOpen}
         onCloseAction={() => setNamePopupOpen(false)}
+        closeOnOverlayClick={false}
         title="Задать имя"
         maxWidthClass="sm:max-w-md"
         footer={
@@ -3441,6 +3582,7 @@ export default function AdminOrderCreateForm({
       <AdminModalShell
         open={additionalAddressPopupOpen}
         onCloseAction={() => setAdditionalAddressPopupOpen(false)}
+        closeOnOverlayClick={false}
         title="Дополнительный адрес"
         maxWidthClass="sm:max-w-lg"
         footer={
@@ -3576,7 +3718,7 @@ export default function AdminOrderCreateForm({
                     <th className={`${orderLineThClass} w-14 text-center`}>Кол-во</th>
                     <th className={`${orderLineThClass} w-[4.75rem] text-right`}>Цена</th>
                     <th className={`${orderLineThClass} w-[5.25rem] text-right`}>Итого</th>
-                    <th className={`${orderLineThClass} w-7`} aria-label="Действия" />
+                    <th className={`${orderLineThClass} w-14`} aria-label="Действия" />
                   </tr>
                 </thead>
                 <tbody>
@@ -3589,6 +3731,14 @@ export default function AdminOrderCreateForm({
                         ? "offer"
                         : "main";
                     const hasAvailabilityIssue = Boolean(line.availability_issue);
+                    const isReselecting = reselectingLineIdx === idx;
+                    const showReselectHits =
+                      isReselecting &&
+                      activeLine === idx &&
+                      loadingProductLineIdx !== idx &&
+                      (productHitsLoading ||
+                        flattenProductSmartSearchHits(productHits).length > 0 ||
+                        debouncedProductQ.trim().length >= 2);
                     return (
                       <tr
                         key={`line-${idx}`}
@@ -3600,35 +3750,64 @@ export default function AdminOrderCreateForm({
                             }`}
                         >
                           <div className="space-y-0.5">
-                            <p className="truncate text-sm leading-5 text-admin-text">
-                              {line.product_slug ? (
-                                <Link
-                                  href={
-                                    line.variant_id
-                                      ? `/${line.product_slug}?variant=${line.variant_id}`
-                                      : `/${line.product_slug}`
-                                  }
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="group font-medium text-admin-text underline-offset-2 hover:text-admin-primary hover:underline"
-                                  title="Открыть карточку товара"
-                                >
-                                  {formatOrderLineProductLabel(line)}
-                                  {line.variant_title ? (
-                                    <span className="font-normal text-admin-text-secondary group-hover:text-admin-primary"> - {line.variant_title}</span>
-                                  ) : null}
-                                </Link>
-                              ) : (
-                                <>
-                                  <span className="font-medium">
+                            {isReselecting ? (
+                              <div className="relative" ref={productPickerRef}>
+                                <input
+                                  ref={productSearchInputRef}
+                                  autoFocus
+                                  value={reselectQuery}
+                                  onChange={(e) => {
+                                    setReselectQuery(e.target.value);
+                                    openProductPicker(idx, { reselect: true });
+                                  }}
+                                  className="h-8 w-full min-w-[12rem] rounded-md bg-admin-surface px-2 text-sm text-admin-text ring-1 ring-inset ring-admin-border/70 outline-none transition focus:ring-2 focus:ring-admin-primary/25"
+                                  placeholder="Название, артикул или код товара"
+                                  aria-label={`Перевыбрать товар: ${formatOrderLineProductLabel(line)}`}
+                                />
+                                {showReselectHits && productHitsPos ? (
+                                  <AdminOrderProductSearchHits
+                                    hits={productHits}
+                                    loading={productHitsLoading}
+                                    query={reselectQuery}
+                                    position={productHitsPos}
+                                    listRef={productHitsListRef}
+                                    onPickVariantAction={(hit, variant) =>
+                                      void pickProductVariantFromSearch(idx, hit, variant)
+                                    }
+                                  />
+                                ) : null}
+                              </div>
+                            ) : (
+                              <p className="truncate text-sm leading-5 text-admin-text">
+                                {line.product_slug ? (
+                                  <Link
+                                    href={
+                                      line.variant_id
+                                        ? `/${line.product_slug}?variant=${line.variant_id}`
+                                        : `/${line.product_slug}`
+                                    }
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="group font-medium text-admin-text underline-offset-2 hover:text-admin-primary hover:underline"
+                                    title="Открыть карточку товара"
+                                  >
                                     {formatOrderLineProductLabel(line)}
-                                  </span>
-                                  {line.variant_title ? (
-                                    <span className="font-normal text-admin-text-secondary"> - {line.variant_title}</span>
-                                  ) : null}
-                                </>
-                              )}
-                            </p>
+                                    {line.variant_title ? (
+                                      <span className="font-normal text-admin-text-secondary group-hover:text-admin-primary"> - {line.variant_title}</span>
+                                    ) : null}
+                                  </Link>
+                                ) : (
+                                  <>
+                                    <span className="font-medium">
+                                      {formatOrderLineProductLabel(line)}
+                                    </span>
+                                    {line.variant_title ? (
+                                      <span className="font-normal text-admin-text-secondary"> - {line.variant_title}</span>
+                                    ) : null}
+                                  </>
+                                )}
+                              </p>
+                            )}
                             {line.availability_issue ? (
                               <p className="text-[11px] font-medium leading-snug text-amber-800">
                                 {line.availability_issue}
@@ -3771,15 +3950,37 @@ export default function AdminOrderCreateForm({
                         </td>
                         <td className={`${orderLineTdClass} text-right`}>
                           {!itemsLocked ? (
-                            <button
-                              type="button"
-                              onClick={() => removeLine(idx)}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-admin-text-secondary transition hover:bg-red-50 hover:text-red-600"
-                              aria-label={`Удалить ${formatOrderLineProductLabel(line)}`}
-                              title="Удалить"
-                            >
-                              <Trash2 size={15} strokeWidth={1.75} />
-                            </button>
+                            <div className="inline-flex items-center">
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={() =>
+                                  isReselecting ? closeProductPicker() : beginReselectLine(idx)
+                                }
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-primary"
+                                aria-label={
+                                  isReselecting
+                                    ? `Отменить смену товара: ${formatOrderLineProductLabel(line)}`
+                                    : `Изменить товар: ${formatOrderLineProductLabel(line)}`
+                                }
+                                title={isReselecting ? "Отменить" : "Изменить товар"}
+                              >
+                                {isReselecting ? (
+                                  <X size={15} strokeWidth={1.75} />
+                                ) : (
+                                  <Pencil size={14} strokeWidth={2} />
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeLine(idx)}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-admin-text-secondary transition hover:bg-red-50 hover:text-red-600"
+                                aria-label={`Удалить ${formatOrderLineProductLabel(line)}`}
+                                title="Удалить"
+                              >
+                                <Trash2 size={15} strokeWidth={1.75} />
+                              </button>
+                            </div>
                           ) : null}
                         </td>
                       </tr>
@@ -3840,88 +4041,18 @@ export default function AdminOrderCreateForm({
                         className={surfaceFieldClass}
                         placeholder="Название, артикул или код товара"
                       />
-                      {showProductHitList && productHitsPos && typeof document !== "undefined"
-                        ? createPortal(
-                          <div
-                            ref={productHitsListRef}
-                            className="fixed z-[9999] overflow-auto rounded-xl border border-admin-border bg-admin-surface shadow-lg"
-                            style={{
-                              left: productHitsPos.left,
-                              width: productHitsPos.width,
-                              maxHeight: productHitsPos.maxHeight,
-                              top: productHitsPos.top,
-                              transform: productHitsPos.openUp ? "translateY(-100%)" : undefined,
-                            }}
-                          >
-                            {productHitsLoading ? (
-                              <div className="px-3 py-2 text-xs text-admin-text-secondary">Поиск…</div>
-                            ) : flatProductHits.length === 0 ? (
-                              <div className="px-3 py-2 text-xs text-admin-text-secondary">Ничего не найдено</div>
-                            ) : (
-                              flatProductHits.map((option) => {
-                                const q = line.product_name.trim();
-                                const hit = option.hit;
-                                if (option.kind === "no-variants") {
-                                  return (
-                                    <div
-                                      key={option.key}
-                                      className="border-b border-gray-50 px-3 py-2 text-left text-xs text-admin-text-secondary last:border-0"
-                                    >
-                                      <span className="tabular-nums text-gray-400">
-                                        {highlightQueryInText(String(hit.id), q)}
-                                      </span>{" "}
-                                      {hit.brand_name ? (
-                                        <span>{highlightQueryInText(hit.brand_name, q)} </span>
-                                      ) : null}
-                                      <span className="text-admin-text">{highlightQueryInText(hit.name, q)}</span>
-                                      <span className="text-admin-text-secondary"> — нет вариантов</span>
-                                    </div>
-                                  );
-                                }
-                                const variant = option.variant;
-                                const availability = productSmartSearchAvailabilityLabel(variant);
-                                return (
-                                  <button
-                                    key={option.key}
-                                    type="button"
-                                    className="block w-full border-b border-gray-50 px-3 py-2 text-left text-xs last:border-0 hover:bg-admin-muted"
-                                    onMouseDown={(ev) => ev.preventDefault()}
-                                    onClick={() => void pickProductVariantFromSearch(idx, hit, variant)}
-                                  >
-                                    <span className="tabular-nums text-gray-400">
-                                      {highlightQueryInText(String(hit.id), q)}
-                                    </span>{" "}
-                                    {hit.brand_name ? (
-                                      <span className="text-admin-text-secondary">
-                                        {highlightQueryInText(hit.brand_name, q)}{" "}
-                                      </span>
-                                    ) : null}
-                                    <span className="font-medium text-admin-text">
-                                      {highlightQueryInText(hit.name, q)}
-                                    </span>{" "}
-                                    <span className="text-admin-text">
-                                      {highlightQueryInText(variant.title, q)}
-                                    </span>
-                                    <span className="text-admin-text-secondary"> — </span>
-                                    <span className={productSmartSearchAvailabilityClass(variant)}>
-                                      {highlightQueryInText(availability, q)}
-                                    </span>
-                                    {productSmartSearchShowsPrice(variant) ? (
-                                      <>
-                                        <span className="text-admin-text-secondary"> — </span>
-                                        <span className="tabular-nums text-admin-text">
-                                          {productSmartSearchPriceLabel(variant)}
-                                        </span>
-                                      </>
-                                    ) : null}
-                                  </button>
-                                );
-                              })
-                            )}
-                          </div>,
-                          document.body,
-                        )
-                        : null}
+                      {showProductHitList && productHitsPos ? (
+                        <AdminOrderProductSearchHits
+                          hits={productHits}
+                          loading={productHitsLoading}
+                          query={line.product_name}
+                          position={productHitsPos}
+                          listRef={productHitsListRef}
+                          onPickVariantAction={(hit, variant) =>
+                            void pickProductVariantFromSearch(idx, hit, variant)
+                          }
+                        />
+                      ) : null}
                     </div>
 
                     {pickerProductId && line.product_id === pickerProductId && detail ? (
@@ -4387,7 +4518,10 @@ export default function AdminOrderCreateForm({
                 min={0}
                 step="0.01"
                 value={deliveryFee}
-                onChange={(e) => setDeliveryFee(Number(e.target.value))}
+                onChange={(e) => {
+                  deliveryFeeManualRef.current = true;
+                  setDeliveryFee(Number(e.target.value));
+                }}
                 className={`mt-1 ${surfaceFieldClass}`}
               />
             </label>

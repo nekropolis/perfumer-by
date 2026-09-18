@@ -14,6 +14,8 @@ type Props = {
     footer?: ReactNode;
     maxWidthClass?: string;
     className?: string;
+    /** false: закрывать только крестиком / кнопкой в футере, не по клику на оверлей */
+    closeOnOverlayClick?: boolean;
 };
 
 export default function AdminModalShell({
@@ -24,6 +26,7 @@ export default function AdminModalShell({
     footer,
     maxWidthClass = "sm:max-w-lg",
     className = "",
+    closeOnOverlayClick = true,
 }: Props) {
     const [mounted, setMounted] = useState(false);
 
@@ -45,7 +48,11 @@ export default function AdminModalShell({
     }
 
     return createPortal(
-        <div className={adminModalOverlay} onClick={onCloseAction} role="presentation">
+        <div
+            className={adminModalOverlay}
+            onClick={closeOnOverlayClick ? onCloseAction : undefined}
+            role="presentation"
+        >
             <div
                 className={`${adminModalPanel} ${maxWidthClass} ${className}`}
                 onClick={(e) => e.stopPropagation()}

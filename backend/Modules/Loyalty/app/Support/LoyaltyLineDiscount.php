@@ -9,10 +9,36 @@ use Modules\Catalog\Support\MoneyDecimal;
  *
  * D = (old_price − price) / old_price × 100 (0 если скидки нет)
  * доп. процент карты = max(0, C − D)
- * сумма скидки = price × доп.% / 100
+ * цена со скидкой округляется вниз до десятых (145,67 → 145,60, всегда в пользу клиента)
+ * сумма скидки = price − округлённая цена
  */
 final class LoyaltyLineDiscount
 {
+    /**
+     * Цена единицы после скидки карты, вниз до десятых BYN.
+     */
+    public static function discountedUnitPrice(
+        mixed $price,
+        mixed $oldPrice,
+        float $cardPercent,
+        bool $isPromotion = false,
+    ): string {
+        $priceNorm = MoneyDecimal::normalize($price);
+        if ($isPromotion || MoneyDecimal::compare($priceNorm, '0.00') <= 0) {
+            return $priceNorm;
+        }
+
+        $extraPercent = self::extraPercent($priceNorm, $oldPrice, $cardPercent);
+        if ($extraPercent <= 0) {
+            return $priceNorm;
+        }
+
+        $remainFactor = number_format(max(0.0, 1.0 - ($extraPercent / 100.0)), 8, '.', '');
+        $discounted = bcmul($priceNorm, $remainFactor, 4);
+
+        return self::floorToTenths($discounted);
+    }
+
     /**
      * Скидка карты на одну единицу товара (строка без qty).
      */
@@ -31,14 +57,12 @@ final class LoyaltyLineDiscount
             return '0.00';
         }
 
-        $extraPercent = self::extraPercent($priceNorm, $oldPrice, $cardPercent);
-        if ($extraPercent <= 0) {
+        $discounted = self::discountedUnitPrice($priceNorm, $oldPrice, $cardPercent, $isPromotion);
+        if (MoneyDecimal::compare($priceNorm, $discounted) <= 0) {
             return '0.00';
         }
 
-        $factor = number_format($extraPercent / 100.0, 8, '.', '');
-
-        return bcmul($priceNorm, $factor, 2);
+        return bcsub($priceNorm, $discounted, 2);
     }
 
     /**
@@ -103,5 +127,17 @@ final class LoyaltyLineDiscount
         $ratio = bcdiv($diff, $oldNorm, 8);
 
         return (float) bcmul($ratio, '100', 6);
+    }
+
+    /** 145.67 → 145.60; 145.60 → 145.60. */
+    private static function floorToTenths(string $amount): string
+    {
+        if (MoneyDecimal::compare($amount, '0.00') <= 0) {
+            return '0.00';
+        }
+
+        $tenths = bcdiv(bcmul($amount, '10', 0), '10', 1);
+
+        return MoneyDecimal::normalize($tenths);
     }
 }

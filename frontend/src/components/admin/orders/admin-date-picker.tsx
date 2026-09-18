@@ -19,10 +19,21 @@ import {
 } from "date-fns";
 import { ru } from "date-fns/locale";
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const YEAR_SPAN = 10;
+const CALENDAR_WIDTH = 280;
+const CALENDAR_MIN_HEIGHT = 280;
+
+type MenuCoords = {
+    top?: number;
+    bottom?: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+};
 
 type AdminDatePickerProps = {
     value: string;
@@ -59,8 +70,10 @@ export default function AdminDatePicker({
     inline = false,
 }: AdminDatePickerProps) {
     const id = useId();
-    const rootRef = useRef<HTMLDivElement>(null);
+    const triggerRef = useRef<HTMLDivElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
     const [open, setOpen] = useState(inline);
+    const [menuCoords, setMenuCoords] = useState<MenuCoords | null>(null);
 
     const selected = parseValue(value);
     const today = new Date();
@@ -72,15 +85,60 @@ export default function AdminDatePicker({
         }
     }, [value]);
 
+    const updateMenuPosition = useCallback(() => {
+        const trigger = triggerRef.current;
+        if (!trigger) {
+            return;
+        }
+        const rect = trigger.getBoundingClientRect();
+        const pad = 8;
+        const gap = 6;
+        const width = Math.min(CALENDAR_WIDTH, Math.max(0, window.innerWidth - pad * 2));
+
+        let minLeft = pad;
+        if (window.innerWidth >= 1024) {
+            const mainEl = trigger.closest("main");
+            if (mainEl) {
+                minLeft = Math.max(pad, Math.round(mainEl.getBoundingClientRect().left) + pad);
+            }
+        }
+
+        let left = rect.left;
+        left = Math.min(Math.max(minLeft, left), window.innerWidth - width - pad);
+
+        const spaceBelow = window.innerHeight - rect.bottom - pad;
+        const spaceAbove = rect.top - pad;
+        const openUp = spaceBelow < CALENDAR_MIN_HEIGHT && spaceAbove > spaceBelow;
+        const maxHeight = Math.max(160, openUp ? spaceAbove - gap : spaceBelow - gap);
+
+        setMenuCoords({
+            top: openUp ? undefined : rect.bottom + gap,
+            bottom: openUp ? window.innerHeight - rect.top + gap : undefined,
+            left,
+            width,
+            maxHeight,
+        });
+    }, []);
+
+    useLayoutEffect(() => {
+        if (!open || inline) {
+            setMenuCoords(null);
+            return;
+        }
+        updateMenuPosition();
+    }, [inline, open, updateMenuPosition, viewMonth]);
+
     useEffect(() => {
         if (!open || inline) {
             return;
         }
 
         const onPointerDown = (event: MouseEvent) => {
-            if (!rootRef.current?.contains(event.target as Node)) {
-                setOpen(false);
+            const target = event.target as Node;
+            if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) {
+                return;
             }
+            setOpen(false);
         };
 
         const onKeyDown = (event: KeyboardEvent) => {
@@ -89,14 +147,20 @@ export default function AdminDatePicker({
             }
         };
 
+        const onReposition = () => updateMenuPosition();
+
         document.addEventListener("mousedown", onPointerDown);
         window.addEventListener("keydown", onKeyDown);
+        window.addEventListener("resize", onReposition);
+        window.addEventListener("scroll", onReposition, true);
 
         return () => {
             document.removeEventListener("mousedown", onPointerDown);
             window.removeEventListener("keydown", onKeyDown);
+            window.removeEventListener("resize", onReposition);
+            window.removeEventListener("scroll", onReposition, true);
         };
-    }, [open, inline]);
+    }, [inline, open, updateMenuPosition]);
 
     const monthStart = startOfMonth(viewMonth);
     const monthEnd = endOfMonth(viewMonth);
@@ -117,6 +181,7 @@ export default function AdminDatePicker({
 
     const calendarPanel = (
         <div
+            ref={inline ? undefined : menuRef}
             id={`${id}-calendar`}
             role="dialog"
             aria-modal="false"
@@ -124,7 +189,18 @@ export default function AdminDatePicker({
             className={
                 inline
                     ? "overflow-hidden rounded-lg border border-admin-border bg-admin-surface p-3"
-                    : "absolute left-0 right-0 top-[calc(100%+0.35rem)] z-50 overflow-hidden rounded-lg border border-admin-border bg-admin-surface p-3 shadow-xl sm:left-auto sm:right-0 sm:min-w-[17.5rem]"
+                    : "fixed z-[9999] overflow-y-auto rounded-lg border border-admin-border bg-admin-surface p-3 shadow-xl"
+            }
+            style={
+                inline || !menuCoords
+                    ? undefined
+                    : {
+                          top: menuCoords.top,
+                          bottom: menuCoords.bottom,
+                          left: menuCoords.left,
+                          width: menuCoords.width,
+                          maxHeight: menuCoords.maxHeight,
+                      }
             }
         >
             <div className="mb-2 flex items-center justify-between gap-2">
@@ -225,7 +301,7 @@ export default function AdminDatePicker({
     }
 
     return (
-        <div ref={rootRef} className={`relative ${className}`.trim()}>
+        <div ref={triggerRef} className={`relative ${className}`.trim()}>
             <button
                 type="button"
                 id={`${id}-trigger`}
@@ -242,7 +318,9 @@ export default function AdminDatePicker({
                 </span>
             </button>
 
-            {open ? calendarPanel : null}
+            {open && menuCoords && typeof document !== "undefined"
+                ? createPortal(calendarPanel, document.body)
+                : null}
         </div>
     );
 }
