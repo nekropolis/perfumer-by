@@ -110,7 +110,7 @@ export function loyaltyExtraPercent(
     return Math.max(0, card - productDiscountPercent(price, oldPrice));
 }
 
-/** Цена единицы после скидки карты, вниз до десятых BYN (145.67 → 145.60). */
+/** Цена единицы после скидки карты, до десятых BYN как на витрине (153.30 × 5% → 145.60). */
 export function loyaltyDiscountedUnitPrice(
     price: string | null | undefined,
     oldPrice: string | null | undefined,
@@ -131,10 +131,10 @@ export function loyaltyDiscountedUnitPrice(
         return Number(current).toFixed(2);
     }
 
-    return floorMoneyToTenths((current * (1 - extra / 100)).toFixed(4)) ?? "0.00";
+    return roundMoneyToTenths((current * (1 - extra / 100)).toFixed(4)) ?? "0.00";
 }
 
-/** Сумма скидки карты на единицу: цена − округлённая вниз до десятых цена со скидкой. */
+/** Сумма скидки карты на единицу: цена − округлённая до десятых цена со скидкой. */
 export function loyaltyUnitDiscountAmount(
     price: string | null | undefined,
     oldPrice: string | null | undefined,
@@ -201,24 +201,6 @@ export function roundMoneyToTenths(raw: string | null): string | null {
     return (Math.round(value * 10) / 10).toFixed(2);
 }
 
-/** Округлить вниз до десятых BYN в пользу клиента (145,67 → 145,60). */
-export function floorMoneyToTenths(raw: string | null): string | null {
-    if (!raw) {
-        return null;
-    }
-
-    const value = Number(raw);
-    if (!Number.isFinite(value)) {
-        return null;
-    }
-
-    if (value <= 0) {
-        return "0.00";
-    }
-
-    return (Math.floor(value * 10 + 1e-8) / 10).toFixed(2);
-}
-
 /** Итоговая цена с учётом накопительной карты и скидки за ожидание.
  *  Порядок как в корзине: waiting от каталожной цены, затем вычитается сумма доп. скидки карты
  *  (max(0, C−D)% от текущей цены; D из old_price). */
@@ -256,7 +238,7 @@ export function resolveDiscountedPrice(
         return "0.00";
     }
 
-    return floorMoneyToTenths(final.toFixed(4)) ?? "0.00";
+    return roundMoneyToTenths(final.toFixed(4)) ?? "0.00";
 }
 
 type LoyaltyCardPriceRange = {

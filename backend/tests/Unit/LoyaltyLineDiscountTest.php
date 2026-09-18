@@ -50,12 +50,15 @@ class LoyaltyLineDiscountTest extends TestCase
         $this->assertSame('0.00', LoyaltyLineDiscount::unitAmount('100.00', null, 0.0));
     }
 
-    public function test_discounted_unit_price_floors_to_tenths_in_favor_of_client(): void
+    public function test_discounted_unit_price_rounds_to_tenths_like_storefront(): void
     {
-        // 153.34 × 5% = 145.673 → 145.60
-        $this->assertSame('145.60', LoyaltyLineDiscount::discountedUnitPrice('153.34', null, 5.0));
-        $this->assertSame('7.74', LoyaltyLineDiscount::unitAmount('153.34', null, 5.0));
-        $this->assertSame('15.48', LoyaltyLineDiscount::lineAmount('153.34', null, 5.0, 2));
+        // 153.30 × 5% = 145.635 → 145.60
+        $this->assertSame('145.60', LoyaltyLineDiscount::discountedUnitPrice('153.30', null, 5.0));
+        $this->assertSame('7.70', LoyaltyLineDiscount::unitAmount('153.30', null, 5.0));
+        $this->assertSame('15.40', LoyaltyLineDiscount::lineAmount('153.30', null, 5.0, 2));
+        // 156.80 × 5% = 148.96 → 149.00
+        $this->assertSame('149.00', LoyaltyLineDiscount::discountedUnitPrice('156.80', null, 5.0));
+        $this->assertSame('7.80', LoyaltyLineDiscount::unitAmount('156.80', null, 5.0));
     }
 
     public function test_already_tenth_price_stays(): void

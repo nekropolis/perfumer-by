@@ -9,13 +9,13 @@ use Modules\Catalog\Support\MoneyDecimal;
  *
  * D = (old_price − price) / old_price × 100 (0 если скидки нет)
  * доп. процент карты = max(0, C − D)
- * цена со скидкой округляется вниз до десятых (145,67 → 145,60, всегда в пользу клиента)
+ * цена со скидкой округляется до десятых BYN как на витрине (153,30 × 5% = 145,635 → 145,60)
  * сумма скидки = price − округлённая цена
  */
 final class LoyaltyLineDiscount
 {
     /**
-     * Цена единицы после скидки карты, вниз до десятых BYN.
+     * Цена единицы после скидки карты, до десятых BYN как на витрине.
      */
     public static function discountedUnitPrice(
         mixed $price,
@@ -36,7 +36,7 @@ final class LoyaltyLineDiscount
         $remainFactor = number_format(max(0.0, 1.0 - ($extraPercent / 100.0)), 8, '.', '');
         $discounted = bcmul($priceNorm, $remainFactor, 4);
 
-        return self::floorToTenths($discounted);
+        return MoneyDecimal::normalizeTenths($discounted);
     }
 
     /**
@@ -127,17 +127,5 @@ final class LoyaltyLineDiscount
         $ratio = bcdiv($diff, $oldNorm, 8);
 
         return (float) bcmul($ratio, '100', 6);
-    }
-
-    /** 145.67 → 145.60; 145.60 → 145.60. */
-    private static function floorToTenths(string $amount): string
-    {
-        if (MoneyDecimal::compare($amount, '0.00') <= 0) {
-            return '0.00';
-        }
-
-        $tenths = bcdiv(bcmul($amount, '10', 0), '10', 1);
-
-        return MoneyDecimal::normalize($tenths);
     }
 }
