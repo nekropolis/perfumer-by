@@ -1378,9 +1378,9 @@ class SupplierPriceImportService
             array_keys($fastTouchOfferIds),
         );
 
-        $this->syncRetailPricesForVariants(array_keys($touchedVariantIds), (int) $supplier->id);
-
         $this->promotionService->clearPromotionForVariantsWithoutMainStock(array_keys($touchedVariantIds));
+
+        $this->syncRetailPricesForVariants(array_keys($touchedVariantIds), (int) $supplier->id);
 
         foreach (array_keys($deferredStockProductIds) as $productIdSynced) {
             $this->stockInventory->syncProductStockFlagsByProductId((int) $productIdSynced);
@@ -1461,8 +1461,8 @@ class SupplierPriceImportService
                 }
             }
 
-            $this->syncRetailPricesForVariants($shelfVariantIds, (int) $supplier->id);
             $this->promotionService->clearPromotionForVariantsWithoutMainStock($shelfVariantIds);
+            $this->syncRetailPricesForVariants($shelfVariantIds, (int) $supplier->id);
         }
 
         foreach (array_keys($deferredMissingProductIds) as $productIdSynced) {

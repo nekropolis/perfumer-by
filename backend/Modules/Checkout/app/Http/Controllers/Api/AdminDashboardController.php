@@ -13,6 +13,7 @@ use Modules\Catalog\Services\ProductViewService;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
 use Modules\Checkout\Models\StockNotificationRequest;
+use Modules\Checkout\Services\Dashboard\DashboardSalesAggregateService;
 use Modules\Wishlist\Services\WishlistCollectService;
 
 class AdminDashboardController extends Controller
@@ -174,6 +175,48 @@ class AdminDashboardController extends Controller
                 'items' => $wishlistCollect->top($period),
             ],
         ]);
+    }
+
+    public function topSoldProducts(Request $request, DashboardSalesAggregateService $aggregate): JsonResponse
+    {
+        [$period, $from, $to] = $this->resolveSalesPeriod($request, $aggregate);
+
+        return response()->json([
+            'data' => [
+                'period' => $period,
+                'date_from' => $from->toDateString(),
+                'date_to' => $to->toDateString(),
+                'items' => $aggregate->topSoldProducts($from->toDateString(), $to->toDateString()),
+            ],
+        ]);
+    }
+
+    public function netProfit(Request $request, DashboardSalesAggregateService $aggregate): JsonResponse
+    {
+        [$period, $from, $to] = $this->resolveSalesPeriod($request, $aggregate);
+
+        return response()->json([
+            'data' => array_merge(
+                [
+                    'period' => $period,
+                    'date_from' => $from->toDateString(),
+                    'date_to' => $to->toDateString(),
+                ],
+                $aggregate->netProfit($from->toDateString(), $to->toDateString()),
+            ),
+        ]);
+    }
+
+    /**
+     * @return array{0: string, 1: CarbonImmutable, 2: CarbonImmutable}
+     */
+    private function resolveSalesPeriod(Request $request, DashboardSalesAggregateService $aggregate): array
+    {
+        return $aggregate->period()->resolveRange(
+            (string) $request->query('period', 'month'),
+            is_string($request->query('date_from')) ? $request->query('date_from') : null,
+            is_string($request->query('date_to')) ? $request->query('date_to') : null,
+        );
     }
 
     private function resolvePeriod(string $period): string

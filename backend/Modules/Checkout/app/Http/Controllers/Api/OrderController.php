@@ -13,6 +13,7 @@ use Modules\Checkout\Http\Resources\OrderResource;
 use Modules\Checkout\Models\Order;
 use Modules\Checkout\Models\OrderItem;
 use Modules\Checkout\Models\OrderStatus;
+use Modules\Checkout\Services\Dashboard\DashboardSalesAggregateService;
 use Modules\Checkout\Services\CheckoutDeliveryService;
 use Modules\Checkout\Support\DeliveryCityResolver;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
@@ -374,7 +375,15 @@ class OrderController extends Controller
                         ->orWhere('customer_name', 'like', "%{$search}%")
                         ->orWhere('phone', 'like', "%{$search}%")
                         ->orWhere('additional_phone', 'like', "%{$search}%")
-                        ->orWhere('shipment_id', 'like', "%{$search}%");
+                        ->orWhere('shipment_id', 'like', "%{$search}%")
+                        ->orWhereHas('items', function ($itemQuery) use ($search) {
+                            $itemQuery->where(function ($itemSubQuery) use ($search) {
+                                $itemSubQuery
+                                    ->where('product_name', 'like', "%{$search}%")
+                                    ->orWhere('brand_name', 'like', "%{$search}%")
+                                    ->orWhere('variant_title', 'like', "%{$search}%");
+                            });
+                        });
                 });
             })
             ->when($status !== '', function ($query) use ($status) {
@@ -774,6 +783,7 @@ class OrderController extends Controller
             $stockService->releaseForOrder($order, 'order_deleted');
             app(GiftCertificateLedgerService::class)->refundOrderCertificates($order);
             app(SoldGiftCertificateFromOrderService::class)->voidSoldAwaitingCompletion($order);
+            app(DashboardSalesAggregateService::class)->forgetOrder($order);
 
             // Резервы без FK на orders — удаляем явно после снятия.
             StockReservation::query()
@@ -875,6 +885,8 @@ class OrderController extends Controller
 
         if ($payload !== []) {
             $order->update($payload);
+            $order->unsetRelation('items');
+            app(DashboardSalesAggregateService::class)->syncOrder($order);
         }
 
         if (array_key_exists('tag_ids', $validated)) {
@@ -1303,6 +1315,8 @@ class OrderController extends Controller
                 (string) ($previousStatus ?? '')
             );
         }
+
+        app(DashboardSalesAggregateService::class)->syncOrder($order);
     }
 
     /**

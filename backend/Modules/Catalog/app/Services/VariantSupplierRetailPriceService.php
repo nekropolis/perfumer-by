@@ -11,7 +11,7 @@ use Modules\Warehouse\Models\WarehouseVariantStock;
 
 /**
  * Синхронизация розничной цены варианта с минимальной закупкой среди офферов на витрине.
- * При наличии остатка на основном складе цену не трогаем — её задаёт складской refresh.
+ * При свободном остатке на основном складе цену не трогаем — её задаёт складской refresh.
  */
 final class VariantSupplierRetailPriceService
 {
@@ -67,7 +67,7 @@ final class VariantSupplierRetailPriceService
         return WarehouseVariantStock::query()
             ->where('warehouse_id', $mainWarehouseId)
             ->where('variant_id', $variantId)
-            ->where('stock', '>', 0)
+            ->whereAvailable()
             ->exists();
     }
 }

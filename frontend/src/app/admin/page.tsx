@@ -6,6 +6,8 @@ import AdminPageHeader from "@/components/admin/ui/admin-page-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminViewedProductsCard from "@/components/admin/admin-viewed-products-card";
 import AdminWishlistProductsCard from "@/components/admin/admin-wishlist-products-card";
+import AdminTopSoldProductsCard from "@/components/admin/admin-top-sold-products-card";
+import AdminNetProfitCard from "@/components/admin/admin-net-profit-card";
 import { adminCard, adminCardPadding } from "@/lib/admin-ui-classes";
 import { fetchAdminDashboardStats, type AdminDashboardStatsResponse } from "@/lib/admin-dashboard-api";
 import { getOrderStatusLabel } from "@/constants/order-statuses";
@@ -560,6 +562,11 @@ export default function AdminPage() {
                     </div>
                 </div>
             </AdminPageCard>
+
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                <AdminTopSoldProductsCard />
+                <AdminNetProfitCard />
+            </div>
 
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
                 <AdminViewedProductsCard />

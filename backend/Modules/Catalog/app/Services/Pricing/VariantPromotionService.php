@@ -3,7 +3,9 @@
 namespace Modules\Catalog\Services\Pricing;
 
 use Modules\Catalog\Models\ProductVariantLink;
+use Modules\Catalog\Services\VariantSupplierRetailPriceService;
 use Modules\Catalog\Support\CatalogApiCacheService;
+use Modules\ImportExport\Services\Vanille\Support\SellerOnePricingService;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 
@@ -16,12 +18,11 @@ final class VariantPromotionService
             return false;
         }
 
-        // Акция живёт, пока есть остаток на основном складе (как в refresh склада).
-        // Не смотрим available (stock−reserved): полный резерв не должен снимать флаг.
+        // Акция только при свободном остатке на основном складе (stock − reserved > 0).
         return WarehouseVariantStock::query()
             ->where('warehouse_id', $mainWarehouseId)
             ->where('variant_id', $variantId)
-            ->where('stock', '>', 0)
+            ->whereAvailable()
             ->exists();
     }
 
@@ -44,7 +45,7 @@ final class VariantPromotionService
         $rows = WarehouseVariantStock::query()
             ->where('warehouse_id', $mainWarehouseId)
             ->whereIn('variant_id', $variantIds)
-            ->where('stock', '>', 0)
+            ->whereAvailable()
             ->pluck('variant_id');
 
         $map = [];
@@ -66,7 +67,7 @@ final class VariantPromotionService
             return false;
         }
 
-        $variant->update(['is_promotion' => false]);
+        $this->endPromotion($variant);
 
         return true;
     }
@@ -91,15 +92,43 @@ final class VariantPromotionService
             return 0;
         }
 
-        $cleared = ProductVariantLink::query()
+        $variants = ProductVariantLink::query()
             ->whereIn('id', $toClear)
             ->where('is_promotion', true)
-            ->update(['is_promotion' => false]);
+            ->get();
 
-        if ($cleared > 0) {
-            app(CatalogApiCacheService::class)->requestInvalidation();
+        if ($variants->isEmpty()) {
+            return 0;
         }
 
-        return $cleared;
+        foreach ($variants as $variant) {
+            $this->endPromotion($variant);
+        }
+
+        app(CatalogApiCacheService::class)->requestInvalidation();
+
+        return $variants->count();
+    }
+
+    private function endPromotion(ProductVariantLink $variant): void
+    {
+        $variant->update([
+            'is_promotion' => false,
+            'old_price' => null,
+        ]);
+
+        $fresh = $variant->fresh();
+        if ($fresh === null) {
+            return;
+        }
+
+        $retailService = app(VariantSupplierRetailPriceService::class);
+        $pricing = app(SellerOnePricingService::class);
+        $retailService->syncFromListingOffers(
+            $fresh,
+            fn (float $purchase): float => $pricing->calculateRetailPrice($purchase, $fresh),
+        );
+
+        app(CatalogApiCacheService::class)->requestInvalidation();
     }
 }

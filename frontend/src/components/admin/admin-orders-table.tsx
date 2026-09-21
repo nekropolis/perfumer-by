@@ -603,10 +603,12 @@ function AdminOrderItemsTooltip({
 
 function AdminOrderQtyCell({
     order,
+    searchQuery = "",
     onShowAction,
     onHideAction,
 }: {
     order: OrderData;
+    searchQuery?: string;
     onShowAction: (tooltip: ItemsTooltipState) => void;
     onHideAction: () => void;
 }) {
@@ -626,21 +628,20 @@ function AdminOrderQtyCell({
     return (
         <button
             type="button"
-            className="block w-full min-w-0 cursor-default truncate text-center tabular-nums lg:text-left"
+            className="block w-full min-w-0 cursor-default truncate text-left"
             onMouseEnter={(event) => showTooltip(event.currentTarget)}
             onMouseLeave={onHideAction}
             onFocus={(event) => showTooltip(event.currentTarget)}
             onBlur={onHideAction}
             aria-label={`Товары заказа #${order.id}`}
         >
-            <span className="inline-block max-w-full truncate lg:hidden">{order.items_qty}</span>
-            <span className="hidden min-w-0 space-y-0.5 lg:block">
+            <span className="min-w-0 space-y-0.5">
                 {items.length === 0 ? (
                     <span className="tabular-nums">{order.items_qty || "—"}</span>
                 ) : (
                     items.map((item) => (
                         <div key={item.id} className="truncate leading-tight">
-                            {lineItemFullTitle(item)}
+                            {highlightQueryInText(lineItemFullTitle(item), searchQuery)}
                         </div>
                     ))
                 )}
@@ -963,16 +964,16 @@ function AdminOrderTagsCell({
             <button
                 type="button"
                 onClick={openEditor}
-                className="inline-flex w-full min-w-0 origin-left rounded-lg px-0.5 py-0.5 text-left transition-transform duration-200 ease-out hover:scale-110"
+                className="inline-flex max-w-full rounded-lg px-0.5 py-0.5 text-left transition-transform duration-200 ease-out hover:scale-110"
                 aria-label={`Теги заказа #${order.id}`}
                 title="Изменить теги"
             >
                 {tags.length > 0 ? (
-                    <div className="flex w-full min-w-0 flex-wrap gap-1">
+                    <div className="flex max-w-full flex-wrap gap-1">
                         {tags.map((tag) => (
                             <span
                                 key={tag.id}
-                                className={`${SOLID_PILL_CHIP_CLASS} !inline-block min-w-0 whitespace-normal break-words text-center`}
+                                className={`${SOLID_PILL_CHIP_CLASS} w-fit max-w-full whitespace-normal break-words !justify-start text-left`}
                                 style={solidColorPillStyle(tag.color)}
                                 title={tag.name}
                             >
@@ -1522,7 +1523,7 @@ export default function AdminOrdersTable({
                             : "overflow-x-auto"
                     }
                 >
-                <table className="w-full min-w-0 border-collapse text-[13px] font-medium table-fixed">
+                <table className="w-full min-w-[78rem] border-collapse text-[13px] font-medium table-fixed lg:min-w-0">
                     <colgroup>
                         <col style={{ width: "2.25rem" }} />
                         <col style={{ width: "7.5rem" }} />
@@ -1535,7 +1536,7 @@ export default function AdminOrdersTable({
                         <col
                             className={
                                 productsColWidth === null
-                                    ? "w-11 lg:w-auto"
+                                    ? "w-52 lg:w-auto"
                                     : undefined
                             }
                             style={
@@ -1548,7 +1549,7 @@ export default function AdminOrdersTable({
                             }
                         />
                         <col style={{ width: "5.75rem" }} />
-                        <col style={{ width: "10rem" }} />
+                        <col style={{ width: "8rem" }} />
                     </colgroup>
                     <thead className="bg-[#F8FAFC]">
                         <tr className="border-b border-black/[0.06] text-left text-[10px] font-bold uppercase tracking-[0.08em] text-admin-text-secondary">
@@ -1601,10 +1602,9 @@ export default function AdminOrdersTable({
                             </th>
                             <th
                                 ref={productsThRef}
-                                className="relative border-r border-black/[0.06] px-1 py-2.5 text-center lg:px-2 lg:pr-3 lg:text-left"
+                                className="relative border-r border-black/[0.06] px-1 py-2.5 text-left lg:px-2 lg:pr-3"
                             >
-                                <span className="lg:hidden">Кол.</span>
-                                <span className="hidden lg:inline">Товары</span>
+                                Товары
                                 <span
                                     role="separator"
                                     aria-orientation="vertical"
@@ -1739,9 +1739,10 @@ export default function AdminOrdersTable({
                                         menuWidthClassName={STATUS_DROPDOWN_MENU_WIDTH_CLASS}
                                     />
                                 </td>
-                                <td className="min-w-0 overflow-hidden border-r border-black/[0.05] px-1 py-2 text-center tabular-nums lg:px-2 lg:text-left">
+                                <td className="min-w-0 overflow-hidden border-r border-black/[0.05] px-1 py-2 text-left lg:px-2">
                                     <AdminOrderQtyCell
                                         order={order}
+                                        searchQuery={searchQuery}
                                         onShowAction={showItemsTooltip}
                                         onHideAction={hideItemsTooltipWithDelay}
                                     />

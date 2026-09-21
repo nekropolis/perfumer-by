@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Modules\Catalog\Models\Product;
@@ -44,5 +45,16 @@ class WarehouseVariantStock extends Model
     public function getAvailableStockAttribute(): int
     {
         return max(0, (int) $this->stock - (int) $this->reserved_stock);
+    }
+
+    /**
+     * Свободный остаток: физический stock минус резерв.
+     *
+     * @param  Builder<static>  $query
+     * @return Builder<static>
+     */
+    public function scopeWhereAvailable(Builder $query): Builder
+    {
+        return $query->whereRaw('(stock - COALESCE(reserved_stock, 0)) > 0');
     }
 }

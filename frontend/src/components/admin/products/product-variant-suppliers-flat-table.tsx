@@ -290,6 +290,7 @@ function VariantFlatTableRows({
                             productId={flatTableOptions.productId}
                             variantId={variant.id}
                             checked={Boolean(variant.is_promotion)}
+                            canEnable={Boolean(variant.can_fulfill_main)}
                             onUpdatedAction={(next) =>
                                 flatTableOptions.onPromotionUpdatedAction?.(variant.id, next)
                             }

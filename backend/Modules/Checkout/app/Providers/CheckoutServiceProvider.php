@@ -3,6 +3,7 @@
 namespace Modules\Checkout\Providers;
 
 use Modules\Checkout\Console\Commands\NotifyOverdueDeliveryOrdersCommand;
+use Modules\Checkout\Console\Commands\RebuildDashboardSalesStatsCommand;
 use Modules\Checkout\Console\Commands\SyncVeterCitiesCommand;
 use Modules\Checkout\Console\Commands\SyncVeterTicketStatusesCommand;
 use Nwidart\Modules\Support\ModuleServiceProvider;
@@ -26,6 +27,7 @@ class CheckoutServiceProvider extends ModuleServiceProvider
      */
     protected array $commands = [
         NotifyOverdueDeliveryOrdersCommand::class,
+        RebuildDashboardSalesStatsCommand::class,
         SyncVeterCitiesCommand::class,
         SyncVeterTicketStatusesCommand::class,
     ];

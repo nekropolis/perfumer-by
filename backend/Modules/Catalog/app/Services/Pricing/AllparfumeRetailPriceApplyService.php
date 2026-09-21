@@ -103,7 +103,7 @@ final class AllparfumeRetailPriceApplyService
                 $inStockIds = WarehouseVariantStock::query()
                     ->where('warehouse_id', $mainWarehouseId)
                     ->whereIn('variant_id', $linkIds)
-                    ->where('stock', '>', 0)
+                    ->whereAvailable()
                     ->pluck('variant_id')
                     ->map(static fn ($id): int => (int) $id)
                     ->all();

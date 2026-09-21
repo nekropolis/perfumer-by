@@ -14,6 +14,7 @@ use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Models\VariantDefinition;
 use Modules\Catalog\Http\Resources\ProductVariantResource;
+use Modules\Catalog\Services\Pricing\VariantPromotionService;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Catalog\Support\MoneyDecimal;
 use Modules\Catalog\Support\VariantDefinitionResolver;
@@ -414,6 +415,14 @@ class ProductVariantAdminController extends Controller
         $definitionId = (int) $validated['variant_definition_id'];
         $definition = VariantDefinition::query()->findOrFail($definitionId);
 
+        if ((bool) ($validated['is_promotion'] ?? false)) {
+            $existingId = (int) ProductVariantLink::query()
+                ->where('product_id', $product->id)
+                ->where('variant_definition_id', $definitionId)
+                ->value('id');
+            $this->assertPromotionCanBeEnabled($existingId);
+        }
+
         $variant = ProductVariantLink::query()->firstOrCreate(
             [
                 'product_id' => $product->id,
@@ -500,7 +509,11 @@ class ProductVariantAdminController extends Controller
             $updates['is_active'] = (bool) $validated['is_active'];
         }
         if (array_key_exists('is_promotion', $validated)) {
-            $updates['is_promotion'] = (bool) $validated['is_promotion'];
+            $wantsPromotion = (bool) $validated['is_promotion'];
+            if ($wantsPromotion && !(bool) $variant->is_promotion) {
+                $this->assertPromotionCanBeEnabled((int) $variant->id);
+            }
+            $updates['is_promotion'] = $wantsPromotion;
         }
         if (array_key_exists('sort_order', $validated)) {
             $updates['sort_order'] = $validated['sort_order'] ?? $variant->sort_order;
@@ -610,6 +623,15 @@ class ProductVariantAdminController extends Controller
 
         if (! $product->is_set) {
             $product->update(['is_set' => true]);
+        }
+    }
+
+    private function assertPromotionCanBeEnabled(int $variantId): void
+    {
+        if ($variantId <= 0 || !app(VariantPromotionService::class)->hasMainWarehouseAvailableStock($variantId)) {
+            throw ValidationException::withMessages([
+                'is_promotion' => 'Акцию можно включить только при свободном остатке на основном складе (не в резерве).',
+            ]);
         }
     }
 

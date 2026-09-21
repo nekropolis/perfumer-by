@@ -50,7 +50,7 @@ final class WarehousePriceRefreshService
 
         $warehouseTotal = (int) WarehouseVariantStock::query()
             ->where('warehouse_id', $mainWarehouseId)
-            ->where('stock', '>', 0)
+            ->whereAvailable()
             ->count();
 
         if ($onProgress !== null) {
@@ -66,7 +66,7 @@ final class WarehousePriceRefreshService
 
         WarehouseVariantStock::query()
             ->where('warehouse_id', $mainWarehouseId)
-            ->where('stock', '>', 0)
+            ->whereAvailable()
             ->orderBy('id')
             ->chunkById(self::CHUNK_SIZE, function ($rows) use (
                 $mainWarehouseId,

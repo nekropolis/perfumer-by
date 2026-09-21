@@ -179,9 +179,11 @@ function VariantBadges({ item }: { item: AdminProductVariantItem }) {
 function VariantFormFields({
     form,
     setForm,
+    canEnablePromotion = false,
 }: {
     form: VariantFormState;
     setForm: React.Dispatch<React.SetStateAction<VariantFormState>>;
+    canEnablePromotion?: boolean;
 }) {
     return (
         <div className="space-y-4">
@@ -257,10 +259,20 @@ function VariantFormFields({
                     <span>Активен</span>
                 </label>
 
-                <label className="inline-flex items-center gap-2 text-sm text-admin-text">
+                <label
+                    className={`inline-flex items-center gap-2 text-sm text-admin-text ${
+                        !canEnablePromotion && !form.is_promotion ? "opacity-60" : ""
+                    }`}
+                    title={
+                        !canEnablePromotion && !form.is_promotion
+                            ? "Акцию можно включить только при свободном остатке на складе (не в резерве)"
+                            : undefined
+                    }
+                >
                     <input
                         type="checkbox"
                         checked={form.is_promotion}
+                        disabled={!canEnablePromotion && !form.is_promotion}
                         onChange={(e) =>
                             setForm((prev) => ({ ...prev, is_promotion: e.target.checked }))
                         }
@@ -767,6 +779,7 @@ export default function ProductVariantsEditor({
                                                 productId={productId}
                                                 variantId={item.id}
                                                 checked={Boolean(item.is_promotion)}
+                                                canEnable={Number(item.main_available_stock ?? 0) > 0}
                                                 onUpdatedAction={(next) => {
                                                     setRuntimeItems((prev) =>
                                                         prev.map((row) =>
@@ -1099,6 +1112,12 @@ export default function ProductVariantsEditor({
                 {editForm ? (
                     <VariantFormFields
                         form={editForm}
+                        canEnablePromotion={
+                            Number(
+                                runtimeItems.find((row) => row.id === editForm.id)
+                                    ?.main_available_stock ?? 0,
+                            ) > 0
+                        }
                         setForm={(updater) => {
                             setEditForm((prev) => {
                                 if (!prev) {

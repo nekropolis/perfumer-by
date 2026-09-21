@@ -1590,7 +1590,7 @@ export default function AdminOrdersPage() {
                                     <AdminSearchInput
                                         value={searchInput}
                                         onChangeAction={setSearchInput}
-                                        placeholder="ID, ID отправки, имя, телефон"
+                                        placeholder="ID, ID отправки, имя, тел, товар"
                                         syncWithUrl={false}
                                     />
                                 </div>

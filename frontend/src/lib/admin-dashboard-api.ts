@@ -143,3 +143,110 @@ export async function fetchAdminDashboardWishlistProducts(
 
     return res.json();
 }
+
+export type AdminDashboardSalesPeriod = "month" | "quarter" | "year" | "custom";
+
+export type AdminDashboardTopSoldVariant = {
+    id: number;
+    title: string;
+    qty: number;
+};
+
+export type AdminDashboardTopSoldProduct = {
+    id: number;
+    name: string;
+    slug: string | null;
+    qty: number;
+    variants: AdminDashboardTopSoldVariant[];
+};
+
+export type AdminDashboardTopSoldProductsResponse = {
+    data: {
+        period: AdminDashboardSalesPeriod;
+        date_from: string;
+        date_to: string;
+        items: AdminDashboardTopSoldProduct[];
+    };
+};
+
+export type AdminDashboardNetProfitResponse = {
+    data: {
+        period: AdminDashboardSalesPeriod;
+        date_from: string;
+        date_to: string;
+        revenue: string;
+        cost: string;
+        product_profit: string;
+        delivery_expense: string;
+        net_profit: string;
+    };
+};
+
+function dashboardSalesSearchParams(params?: {
+    period?: AdminDashboardSalesPeriod;
+    dateFrom?: string;
+    dateTo?: string;
+}): URLSearchParams {
+    const searchParams = new URLSearchParams();
+    if (params?.period) {
+        searchParams.set("period", params.period);
+    }
+    if (params?.period === "custom") {
+        if (params.dateFrom) {
+            searchParams.set("date_from", params.dateFrom);
+        }
+        if (params.dateTo) {
+            searchParams.set("date_to", params.dateTo);
+        }
+    }
+
+    return searchParams;
+}
+
+export async function fetchAdminDashboardTopSoldProducts(params?: {
+    period?: AdminDashboardSalesPeriod;
+    dateFrom?: string;
+    dateTo?: string;
+    signal?: AbortSignal;
+}): Promise<AdminDashboardTopSoldProductsResponse> {
+    const searchParams = dashboardSalesSearchParams(params);
+
+    const res = await fetch(
+        `${API_BASE}/admin/dashboard/top-sold-products${searchParams.toString() ? `?${searchParams.toString()}` : ""}`,
+        {
+            headers: getAdminHeaders(),
+            cache: "no-store",
+            signal: params?.signal,
+        },
+    );
+
+    if (!res.ok) {
+        throw new Error(`Dashboard top sold products API error: ${res.status}`);
+    }
+
+    return res.json();
+}
+
+export async function fetchAdminDashboardNetProfit(params?: {
+    period?: AdminDashboardSalesPeriod;
+    dateFrom?: string;
+    dateTo?: string;
+    signal?: AbortSignal;
+}): Promise<AdminDashboardNetProfitResponse> {
+    const searchParams = dashboardSalesSearchParams(params);
+
+    const res = await fetch(
+        `${API_BASE}/admin/dashboard/net-profit${searchParams.toString() ? `?${searchParams.toString()}` : ""}`,
+        {
+            headers: getAdminHeaders(),
+            cache: "no-store",
+            signal: params?.signal,
+        },
+    );
+
+    if (!res.ok) {
+        throw new Error(`Dashboard net profit API error: ${res.status}`);
+    }
+
+    return res.json();
+}

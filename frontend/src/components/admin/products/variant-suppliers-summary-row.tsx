@@ -75,6 +75,7 @@ export default function VariantSuppliersSummaryRow({
                     productId={productId}
                     variantId={variant.id}
                     checked={Boolean(variant.is_promotion)}
+                    canEnable={Boolean(variant.can_fulfill_main)}
                     onUpdatedAction={(next) => onPromotionUpdatedAction?.(variant.id, next)}
                     onErrorAction={onPromotionErrorAction}
                 />
