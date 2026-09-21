@@ -963,16 +963,16 @@ function AdminOrderTagsCell({
             <button
                 type="button"
                 onClick={openEditor}
-                className="inline-flex max-w-full rounded-lg px-0.5 py-0.5 text-left transition-transform duration-200 ease-out hover:scale-110"
+                className="inline-flex w-full min-w-0 origin-left rounded-lg px-0.5 py-0.5 text-left transition-transform duration-200 ease-out hover:scale-110"
                 aria-label={`Теги заказа #${order.id}`}
                 title="Изменить теги"
             >
                 {tags.length > 0 ? (
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex w-full min-w-0 flex-wrap gap-1">
                         {tags.map((tag) => (
                             <span
                                 key={tag.id}
-                                className={`${SOLID_PILL_CHIP_CLASS} truncate`}
+                                className={`${SOLID_PILL_CHIP_CLASS} !inline-block min-w-0 whitespace-normal break-words text-center`}
                                 style={solidColorPillStyle(tag.color)}
                                 title={tag.name}
                             >
@@ -1548,7 +1548,7 @@ export default function AdminOrdersTable({
                             }
                         />
                         <col style={{ width: "5.75rem" }} />
-                        <col style={{ width: "8rem" }} />
+                        <col style={{ width: "10rem" }} />
                     </colgroup>
                     <thead className="bg-[#F8FAFC]">
                         <tr className="border-b border-black/[0.06] text-left text-[10px] font-bold uppercase tracking-[0.08em] text-admin-text-secondary">
@@ -1749,7 +1749,7 @@ export default function AdminOrdersTable({
                                 <td className="border-r border-black/[0.05] px-2 py-2 whitespace-nowrap text-right tabular-nums">
                                     {order.total} руб.
                                 </td>
-                                <td className="px-2 py-2">
+                                <td className="min-w-0 overflow-hidden px-2 py-2">
                                     <AdminOrderTagsCell
                                         order={order}
                                         onSavedAction={patchOrderInList}
