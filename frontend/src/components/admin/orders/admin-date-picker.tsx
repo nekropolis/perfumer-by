@@ -172,6 +172,9 @@ export default function AdminDatePicker({
 
     const pickDay = (day: Date) => {
         onChangeAction(toIsoDate(day));
+        if (!isSameMonth(day, viewMonth)) {
+            setViewMonth(startOfMonth(day));
+        }
         if (!inline) {
             setOpen(false);
         }
@@ -275,11 +278,11 @@ export default function AdminDatePicker({
                         <button
                             key={day.toISOString()}
                             type="button"
-                            disabled={!inMonth || disabled}
+                            disabled={disabled}
                             onClick={() => pickDay(day)}
                             className={[
                                 "flex h-8 w-8 items-center justify-center rounded-md text-sm transition",
-                                !inMonth && "pointer-events-none invisible",
+                                !inMonth && !isSelected && "text-admin-text-secondary/55 hover:bg-admin-muted hover:text-admin-text-secondary",
                                 inMonth && !isSelected && "text-admin-text hover:bg-admin-muted",
                                 isSelected && "bg-admin-primary font-semibold text-white",
                                 isToday && !isSelected && "ring-1 ring-admin-primary/40",
