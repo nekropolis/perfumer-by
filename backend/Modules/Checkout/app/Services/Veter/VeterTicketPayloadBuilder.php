@@ -138,42 +138,25 @@ class VeterTicketPayloadBuilder
         $last = '';
         $patronymic = '';
 
-        // Заказ (admin: Имя Фамилия Отчество) — основной источник для ветерОК.
-        $parsedOrder = $this->parseCustomerName((string) ($order->customer_name ?? ''));
-        $first = $parsedOrder['first'];
-        $last = $parsedOrder['last'];
-        $patronymic = $parsedOrder['patronymic'];
-
-        $client = $order->relationLoaded('client') ? $order->client : null;
+        $client = $order->relationLoaded('client') ? $order->client : $order->client()->first();
         if ($client instanceof Client) {
             $cFirst = trim((string) ($client->first_name ?? ''));
             $cLast = trim((string) ($client->last_name ?? ''));
             $cPatronymic = trim((string) ($client->patronymic ?? ''));
-
-            // Структурированные поля клиента — только дозаполнение пустых частей.
-            // first_name с пробелами часто = целое ФИО из старых миграций; так не берём.
-            if ($first === '' && $cFirst !== '' && ! preg_match('/\s/u', $cFirst)) {
+            $structured = ($cLast !== '' || $cPatronymic !== '')
+                || ($cFirst !== '' && ! preg_match('/\s/u', $cFirst));
+            if ($structured) {
                 $first = $cFirst;
-            }
-            if ($last === '' && $cLast !== '') {
                 $last = $cLast;
-            }
-            if ($patronymic === '' && $cPatronymic !== '') {
                 $patronymic = $cPatronymic;
             }
+        }
 
-            if (($first === '' || $last === '' || $patronymic === '') && $cFirst !== '' && preg_match('/\s/u', $cFirst)) {
-                $fromBlob = $this->parseCustomerName($cFirst);
-                if ($first === '') {
-                    $first = $fromBlob['first'];
-                }
-                if ($last === '') {
-                    $last = $fromBlob['last'];
-                }
-                if ($patronymic === '') {
-                    $patronymic = $fromBlob['patronymic'];
-                }
-            }
+        if ($first === '' && $last === '' && $patronymic === '') {
+            $parsedOrder = $this->parseCustomerName((string) ($order->customer_name ?? ''));
+            $first = $parsedOrder['first'];
+            $last = $parsedOrder['last'];
+            $patronymic = $parsedOrder['patronymic'];
         }
 
         $seed = (int) $order->id;
@@ -193,7 +176,7 @@ class VeterTicketPayloadBuilder
 
     /**
      * Разбор строки ФИО.
-     * Поддерживает: «Имя Фамилия Отчество», «Имя Отчество Фамилия», «Фамилия Имя Отчество».
+     * Поддерживает: «Имя Фамилия Отчество», «Имя Отчество», «Имя Отчество Фамилия», «Фамилия Имя Отчество».
      *
      * @return array{first: string, last: string, patronymic: string}
      */
@@ -207,6 +190,11 @@ class VeterTicketPayloadBuilder
             return ['first' => $parts[0], 'last' => '', 'patronymic' => ''];
         }
         if (count($parts) === 2) {
+            // «Имя Отчество», если фамилии нет: форма склеивает непустые части.
+            if ($this->looksLikePatronymic($parts[1])) {
+                return ['first' => $parts[0], 'last' => '', 'patronymic' => $parts[1]];
+            }
+
             // «Фамилия Имя», если второе похоже на имя, а первое — нет.
             if ($this->looksLikeFirstName($parts[1]) && ! $this->looksLikeFirstName($parts[0])) {
                 return ['first' => $parts[1], 'last' => $parts[0], 'patronymic' => ''];
@@ -226,7 +214,7 @@ class VeterTicketPayloadBuilder
         }
 
         // Фамилия Имя Отчество.
-        if ($this->looksLikePatronymic($c) && ! $this->looksLikePatronymic($b) && $this->looksLikeFirstName($b)) {
+        if ($this->looksLikePatronymic($c) && ! $this->looksLikePatronymic($b) && $this->looksLikeFirstName($b) && ! $this->looksLikeFirstName($a)) {
             return ['first' => $b, 'last' => $a, 'patronymic' => $c];
         }
 

@@ -103,6 +103,10 @@ export type OrderItem = {
 export type OrderData = {
     id: number;
     customer_name: string | null;
+    /** Поля клиента. Строка customer_name собирается из них. */
+    customer_first_name?: string | null;
+    customer_last_name?: string | null;
+    customer_patronymic?: string | null;
     phone: string;
     additional_phone?: string | null;
     comment: string | null;

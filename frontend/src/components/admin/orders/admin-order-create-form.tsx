@@ -556,6 +556,9 @@ function parseCustomerNameParts(full: string): CustomerNameParts {
   if (parts.length === 0) return { first: "", last: "", patronymic: "" };
   if (parts.length === 1) return { first: parts[0], last: "", patronymic: "" };
   if (parts.length === 2) {
+    if (looksLikePatronymic(parts[1])) {
+      return { first: parts[0], last: "", patronymic: parts[1] };
+    }
     if (looksLikeFirstName(parts[1]) && !looksLikeFirstName(parts[0])) {
       return { first: parts[1], last: parts[0], patronymic: "" };
     }
@@ -567,7 +570,12 @@ function parseCustomerNameParts(full: string): CustomerNameParts {
   if (looksLikePatronymic(b) && !looksLikePatronymic(c)) {
     return { first: a, last: c, patronymic: b };
   }
-  if (looksLikePatronymic(c) && !looksLikePatronymic(b) && looksLikeFirstName(b)) {
+  if (
+    looksLikePatronymic(c) &&
+    !looksLikePatronymic(b) &&
+    looksLikeFirstName(b) &&
+    !looksLikeFirstName(a)
+  ) {
     return { first: b, last: a, patronymic: c };
   }
   return { first: a, last: b, patronymic: c };
@@ -578,6 +586,25 @@ function buildCustomerName(parts: CustomerNameParts): string {
     .map((s) => s.trim())
     .filter(Boolean)
     .join(" ");
+}
+
+function customerNamePartsFromOrder(
+  order: { customer_name?: string | null; customer_first_name?: string | null; customer_last_name?: string | null; customer_patronymic?: string | null } | undefined,
+  fallbackName: string,
+): CustomerNameParts {
+  const hasStoredParts =
+    order != null &&
+    (order.customer_first_name != null ||
+      order.customer_last_name != null ||
+      order.customer_patronymic != null);
+  if (hasStoredParts) {
+    return {
+      first: order.customer_first_name?.trim() ?? "",
+      last: order.customer_last_name?.trim() ?? "",
+      patronymic: order.customer_patronymic?.trim() ?? "",
+    };
+  }
+  return parseCustomerNameParts(order?.customer_name?.trim() || fallbackName);
 }
 
 type OrdersHistoryModalKind = "completed" | "active" | "cancelled";
@@ -1193,21 +1220,15 @@ export default function AdminOrderCreateForm({
   );
   const [customerFirstName, setCustomerFirstName] = useState(
     () =>
-      parseCustomerNameParts(
-        seedOrder?.customer_name?.trim() || initialCustomerName?.trim() || "",
-      ).first,
+      customerNamePartsFromOrder(seedOrder, initialCustomerName?.trim() || "").first,
   );
   const [customerLastName, setCustomerLastName] = useState(
     () =>
-      parseCustomerNameParts(
-        seedOrder?.customer_name?.trim() || initialCustomerName?.trim() || "",
-      ).last,
+      customerNamePartsFromOrder(seedOrder, initialCustomerName?.trim() || "").last,
   );
   const [customerPatronymic, setCustomerPatronymic] = useState(
     () =>
-      parseCustomerNameParts(
-        seedOrder?.customer_name?.trim() || initialCustomerName?.trim() || "",
-      ).patronymic,
+      customerNamePartsFromOrder(seedOrder, initialCustomerName?.trim() || "").patronymic,
   );
   const [comment, setComment] = useState(() => seedOrder?.comment ?? "");
   const [managerComment, setManagerComment] = useState(() => seedOrder?.manager_comment ?? "");
@@ -2725,13 +2746,16 @@ export default function AdminOrderCreateForm({
       additionalDeliveryApartment.trim(),
     );
 
+    const nameParts = {
+      first: customerFirstName,
+      last: customerLastName,
+      patronymic: customerPatronymic,
+    };
     const payload: AdminOrderPayload = {
-      customer_name:
-        buildCustomerName({
-          first: customerFirstName,
-          last: customerLastName,
-          patronymic: customerPatronymic,
-        }) || null,
+      customer_name: buildCustomerName(nameParts) || null,
+      customer_first_name: customerFirstName.trim() || null,
+      customer_last_name: customerLastName.trim() || null,
+      customer_patronymic: customerPatronymic.trim() || null,
       phone: resolvedPhone,
       additional_phone: showAdditionalPhone && resolvedAdditionalPhone ? resolvedAdditionalPhone : null,
       comment: comment.trim() || null,

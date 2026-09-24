@@ -274,6 +274,9 @@ export type AdminOrderPayloadItem = {
 
 export type AdminOrderPayload = {
   customer_name?: string | null;
+  customer_first_name?: string | null;
+  customer_last_name?: string | null;
+  customer_patronymic?: string | null;
   phone: string;
   additional_phone?: string | null;
   comment?: string | null;

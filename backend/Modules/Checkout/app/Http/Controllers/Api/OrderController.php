@@ -38,6 +38,9 @@ class OrderController extends Controller
     {
         return [
             'customer_name' => ['nullable', 'string', 'max:255'],
+            'customer_first_name' => ['nullable', 'string', 'max:255'],
+            'customer_last_name' => ['nullable', 'string', 'max:255'],
+            'customer_patronymic' => ['nullable', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:32'],
             'additional_phone' => ['nullable', 'string', 'max:32'],
             'comment' => ['nullable', 'string'],
@@ -117,6 +120,63 @@ class OrderController extends Controller
         $normalized = Phone::normalize($phone);
 
         return $normalized !== '' ? $normalized : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array{name: ?string, first: string, last: string, patronymic: string, from_parts: bool}
+     */
+    private function customerNameFromRequest(array $validated): array
+    {
+        $fromParts = array_key_exists('customer_first_name', $validated)
+            || array_key_exists('customer_last_name', $validated)
+            || array_key_exists('customer_patronymic', $validated);
+        $first = trim((string) ($validated['customer_first_name'] ?? ''));
+        $last = trim((string) ($validated['customer_last_name'] ?? ''));
+        $patronymic = trim((string) ($validated['customer_patronymic'] ?? ''));
+        if ($fromParts) {
+            $name = trim(implode(' ', array_filter([$first, $last, $patronymic])));
+
+            return [
+                'name' => $name !== '' ? $name : null,
+                'first' => $first,
+                'last' => $last,
+                'patronymic' => $patronymic,
+                'from_parts' => true,
+            ];
+        }
+
+        $name = trim((string) ($validated['customer_name'] ?? ''));
+
+        return [
+            'name' => $name !== '' ? $name : null,
+            'first' => '',
+            'last' => '',
+            'patronymic' => '',
+            'from_parts' => false,
+        ];
+    }
+
+    /**
+     * @param  array{first: string, last: string, patronymic: string}  $parts
+     */
+    private function syncClientName(?int $clientId, array $parts): void
+    {
+        if ($clientId === null || $clientId <= 0) {
+            return;
+        }
+
+        $name = trim(implode(' ', array_filter([$parts['first'], $parts['last'], $parts['patronymic']])));
+        $payload = [
+            'first_name' => $parts['first'] !== '' ? $parts['first'] : null,
+            'last_name' => $parts['last'] !== '' ? $parts['last'] : null,
+            'patronymic' => $parts['patronymic'] !== '' ? $parts['patronymic'] : null,
+        ];
+        if ($name !== '') {
+            $payload['name'] = $name;
+        }
+
+        Client::query()->whereKey($clientId)->update($payload);
     }
 
     private function syncClientAdditionalPhone(?int $clientId, ?string $additionalPhone): void
@@ -593,9 +653,13 @@ class OrderController extends Controller
             $phone = Phone::normalize((string) $validated['phone']);
             $additionalPhone = $this->normalizeOptionalPhone((string) ($validated['additional_phone'] ?? ''));
             $clientId = OrderAccountScope::resolveClientIdForPhone($phone);
+            $customer = $this->customerNameFromRequest($validated);
+            if ($customer['from_parts']) {
+                $this->syncClientName($clientId, $customer);
+            }
             $order = Order::query()->create([
                 'client_id' => $clientId,
-                'customer_name' => $validated['customer_name'] ?? null,
+                'customer_name' => $customer['name'],
                 'phone' => $phone,
                 'additional_phone' => $additionalPhone,
                 'comment' => $validated['comment'] ?? null,
@@ -690,10 +754,14 @@ class OrderController extends Controller
             $phone = Phone::normalize((string) $validated['phone']);
             $additionalPhone = $this->normalizeOptionalPhone((string) ($validated['additional_phone'] ?? ''));
             $clientId = OrderAccountScope::resolveClientIdForPhone($phone) ?? $order->client_id;
+            $customer = $this->customerNameFromRequest($validated);
+            if ($customer['from_parts']) {
+                $this->syncClientName($clientId ? (int) $clientId : null, $customer);
+            }
             $nextStatus = (string) ($validated['status'] ?? $previousStatus);
             $order->update([
                 'client_id' => $clientId,
-                'customer_name' => $validated['customer_name'] ?? null,
+                'customer_name' => $customer['name'],
                 'phone' => $phone,
                 'additional_phone' => $additionalPhone,
                 'comment' => $validated['comment'] ?? null,
@@ -1324,10 +1392,16 @@ class OrderController extends Controller
      */
     private function orderPayloadWithInventoryFlag(Order $order): array
     {
+        $order->loadMissing('client:id,first_name,last_name,patronymic');
+        $client = $order->client;
+
         return array_merge(
             (new OrderResource($order))->resolve(),
             [
                 'can_sync_inventory_writeoff' => $this->orderNeedsInventoryWriteoffSync($order),
+                'customer_first_name' => $client?->first_name,
+                'customer_last_name' => $client?->last_name,
+                'customer_patronymic' => $client?->patronymic,
             ],
         );
     }
