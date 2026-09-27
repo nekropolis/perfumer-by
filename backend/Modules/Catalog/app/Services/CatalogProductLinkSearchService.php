@@ -618,6 +618,65 @@ class CatalogProductLinkSearchService
     }
 
     /**
+     * Точное «бренд + название» выше префикса и частичного LIKE.
+     * Используется до LIMIT, иначе точное имя в конце алфавита (Van Cleef) не попадает в выдачу.
+     *
+     * @param  Builder<Product>  $query
+     */
+    public function applyAdminProductListSearchRelevanceOrder(Builder $query, string $search): void
+    {
+        $search = trim(preg_replace('/\s+/u', ' ', $search) ?: $search);
+        if ($search === '') {
+            return;
+        }
+
+        $stem = trim((string) preg_replace('/\s+-\s*.*$/u', '', $search)) ?: $search;
+        $searchAmp = trim((string) preg_replace('/\s*&\s*/u', ' & ', $search));
+        $stemAmp = trim((string) preg_replace('/\s*&\s*/u', ' & ', $stem));
+
+        $bindings = [
+            $search,
+            $searchAmp,
+            $stem,
+            $stemAmp,
+            $search,
+            $stem,
+            $search,
+            $stem,
+            $search.'%',
+            $searchAmp.'%',
+            $stem.'%',
+            $stemAmp.'%',
+            $search.'%',
+            $stem.'%',
+            '%'.$search.'%',
+            '%'.$stem.'%',
+            '%'.$search.'%',
+            '%'.$stem.'%',
+        ];
+
+        $brandNameSub = '(SELECT `name` FROM `brands` WHERE `brands`.`id` = `products`.`brand_id` LIMIT 1)';
+        $displayNameExpr = "LOWER(TRIM(CONCAT(COALESCE({$brandNameSub}, ''), ' ', COALESCE(`products`.`name`, ''))))";
+
+        $relevanceCase = '(CASE
+            WHEN '.$displayNameExpr.' = LOWER(?) OR '.$displayNameExpr.' = LOWER(?) THEN 0
+            WHEN '.$displayNameExpr.' = LOWER(?) OR '.$displayNameExpr.' = LOWER(?) THEN 1
+            WHEN LOWER(TRIM(`products`.`name`)) = LOWER(?) OR LOWER(TRIM(`products`.`name`)) = LOWER(?) THEN 2
+            WHEN LOWER(TRIM(`products`.`slug`)) = LOWER(?) OR LOWER(TRIM(`products`.`slug`)) = LOWER(?) THEN 3
+            WHEN '.$displayNameExpr.' LIKE LOWER(?) OR '.$displayNameExpr.' LIKE LOWER(?) THEN 4
+            WHEN '.$displayNameExpr.' LIKE LOWER(?) OR '.$displayNameExpr.' LIKE LOWER(?) THEN 5
+            WHEN LOWER(`products`.`name`) LIKE LOWER(?) THEN 6
+            WHEN LOWER(`products`.`name`) LIKE LOWER(?) THEN 7
+            WHEN LOWER(`products`.`name`) LIKE LOWER(?) THEN 8
+            WHEN LOWER(`products`.`name`) LIKE LOWER(?) THEN 9
+            WHEN LOWER(`products`.`slug`) LIKE LOWER(?) THEN 10
+            WHEN LOWER(`products`.`slug`) LIKE LOWER(?) THEN 11
+            ELSE 12 END)';
+
+        $query->orderByRaw($relevanceCase, $bindings);
+    }
+
+    /**
      * @param  Builder<Product>  $w
      */
     private function applyAdminListTokenMatch(Builder $w, string $needle): void

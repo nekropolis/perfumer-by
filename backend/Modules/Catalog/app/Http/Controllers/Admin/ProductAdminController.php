@@ -52,56 +52,9 @@ class ProductAdminController extends Controller
             $search = trim((string) preg_replace('/\s+/u', ' ', $request->string('search')->toString()));
             // L`EAU / L’Eau → L'Eau: иначе exact ranking и LIKE ломаются на backtick/типографских кавычках.
             $search = str_replace(["`", '´', "\u{2018}", "\u{2019}"], "'", $search);
-            $stem = trim((string) preg_replace('/\s+-\s*.*$/u', '', $search)) ?: $search;
-            $searchAmp = trim((string) preg_replace('/\s*&\s*/u', ' & ', $search));
-            $stemAmp = trim((string) preg_replace('/\s*&\s*/u', ' & ', $stem));
 
             $linkSearch->applyAdminProductListSearch($query, $search);
-
-            // display_name суб-кей: CONCAT(brand.name, ' ', products.name).
-            // brands.name берётся через correlated subquery, т.к. JOIN отсутствует (with('brand') — eager load).
-            $brandNameSub = '(SELECT `name` FROM `brands` WHERE `brands`.`id` = `products`.`brand_id` LIMIT 1)';
-
-            $bindings = [
-                $search,          // 0 — display exact match
-                $searchAmp,       // 1 — display exact with normalized &
-                $stem,            // 2 — display stem exact
-                $stemAmp,         // 3 — display stem exact with normalized &
-                $search,          // 4 — name exact
-                $stem,            // 5 — name stem exact
-                $search,          // 6 — slug exact
-                $stem,            // 7 — slug stem exact
-                $search . '%',    // 8 — display starts with
-                $searchAmp . '%', // 9 — display starts with normalized &
-                $stem . '%',      // 10 — display stem starts with
-                $stemAmp . '%',   // 11 — display stem starts with normalized &
-                $search . '%',    // 12 — name starts with
-                $stem . '%',      // 13 — name stem starts with
-                '%' . $search . '%', // 14 — name LIKE partial
-                '%' . $stem . '%', // 15 — name stem LIKE partial
-                '%' . $search . '%', // 16 — slug LIKE partial
-                '%' . $stem . '%', // 17 — slug stem LIKE partial
-            ];
-
-            // display name expression для точного и префиксного совпадения (brand.name + ' ' + product.name).
-            $displayNameExpr = "LOWER(TRIM(CONCAT(COALESCE({$brandNameSub}, ''), ' ', COALESCE(`products`.`name`, ''))))";
-
-            $relevanceCase = '(CASE
-                WHEN ' . $displayNameExpr . " = LOWER(?) OR " . $displayNameExpr . " = LOWER(?) THEN 0
-                WHEN " . $displayNameExpr . " = LOWER(?) OR " . $displayNameExpr . " = LOWER(?) THEN 1
-                WHEN LOWER(TRIM(`products`.`name`)) = LOWER(?) OR LOWER(TRIM(`products`.`name`)) = LOWER(?) THEN 2
-                WHEN LOWER(TRIM(`products`.`slug`)) = LOWER(?) OR LOWER(TRIM(`products`.`slug`)) = LOWER(?) THEN 3
-                WHEN " . $displayNameExpr . ' LIKE LOWER(?) OR ' . $displayNameExpr . ' LIKE LOWER(?) THEN 4
-                WHEN ' . $displayNameExpr . ' LIKE LOWER(?) OR ' . $displayNameExpr . ' LIKE LOWER(?) THEN 5
-                WHEN LOWER(`products`.`name`) LIKE LOWER(?) THEN 6
-                WHEN LOWER(`products`.`name`) LIKE LOWER(?) THEN 7
-                WHEN LOWER(`products`.`name`) LIKE LOWER(?) THEN 8
-                WHEN LOWER(`products`.`name`) LIKE LOWER(?) THEN 9
-                WHEN LOWER(`products`.`slug`) LIKE LOWER(?) THEN 10
-                WHEN LOWER(`products`.`slug`) LIKE LOWER(?) THEN 11
-                ELSE 12 END)';
-
-            $query->orderByRaw($relevanceCase, $bindings);
+            $linkSearch->applyAdminProductListSearchRelevanceOrder($query, $search);
             $query->orderByDesc('products.id');
         } else {
             $query->orderByDesc('id');

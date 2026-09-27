@@ -80,7 +80,8 @@ class LegacyUnmatchedProductAdminController extends Controller
         $legacy = DB::table('legacy_unmatched_products')->where('id', $id)->first();
         abort_unless($legacy, 404, 'Legacy product not found');
 
-        $q = trim((string) $request->query('q', ''));
+        $q = trim((string) preg_replace('/\s+/u', ' ', (string) $request->query('q', '')));
+        $q = str_replace(["`", '´', "\u{2018}", "\u{2019}"], "'", $q);
         if (mb_strlen($q, 'UTF-8') < 2) {
             return response()->json(['data' => []]);
         }
@@ -108,6 +109,7 @@ class LegacyUnmatchedProductAdminController extends Controller
             });
 
         $this->linkSearchService->applyAdminProductListSearch($productsQuery, $q);
+        $this->linkSearchService->applyAdminProductListSearchRelevanceOrder($productsQuery, $q);
 
         $data = $productsQuery
             ->orderBy('products.name')
