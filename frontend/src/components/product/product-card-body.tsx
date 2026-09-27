@@ -4,13 +4,13 @@ import ProductCardImage from "@/components/product/product-card-image";
 import ProductStatusLabels from "@/components/product/product-status-labels";
 import type { ProductListItem } from "@/types/catalog";
 import {
-    compactVariantLabel,
     formatProductCardOldPrice,
     formatProductCardPrice,
     formatVariantChipLabel,
     getProductCardTitleParts,
     sortVariantLabelsByVolume,
     normalizeVariantLabels,
+    uniqueVariantChipLabels,
 } from "@/lib/product-card-utils";
 import { siteCard } from "@/lib/site-ui-classes";
 
@@ -31,7 +31,7 @@ export default function ProductCardBody({
 }: Props) {
     const isCatalog = variant === "catalog";
     const rawVariants = sortVariantLabelsByVolume(normalizeVariantLabels(product.variant_labels));
-    const compactVariants = rawVariants.map(compactVariantLabel);
+    const compactVariants = uniqueVariantChipLabels(rawVariants);
     const visibleVariants = compactVariants.slice(0, isCatalog ? 4 : 3);
     const hiddenVariantsCount = Math.max(compactVariants.length - visibleVariants.length, 0);
 
@@ -44,6 +44,8 @@ export default function ProductCardBody({
         catalogSwapPaths.length >= 2 ? catalogSwapPaths[1] : null;
 
     const { cardTitle, brandName, showBrandLine, productTitle } = getProductCardTitleParts(product);
+    const genderLabel = product.gender?.trim() || null;
+    const seasonLabel = product.season?.trim() || null;
     const oldPrice = formatProductCardOldPrice(product);
     const productHref = product.listing_variant_id
         ? `/${product.slug}?variant=${product.listing_variant_id}`
@@ -105,7 +107,20 @@ export default function ProductCardBody({
             </div>
 
             <div className={`flex min-w-0 flex-1 flex-col ${isCatalog ? "gap-1" : ""}`}>
-                {showBrandLine ? (
+                {isCatalog && (genderLabel || seasonLabel) ? (
+                    <div className="flex min-h-[14px] min-w-0 items-center gap-x-1.5 text-[10px] leading-tight sm:min-h-[15px] sm:text-[11px]">
+                        {genderLabel ? (
+                            <span className="inline-flex h-[16px] shrink-0 items-center rounded-full bg-admin-muted px-1.5 text-[9px] font-semibold uppercase tracking-wide text-admin-text sm:h-[18px] sm:px-2 sm:text-[9px]">
+                                {genderLabel}
+                            </span>
+                        ) : null}
+                        {seasonLabel ? (
+                            <span className="min-w-0 truncate font-normal text-admin-text-secondary">
+                                {seasonLabel}
+                            </span>
+                        ) : null}
+                    </div>
+                ) : showBrandLine ? (
                     <div
                         className={
                             isCatalog

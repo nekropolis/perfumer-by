@@ -118,6 +118,24 @@ export function formatVariantChipLabel(label: string): string {
     return compact;
 }
 
+/** Один чип на объём: «100 мл» и «100 мл / Тестер» в каталоге не дублируются. */
+export function uniqueVariantChipLabels(labels: string[]): string[] {
+    const seen = new Set<string>();
+    const unique: string[] = [];
+
+    for (const label of labels) {
+        const compact = compactVariantLabel(label);
+        const key = compact.toLocaleLowerCase("ru");
+        if (seen.has(key)) {
+            continue;
+        }
+        seen.add(key);
+        unique.push(compact);
+    }
+
+    return unique;
+}
+
 export function collapseDuplicateListingProducts(products: ProductListItem[]): ProductListItem[] {
     const merged = new Map<number, ProductListItem>();
 

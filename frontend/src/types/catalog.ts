@@ -123,6 +123,11 @@ export type ProductListItem = {
     is_preorder_available: boolean;
     variants_count: number;
     listing_variant_id?: number | null;
+
+    /** «Для кого» — строка над названием в карточке каталога. */
+    gender?: string | null;
+    /** «Сезон» — строка над названием в карточке каталога. */
+    season?: string | null;
 };
 
 export type ProductsResponse = {

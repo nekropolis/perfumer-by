@@ -80,6 +80,7 @@ class CatalogProductsListingService
             'brand:id,name,slug',
             'mainCategory:id,name,slug',
             'images' => ProductListResource::imagesForListingEagerLoad(),
+            ...ProductListResource::cardAttributesEagerLoad(),
             'variants' => static function ($q): void {
                 $q->where('is_active', true)
                     ->select(self::VARIANT_LINK_COLUMNS)
@@ -170,6 +171,7 @@ class CatalogProductsListingService
                 'brand:id,name,slug',
                 'mainCategory:id,name,slug',
                 'images' => ProductListResource::imagesForListingEagerLoad(),
+                ...ProductListResource::cardAttributesEagerLoad(),
                 'activeVariants' => function ($q): void {
                     $q->select(self::VARIANT_LINK_COLUMNS)
                         ->with([
@@ -222,6 +224,7 @@ class CatalogProductsListingService
             'brand:id,name,slug',
             'mainCategory:id,name,slug',
             'images' => ProductListResource::imagesForListingEagerLoad(),
+            ...ProductListResource::cardAttributesEagerLoad(),
             'variants' => function ($variantQuery) use ($request): void {
                 $builder = $variantQuery->getQuery();
                 $this->constrainPromotionListingVariants($builder, $request);

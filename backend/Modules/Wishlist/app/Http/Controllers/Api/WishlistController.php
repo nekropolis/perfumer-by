@@ -164,6 +164,7 @@ class WishlistController extends Controller
                 'brand',
                 'mainCategory',
                 'images' => ProductListResource::imagesForListingEagerLoad(),
+                ...ProductListResource::cardAttributesEagerLoad(),
                 'activeVariants',
             ])
             ->get()

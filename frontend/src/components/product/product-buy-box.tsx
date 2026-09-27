@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -20,6 +20,7 @@ import { siteBtnPrimary, siteBtnSecondary, siteCard } from "@/lib/site-ui-classe
 const emptySubscribe = () => () => { };
 const getClientSnapshot = () => true;
 const getServerSnapshot = () => false;
+const STOREFRONT_BOTTOM_BAR_HEIGHT = "--storefront-bottom-bar-height";
 
 function DiagonalStrike({ children }: { children: ReactNode }) {
     return (
@@ -89,6 +90,7 @@ export default function ProductBuyBox({
     const showMobile = surface === "all" || surface === "mobile";
     const [notifyOpen, setNotifyOpen] = useState(false);
     const [mobileBarBottomOffset, setMobileBarBottomOffset] = useState(0);
+    const mobileBarRef = useRef<HTMLDivElement | null>(null);
     const mobileBarPortalReady = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
 
     const hasVariant = selectedVariant !== null;
@@ -187,6 +189,39 @@ export default function ProductBuyBox({
             window.removeEventListener("resize", updateViewportOffsets);
         };
     }, [showMobile]);
+
+    useEffect(() => {
+        if (!showMobile || !mobileBarPortalReady) {
+            return;
+        }
+
+        const bar = mobileBarRef.current;
+        if (!bar) {
+            return;
+        }
+
+        const root = document.documentElement;
+        const publishHeight = () => {
+            const height = Math.ceil(bar.getBoundingClientRect().height);
+            if (height > 0) {
+                root.style.setProperty(
+                    STOREFRONT_BOTTOM_BAR_HEIGHT,
+                    `${height + mobileBarBottomOffset}px`,
+                );
+                return;
+            }
+            root.style.removeProperty(STOREFRONT_BOTTOM_BAR_HEIGHT);
+        };
+
+        publishHeight();
+        const observer = new ResizeObserver(publishHeight);
+        observer.observe(bar);
+
+        return () => {
+            observer.disconnect();
+            root.style.removeProperty(STOREFRONT_BOTTOM_BAR_HEIGHT);
+        };
+    }, [showMobile, mobileBarPortalReady, mobileBarBottomOffset]);
 
     const oneClickTriggerNode = (
         <OneClickOrderTrigger
@@ -340,6 +375,7 @@ export default function ProductBuyBox({
 
     const mobileBar = (
         <div
+            ref={mobileBarRef}
             className="fixed inset-x-0 bottom-0 z-[130] border-t border-admin-border bg-admin-surface/95 px-3 pt-2.5 backdrop-blur xl:hidden"
             style={{
                 bottom: `${mobileBarBottomOffset}px`,
@@ -411,7 +447,7 @@ export default function ProductBuyBox({
                                 ) : null}
                             </>
                         ) : (
-                            <div className="text-xs text-admin-text-secondary">Выберите вариант</div>
+                            <div className="text-sm font-medium leading-5 text-admin-text">Ожидается поступление</div>
                         )}
                     </div>
                     <div className="flex shrink-0 flex-col items-center justify-center gap-1">

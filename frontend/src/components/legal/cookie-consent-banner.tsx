@@ -14,7 +14,8 @@ export default function CookieConsentBanner() {
 
     return (
         <div
-            className="fixed inset-x-0 bottom-0 z-[80] p-3 sm:p-4"
+            className="fixed inset-x-0 z-[80] p-3 sm:p-4"
+            style={{ bottom: "var(--storefront-bottom-bar-height, 0px)" }}
             role="dialog"
             aria-labelledby="cookie-consent-title"
             aria-describedby="cookie-consent-desc"

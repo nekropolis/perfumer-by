@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Schema;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Support\CatalogListingStockContext;
+use Modules\Catalog\Support\CatalogProductAttributeIds;
 use Modules\Catalog\Support\ProductDisplayName;
 use Modules\Catalog\Support\ProductImagePathResolver;
 use Modules\Catalog\Support\VariantDefinitionVolume;
@@ -238,6 +239,7 @@ class ProductListResource extends JsonResource
             'variants_count' => $variants->count(),
             'variant_labels' => $variantLabels,
             'listing_variant_id' => null,
+            ...self::listingCardAttributes($this->resource),
         ];
     }
 
@@ -337,6 +339,7 @@ class ProductListResource extends JsonResource
             'variants_count' => 1,
             'variant_labels' => $variantLabels,
             'listing_variant_id' => (int) $variant->id,
+            ...self::listingCardAttributes($product),
         ];
     }
 
@@ -383,6 +386,73 @@ class ProductListResource extends JsonResource
         }
 
         return $hasColumn;
+    }
+
+    /**
+     * «Для кого» и «Сезон» для строки над названием в карточке каталога.
+     *
+     * @return array<string, mixed>
+     */
+    public static function cardAttributesEagerLoad(): array
+    {
+        return [
+            'attributeValues' => static function ($q): void {
+                $q->select('id', 'product_id', 'product_attribute_id', 'custom_value', 'sort_order')
+                    ->whereIn('product_attribute_id', [
+                        CatalogProductAttributeIds::GENDER_ATTRIBUTE_ID,
+                        CatalogProductAttributeIds::SEASON_ATTRIBUTE_ID,
+                    ]);
+            },
+            'attributeValues.selectedOptions' => static function ($q): void {
+                $q->select('id', 'product_attribute_value_id', 'product_attribute_option_id');
+            },
+            'attributeValues.selectedOptions.productAttributeOption:id,name',
+        ];
+    }
+
+    /**
+     * @return array{gender: string|null, season: string|null}
+     */
+    private static function listingCardAttributes(Product $product): array
+    {
+        return [
+            'gender' => self::listingAttributeLabel($product, CatalogProductAttributeIds::GENDER_ATTRIBUTE_ID),
+            'season' => self::listingAttributeLabel($product, CatalogProductAttributeIds::SEASON_ATTRIBUTE_ID),
+        ];
+    }
+
+    private static function listingAttributeLabel(Product $product, int $attributeId): ?string
+    {
+        if (! $product->relationLoaded('attributeValues')) {
+            return null;
+        }
+
+        $value = $product->attributeValues->first(
+            static fn ($item): bool => (int) $item->product_attribute_id === $attributeId
+        );
+
+        if ($value === null) {
+            return null;
+        }
+
+        if ($value->relationLoaded('selectedOptions')) {
+            $names = $value->selectedOptions
+                ->map(static function ($selected): ?string {
+                    $name = $selected->productAttributeOption?->name;
+
+                    return is_string($name) ? trim($name) : null;
+                })
+                ->filter(static fn (?string $name): bool => $name !== null && $name !== '')
+                ->values();
+
+            if ($names->isNotEmpty()) {
+                return $names->implode(', ');
+            }
+        }
+
+        $custom = trim((string) ($value->custom_value ?? ''));
+
+        return $custom !== '' ? $custom : null;
     }
 
     /**
