@@ -460,7 +460,13 @@ class MapLegacyProductsBySlugCommand extends Command
 
             $query = $this->unquoteSqlString(trim($fields[1]));
             $slug = $this->unquoteSqlString(trim($fields[2]));
-            if ($query === null || $slug === null || $slug === '') {
+            if ($query === null || $slug === null) {
+                continue;
+            }
+
+            // Legacy oc_url_alias sometimes stores trailing/leading spaces in keyword.
+            $slug = trim($slug);
+            if ($slug === '') {
                 continue;
             }
 
