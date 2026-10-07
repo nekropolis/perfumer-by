@@ -291,4 +291,101 @@ SQL);
         $this->assertSame(0, DB::table('legacy_unmatched_products')->where('status', 'skipped')->count());
         $this->assertSame(3, DB::table('legacy_unmatched_products')->where('status', 'unmatched')->count());
     }
+
+    public function test_deletes_self_legacy_product_link_redirects_and_keeps_real_ones(): void
+    {
+        $selfTargetId = (int) DB::table('products')->insertGetId([
+            'name' => 'Same slug product',
+            'slug' => 'self-link-slug',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $selfRedirectId = (int) DB::table('seo_redirects')->insertGetId([
+            'from_path' => '/self-link-slug',
+            'to_path' => '/self-link-slug',
+            'http_code' => 301,
+            'is_active' => true,
+            'source' => 'legacy_product_link',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $trailingSlashSelfId = (int) DB::table('seo_redirects')->insertGetId([
+            'from_path' => '/self-slash-slug/',
+            'to_path' => 'self-slash-slug',
+            'http_code' => 301,
+            'is_active' => true,
+            'source' => 'legacy_product_link',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $realLinkRedirectId = (int) DB::table('seo_redirects')->insertGetId([
+            'from_path' => '/keep-linked',
+            'to_path' => '/linked-target',
+            'http_code' => 301,
+            'is_active' => true,
+            'source' => 'legacy_product_link',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $manualSelfRedirectId = (int) DB::table('seo_redirects')->insertGetId([
+            'from_path' => '/manual-self',
+            'to_path' => '/manual-self',
+            'http_code' => 301,
+            'is_active' => true,
+            'source' => 'manual',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $now = now();
+        DB::table('legacy_unmatched_products')->insert([
+            [
+                'legacy_product_id' => 201,
+                'legacy_slug' => 'self-link-slug',
+                'legacy_name' => 'Self linked by mistake',
+                'legacy_description' => null,
+                'legacy_meta_title' => null,
+                'legacy_meta_description' => null,
+                'legacy_meta_keyword' => null,
+                'legacy_reviews' => null,
+                'status' => 'linked',
+                'skip_reason' => null,
+                'linked_product_id' => $selfTargetId,
+                'redirect_id' => $selfRedirectId,
+                'linked_by_user_id' => null,
+                'linked_at' => $now,
+                'sync_snapshot' => null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+        ]);
+
+        $dumpPath = sys_get_temp_dir().'/legacy-map-self-redirect-'.uniqid('', true).'.sql';
+        file_put_contents($dumpPath, <<<'SQL'
+INSERT INTO `oc_url_alias` VALUES
+(1,'product_id=201','self-link-slug'),
+(2,'product_id=202','self-slash-slug');
+SQL);
+
+        try {
+            $exit = Artisan::call('legacy:map-products-by-slug', [
+                '--dump' => $dumpPath,
+            ]);
+            $this->assertSame(0, $exit);
+
+            $this->assertNull(DB::table('seo_redirects')->where('id', $selfRedirectId)->first());
+            $this->assertNull(DB::table('seo_redirects')->where('id', $trailingSlashSelfId)->first());
+            $this->assertNotNull(DB::table('seo_redirects')->where('id', $realLinkRedirectId)->first());
+            $this->assertNotNull(DB::table('seo_redirects')->where('id', $manualSelfRedirectId)->first());
+
+            $linked = DB::table('legacy_unmatched_products')->where('legacy_product_id', 201)->first();
+            $this->assertNotNull($linked);
+            $this->assertSame('linked', $linked->status);
+            $this->assertSame($selfTargetId, (int) $linked->linked_product_id);
+            $this->assertNull($linked->redirect_id);
+        } finally {
+            @unlink($dumpPath);
+        }
+    }
 }

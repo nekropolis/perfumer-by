@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Support\ProductDisplayName;
 use Modules\ImportExport\Support\LegacyDumpOcReviewExtractor;
+use Modules\ImportExport\Support\SeoRedirectCache;
 
 class MapLegacyProductsBySlugCommand extends Command
 {
@@ -42,6 +43,13 @@ class MapLegacyProductsBySlugCommand extends Command
 
         $existingMatchedByLegacyId = $truncate ? [] : $this->loadExistingMatchedProductIds();
         $linkedLegacyIds = $this->loadLinkedLegacyProductIds();
+        $selfRedirectIds = $this->findSelfLegacyProductLinkRedirectIds();
+        $deletedSelfRedirects = 0;
+        if ($dryRun) {
+            $deletedSelfRedirects = count($selfRedirectIds);
+        } else {
+            $deletedSelfRedirects = $this->deleteSelfLegacyProductLinkRedirects($selfRedirectIds);
+        }
         $redirectFromSlugs = $this->loadRedirectFromSlugs();
 
         $productsBySlug = Product::query()
@@ -188,6 +196,7 @@ class MapLegacyProductsBySlugCommand extends Command
         $this->line("Kept existing matched: {$keptMatched}");
         $this->line("Kept linked: {$keptLinked}");
         $this->line("Excluded (slug in seo_redirects From): {$excludedFromRedirect}");
+        $this->line("Deleted self legacy_product_link redirects (From=To): {$deletedSelfRedirects}");
         $this->line("Unmatched queued: {$unmatched}");
         $this->line('Closed stale unmatched: '.$closedStale['deleted']);
         $this->line('Requeued skipped: '.$closedStale['requeued_skipped']);
@@ -780,6 +789,74 @@ class MapLegacyProductsBySlugCommand extends Command
         }
 
         return $set;
+    }
+
+    /**
+     * Manual "Связать" sometimes created a redirect onto the same path (From=To).
+     *
+     * @return list<int>
+     */
+    private function findSelfLegacyProductLinkRedirectIds(): array
+    {
+        if (! DB::getSchemaBuilder()->hasTable('seo_redirects')) {
+            return [];
+        }
+
+        $ids = [];
+        $rows = DB::table('seo_redirects')
+            ->where('source', 'legacy_product_link')
+            ->get(['id', 'from_path', 'to_path']);
+
+        foreach ($rows as $row) {
+            $from = $this->normalizeRedirectPath((string) $row->from_path);
+            $to = $this->normalizeRedirectPath((string) ($row->to_path ?? ''));
+            if ($from !== '/' && $from === $to) {
+                $ids[] = (int) $row->id;
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @param  list<int>  $ids
+     */
+    private function deleteSelfLegacyProductLinkRedirects(array $ids): int
+    {
+        if ($ids === []) {
+            return 0;
+        }
+
+        if (DB::getSchemaBuilder()->hasTable('legacy_unmatched_products')) {
+            DB::table('legacy_unmatched_products')
+                ->whereIn('redirect_id', $ids)
+                ->update([
+                    'redirect_id' => null,
+                    'updated_at' => now(),
+                ]);
+        }
+
+        $deleted = (int) DB::table('seo_redirects')->whereIn('id', $ids)->delete();
+        if ($deleted > 0) {
+            SeoRedirectCache::flush();
+        }
+
+        return $deleted;
+    }
+
+    private function normalizeRedirectPath(string $path): string
+    {
+        $trimmed = trim($path);
+        if ($trimmed === '') {
+            return '/';
+        }
+
+        $withSlash = str_starts_with($trimmed, '/') ? $trimmed : '/'.$trimmed;
+        if ($withSlash !== '/') {
+            $withSlash = rtrim($withSlash, '/');
+        }
+
+        return $withSlash === '' ? '/' : $withSlash;
     }
 
     /**
