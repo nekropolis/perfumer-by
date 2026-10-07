@@ -25,6 +25,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'is_admin' => IsAdmin::class,
             'is_admin_or_manager' => IsAdminOrManager::class,
         ]);
+        // seo-redirects/resolve: trailing spaces in legacy from_path are meaningful.
+        $middleware->trimStrings(except: [
+            'path',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (AuthenticationException $e, Request $request) {

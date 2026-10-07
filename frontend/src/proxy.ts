@@ -24,7 +24,8 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
                 Accept: "application/json",
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify({ path: decodePathname(request.nextUrl.pathname) }),
+            // encodeURI keeps "/" and turns spaces into %20 so they survive transport.
+            body: JSON.stringify({ path: encodeURI(decodePathname(request.nextUrl.pathname)) }),
             cache: "no-store",
         });
 
@@ -48,6 +49,13 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
         const destination = new URL(data.to_path, request.url);
         if (!destination.search && request.nextUrl.search) {
             destination.search = request.nextUrl.search;
+        }
+
+        // Guard against From=To loops (e.g. trimmed space slug or MySQL PAD SPACE).
+        const currentPath = decodePathname(request.nextUrl.pathname);
+        const destinationPath = decodePathname(destination.pathname);
+        if (destinationPath === currentPath) {
+            return NextResponse.next();
         }
 
         return NextResponse.redirect(destination, data.http_code);

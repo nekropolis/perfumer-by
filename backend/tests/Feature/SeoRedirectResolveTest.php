@@ -68,4 +68,26 @@ class SeoRedirectResolveTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data', null);
     }
+
+    public function test_trailing_space_from_path_does_not_match_clean_path(): void
+    {
+        DB::table('seo_redirects')->insert([
+            'from_path' => '/lalique-soleil ',
+            'to_path' => '/lalique-soleil',
+            'http_code' => 301,
+            'is_active' => true,
+            'source' => 'legacy_product_link',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->postJson('/api/seo-redirects/resolve', ['path' => '/lalique-soleil '])
+            ->assertOk()
+            ->assertJsonPath('data.to_path', '/lalique-soleil')
+            ->assertJsonPath('data.http_code', 301);
+
+        $this->postJson('/api/seo-redirects/resolve', ['path' => '/lalique-soleil'])
+            ->assertOk()
+            ->assertJsonPath('data', null);
+    }
 }

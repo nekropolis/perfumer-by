@@ -216,6 +216,15 @@ class LegacyUnmatchedProductAdminController extends Controller
             $fromPath = $this->normalizePath($legacy->legacy_slug ? '/'.$legacy->legacy_slug : '/');
             $toPath = '/'.$target->slug;
 
+            // Older builds trimmed spaces and wrote From=To self-redirects — drop those.
+            if ($fromPath !== $toPath) {
+                DB::table('seo_redirects')
+                    ->where('source', 'legacy_product_link')
+                    ->where('from_path', $toPath)
+                    ->where('to_path', $toPath)
+                    ->delete();
+            }
+
             $redirect = DB::table('seo_redirects')
                 ->where('from_path', $fromPath)
                 ->first();
@@ -360,12 +369,13 @@ class LegacyUnmatchedProductAdminController extends Controller
 
     private function normalizePath(string $path): string
     {
-        $trimmed = trim($path);
-        if ($trimmed === '') {
+        // Do not trim spaces inside the slug: legacy aliases may be "foo "
+        // and must redirect to clean "foo". trim() would create From=To loops.
+        if (trim($path) === '') {
             return '/';
         }
 
-        return str_starts_with($trimmed, '/') ? $trimmed : '/'.$trimmed;
+        return str_starts_with($path, '/') ? $path : '/'.$path;
     }
 
     private function nullableDateTime(mixed $value): ?string

@@ -29,10 +29,16 @@ final class SeoRedirectCache
         );
 
         $cached = Cache::remember($key, self::TTL_SECONDS, static function () use ($path) {
-            $row = DB::table('seo_redirects')
-                ->where('from_path', $path)
-                ->where('is_active', true)
-                ->first(['to_path', 'http_code']);
+            // MySQL PAD SPACE collations treat "/foo" and "/foo " as equal.
+            // Use BINARY so trailing-space legacy aliases only match the spaced URL.
+            $query = DB::table('seo_redirects')->where('is_active', true);
+            if (DB::getDriverName() === 'mysql') {
+                $query->whereRaw('BINARY `from_path` = ?', [$path]);
+            } else {
+                $query->where('from_path', $path);
+            }
+
+            $row = $query->first(['to_path', 'http_code']);
 
             // false — «редиректа нет»: отрицательный результат тоже кэшируем,
             // иначе сканеры случайных URL продолжат бить в базу.

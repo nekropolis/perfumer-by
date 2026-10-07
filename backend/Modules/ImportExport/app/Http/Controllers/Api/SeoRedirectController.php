@@ -15,7 +15,12 @@ class SeoRedirectController extends Controller
             'path' => ['required', 'string', 'max:500'],
         ]);
 
-        $path = trim($validated['path']);
+        // Clients may send encodeURI paths ("/foo%20"); keep decoded trailing spaces.
+        // Do not trim() the whole path — legacy slugs can end with a real space.
+        $path = rawurldecode($validated['path']);
+        if (trim($path) === '') {
+            return response()->json(['data' => null]);
+        }
         if (! str_starts_with($path, '/')) {
             $path = '/'.$path;
         }
