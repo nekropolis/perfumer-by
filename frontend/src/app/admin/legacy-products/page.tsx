@@ -40,6 +40,17 @@ function formatLegacyTargetLabel(candidate: LegacyTargetProductCandidate): strin
     return `${brand} ${name}`.trim();
 }
 
+/** Legacy oc_url_alias sometimes stores leading/trailing spaces — need redirect on link. */
+function legacySlugHasEdgeWhitespace(slug: string | null | undefined): boolean {
+    if (!slug) return false;
+    return slug !== slug.trim();
+}
+
+/** Make spaces visible in mono UI (␣ = space). */
+function formatLegacySlugVisible(slug: string): string {
+    return slug.replaceAll(" ", "␣");
+}
+
 export default function AdminLegacyProductsPage() {
     const [items, setItems] = useState<LegacyUnmatchedProductItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -235,7 +246,20 @@ export default function AdminLegacyProductsPage() {
                                 {items.map((item) => (
                                     <tr key={item.id} className="border-b last:border-b-0">
                                         <td className="px-3 py-2">{item.legacy_product_id}</td>
-                                        <td className="px-3 py-2 font-mono text-xs">{item.legacy_slug || "—"}</td>
+                                        <td className="px-3 py-2 font-mono text-xs">
+                                            {item.legacy_slug ? (
+                                                <span className="inline-flex flex-col gap-0.5">
+                                                    <span>{formatLegacySlugVisible(item.legacy_slug)}</span>
+                                                    {legacySlugHasEdgeWhitespace(item.legacy_slug) ? (
+                                                        <span className="font-sans text-[11px] font-medium text-amber-800">
+                                                            пробел в slug → редирект при «Связать»
+                                                        </span>
+                                                    ) : null}
+                                                </span>
+                                            ) : (
+                                                "—"
+                                            )}
+                                        </td>
                                         <td className="px-3 py-2">{item.legacy_name || "—"}</td>
                                         <td className="px-3 py-2">{item.status}</td>
                                         <td className="px-3 py-2">
@@ -294,14 +318,26 @@ export default function AdminLegacyProductsPage() {
                                     <div className="text-sm">
                                         <b>Slug:</b>{" "}
                                         {linkDetail.legacy_slug ? (
-                                            <a
-                                                href={`https://perfumer.by/${linkDetail.legacy_slug.replace(/^\//, "")}`}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="text-admin-primary underline decoration-admin-primary/40 underline-offset-2 hover:decoration-admin-primary"
-                                            >
-                                                {linkDetail.legacy_slug}
-                                            </a>
+                                            <span className="inline-flex flex-col gap-0.5">
+                                                <a
+                                                    href={`https://perfumer.by/${encodeURI(linkDetail.legacy_slug.replace(/^\//, ""))}`}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="font-mono text-admin-primary underline decoration-admin-primary/40 underline-offset-2 hover:decoration-admin-primary"
+                                                >
+                                                    {formatLegacySlugVisible(linkDetail.legacy_slug)}
+                                                </a>
+                                                {legacySlugHasEdgeWhitespace(linkDetail.legacy_slug) ? (
+                                                    <span className="text-[11px] font-medium text-amber-800">
+                                                        В slug есть пробел — при связи создастся редирект
+                                                        {" "}
+                                                        <span className="font-mono">
+                                                            /{formatLegacySlugVisible(linkDetail.legacy_slug)}
+                                                        </span>
+                                                        {" → чистый slug товара"}
+                                                    </span>
+                                                ) : null}
+                                            </span>
                                         ) : (
                                             "—"
                                         )}

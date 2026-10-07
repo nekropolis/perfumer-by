@@ -460,13 +460,7 @@ class MapLegacyProductsBySlugCommand extends Command
 
             $query = $this->unquoteSqlString(trim($fields[1]));
             $slug = $this->unquoteSqlString(trim($fields[2]));
-            if ($query === null || $slug === null) {
-                continue;
-            }
-
-            // Legacy oc_url_alias sometimes stores trailing/leading spaces in keyword.
-            $slug = trim($slug);
-            if ($slug === '') {
+            if ($query === null || $slug === null || $slug === '') {
                 continue;
             }
 
@@ -852,14 +846,15 @@ class MapLegacyProductsBySlugCommand extends Command
 
     private function normalizeRedirectPath(string $path): string
     {
-        $trimmed = trim($path);
-        if ($trimmed === '') {
+        // Keep meaningful spaces in slug (legacy aliases may end with " ").
+        // Only normalize slash form so "/foo " → "/foo" is NOT treated as self.
+        if (trim($path) === '') {
             return '/';
         }
 
-        $withSlash = str_starts_with($trimmed, '/') ? $trimmed : '/'.$trimmed;
-        if ($withSlash !== '/') {
-            $withSlash = rtrim($withSlash, '/');
+        $withSlash = str_starts_with($path, '/') ? $path : '/'.$path;
+        while (strlen($withSlash) > 1 && str_ends_with($withSlash, '/')) {
+            $withSlash = substr($withSlash, 0, -1);
         }
 
         return $withSlash === '' ? '/' : $withSlash;

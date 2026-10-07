@@ -292,60 +292,6 @@ SQL);
         $this->assertSame(3, DB::table('legacy_unmatched_products')->where('status', 'unmatched')->count());
     }
 
-    public function test_matches_slug_even_with_trailing_spaces_in_dump(): void
-    {
-        $productId = (int) DB::table('products')->insertGetId([
-            'name' => 'Soleil',
-            'slug' => 'lalique-soleil',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $now = now();
-        DB::table('legacy_unmatched_products')->insert([
-            'legacy_product_id' => 4026,
-            'legacy_slug' => 'lalique-soleil ',
-            'legacy_name' => 'Lalique Soleil',
-            'legacy_description' => null,
-            'legacy_meta_title' => null,
-            'legacy_meta_description' => null,
-            'legacy_meta_keyword' => null,
-            'legacy_reviews' => null,
-            'status' => 'unmatched',
-            'skip_reason' => null,
-            'linked_product_id' => null,
-            'redirect_id' => null,
-            'linked_by_user_id' => null,
-            'linked_at' => null,
-            'sync_snapshot' => null,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
-
-        $dumpPath = sys_get_temp_dir().'/legacy-map-slug-trim-'.uniqid('', true).'.sql';
-        file_put_contents($dumpPath, <<<'SQL'
-INSERT INTO `oc_url_alias` VALUES
-(1,'product_id=4026','lalique-soleil ');
-SQL);
-
-        try {
-            $exit = Artisan::call('legacy:map-products-by-slug', [
-                '--dump' => $dumpPath,
-            ]);
-            $this->assertSame(0, $exit);
-
-            $map = DB::table('legacy_map_products')->where('legacy_product_id', 4026)->first();
-            $this->assertNotNull($map);
-            $this->assertSame('matched', $map->status);
-            $this->assertSame($productId, (int) $map->product_id);
-            $this->assertSame('lalique-soleil', $map->legacy_slug);
-
-            $this->assertNull(DB::table('legacy_unmatched_products')->where('legacy_product_id', 4026)->first());
-        } finally {
-            @unlink($dumpPath);
-        }
-    }
-
     public function test_deletes_self_legacy_product_link_redirects_and_keeps_real_ones(): void
     {
         $selfTargetId = (int) DB::table('products')->insertGetId([
@@ -391,6 +337,16 @@ SQL);
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        // Spaced legacy slug → clean product slug must NOT be treated as self.
+        $spacedRedirectId = (int) DB::table('seo_redirects')->insertGetId([
+            'from_path' => '/lalique-soleil ',
+            'to_path' => '/lalique-soleil',
+            'http_code' => 301,
+            'is_active' => true,
+            'source' => 'legacy_product_link',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
 
         $now = now();
         DB::table('legacy_unmatched_products')->insert([
@@ -432,6 +388,7 @@ SQL);
             $this->assertNull(DB::table('seo_redirects')->where('id', $trailingSlashSelfId)->first());
             $this->assertNotNull(DB::table('seo_redirects')->where('id', $realLinkRedirectId)->first());
             $this->assertNotNull(DB::table('seo_redirects')->where('id', $manualSelfRedirectId)->first());
+            $this->assertNotNull(DB::table('seo_redirects')->where('id', $spacedRedirectId)->first());
 
             $linked = DB::table('legacy_unmatched_products')->where('legacy_product_id', 201)->first();
             $this->assertNotNull($linked);
