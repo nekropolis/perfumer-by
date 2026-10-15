@@ -26,7 +26,7 @@ Route::prefix('checkout')->group(function () {
         Route::post('/quote', [CheckoutQuoteController::class, 'quote']);
         Route::get('/cities', [CheckoutCitiesController::class, 'search']);
     });
-    Route::post('/', [CheckoutController::class, 'checkout']);
+    Route::post('/', [CheckoutController::class, 'checkout'])->middleware('throttle:checkout-submit');
 });
 
 // Публичные формы «сообщить о поступлении», «заказать звонок», «купить в один клик» —

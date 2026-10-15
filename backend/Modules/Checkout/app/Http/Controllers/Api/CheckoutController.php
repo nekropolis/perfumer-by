@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Modules\Cart\Models\Cart;
@@ -34,7 +35,31 @@ use Throwable;
 
 class CheckoutController extends Controller
 {
+    /** Покрывает чтение корзины, создание заказа и резерв остатков. */
+    private const CART_LOCK_SECONDS = 60;
+
     public function checkout(Request $request, CheckoutQuoteService $quoteService): JsonResponse
+    {
+        $cartToken = $request->header('X-Cart-Token') ?: $request->input('cart_token');
+        $lock = is_string($cartToken) && $cartToken !== ''
+            ? Cache::lock('checkout:cart:' . sha1($cartToken), self::CART_LOCK_SECONDS)
+            : null;
+
+        if ($lock && ! $lock->get()) {
+            return response()->json([
+                'message' => 'Заказ уже оформляется',
+                'code' => 'CHECKOUT_IN_PROGRESS',
+            ], 409);
+        }
+
+        try {
+            return $this->placeOrder($request, $quoteService);
+        } finally {
+            $lock?->release();
+        }
+    }
+
+    private function placeOrder(Request $request, CheckoutQuoteService $quoteService): JsonResponse
     {
         $validated = $request->validate([
             'customer_name' => ['nullable', 'string', 'max:255'],
