@@ -1,7 +1,8 @@
 "use client";
 
 import { ChevronDown, Check } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { useCatalogSearchParams } from "@/components/catalog/catalog-search-params";
 import type { CatalogBrandItem, CatalogFilterAttribute } from "@/types/catalog";
 import { useCatalogNavigation } from "@/components/catalog/catalog-navigation";
@@ -65,7 +66,7 @@ export default function CatalogGridToolbar({
     showResetFilters = true,
     mobileRightAction,
 }: Props) {
-    const { navigate } = useCatalogNavigation();
+    const { navigate, isNavigating } = useCatalogNavigation();
     const searchParams = useCatalogSearchParams();
     const currentSort = searchParams.get("sort") || "popular";
     const activeSectionChip = getActiveCatalogSectionChip(searchParams);
@@ -296,17 +297,31 @@ export default function CatalogGridToolbar({
         <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-2 [&::-webkit-scrollbar]:hidden">
             {CATALOG_SECTION_CHIPS.map((chip) => {
                 const isActive = activeSectionChip === chip.id;
+                const href = buildCatalogSectionChipPath(basePath, searchParams, chip.id);
                 return (
-                    <button
+                    <Link
                         key={chip.id}
-                        type="button"
-                        onClick={() => navigate(buildCatalogSectionChipPath(basePath, searchParams, chip.id))}
+                        href={href}
+                        onClick={(event: ReactMouseEvent<HTMLAnchorElement>) => {
+                            if (
+                                isNavigating
+                                || event.metaKey
+                                || event.ctrlKey
+                                || event.shiftKey
+                                || event.altKey
+                                || event.button !== 0
+                            ) {
+                                return;
+                            }
+                            event.preventDefault();
+                            navigate(href);
+                        }}
                         className={`${siteFilterChip} shrink-0 rounded-full px-3 py-1.5 text-sm sm:px-4 ${
                             isActive ? siteFilterChipActive : siteFilterChipInactive
                         }`}
                     >
                         {chip.label}
-                    </button>
+                    </Link>
                 );
             })}
         </div>

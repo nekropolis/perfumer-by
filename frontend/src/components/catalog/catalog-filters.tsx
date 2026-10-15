@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useOptimistic, useState, type RefObject } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useOptimistic, useState, type MouseEvent, type RefObject } from "react";
 import { useCatalogSearchParams } from "@/components/catalog/catalog-search-params";
 import type { CatalogBrandItem, CatalogFilterAttribute } from "@/types/catalog";
 import { groupBrandsByFirstLetter, orderedLettersWithBrands } from "@/lib/brand-letter-groups";
@@ -19,6 +20,24 @@ import {
     hasCatalogFacetedFilters,
     type CatalogSectionChip,
 } from "@/lib/catalog-listing-query";
+
+function applyCatalogSectionChipParams(params: URLSearchParams, chip: CatalogSectionChip): void {
+    params.delete("gender");
+    params.delete("sale");
+    params.delete("new");
+    params.delete("hit");
+    params.delete(`attr_${CATALOG_GENDER_ATTRIBUTE_ID}`);
+
+    if (chip === "female" || chip === "male" || chip === "unisex") {
+        params.set("gender", chip);
+    } else if (chip === "sale") {
+        params.set("sale", "1");
+    } else if (chip === "hit") {
+        params.set("hit", "1");
+    } else if (chip === "new") {
+        params.set("new", "1");
+    }
+}
 
 type Props = {
     brands: CatalogBrandItem[];
@@ -50,7 +69,7 @@ export default function CatalogFilters({
     variant = "default",
     priceApplyRef,
 }: Props) {
-    const { navigate } = useCatalogNavigation();
+    const { navigate, isNavigating } = useCatalogNavigation();
     const searchParams = useCatalogSearchParams();
     const siteContent = useSiteContent();
 
@@ -84,24 +103,34 @@ export default function CatalogFilters({
         navigate(`${basePath}${params.toString() ? `?${params.toString()}` : ""}`);
     };
 
+    const sectionChipHref = (chip: CatalogSectionChip) => {
+        const params = new URLSearchParams(searchParams.toString());
+        applyCatalogSectionChipParams(params, chip);
+        params.delete("page");
+        const qs = params.toString();
+        return qs ? `${basePath}?${qs}` : basePath;
+    };
+
     const selectSectionChip = (chip: CatalogSectionChip) => {
         pushParams((params) => {
-            params.delete("gender");
-            params.delete("sale");
-            params.delete("new");
-            params.delete("hit");
-            params.delete(`attr_${CATALOG_GENDER_ATTRIBUTE_ID}`);
-
-            if (chip === "female" || chip === "male" || chip === "unisex") {
-                params.set("gender", chip);
-            } else if (chip === "sale") {
-                params.set("sale", "1");
-            } else if (chip === "hit") {
-                params.set("hit", "1");
-            } else if (chip === "new") {
-                params.set("new", "1");
-            }
+            applyCatalogSectionChipParams(params, chip);
         });
+    };
+
+    const handleSectionChipClick = (event: MouseEvent<HTMLAnchorElement>, chip: CatalogSectionChip) => {
+        if (
+            isNavigating
+            || event.metaKey
+            || event.ctrlKey
+            || event.shiftKey
+            || event.altKey
+            || event.button !== 0
+        ) {
+            return;
+        }
+
+        event.preventDefault();
+        selectSectionChip(chip);
     };
 
     const toggleAttributeOption = (attributeId: number, optionId: number) => {
@@ -348,14 +377,14 @@ export default function CatalogFilters({
                             {CATALOG_SECTION_CHIPS.map((chip) => {
                                 const isActive = activeSectionChip === chip.id;
                                 return (
-                                    <button
+                                    <Link
                                         key={chip.id}
-                                        type="button"
-                                        onClick={() => selectSectionChip(chip.id)}
+                                        href={sectionChipHref(chip.id)}
+                                        onClick={(event) => handleSectionChipClick(event, chip.id)}
                                         className={`${siteFilterChip} ${isActive ? siteFilterChipActive : siteFilterChipInactive}`}
                                     >
                                         {chip.label}
-                                    </button>
+                                    </Link>
                                 );
                             })}
                         </div>
