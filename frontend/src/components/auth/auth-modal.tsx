@@ -20,15 +20,7 @@ import { isPrivilegedRole } from "@/constants/admin-roles";
 import RecaptchaNotice from "@/components/ui/recaptcha-notice";
 import SmsDevHint from "@/components/ui/sms-dev-hint";
 import PasswordInput from "@/components/ui/password-input";
-
-declare global {
-    interface Window {
-        grecaptcha?: {
-            ready: (cb: () => void) => void;
-            execute: (siteKey: string, options: { action: string }) => Promise<string>;
-        };
-    }
-}
+import { executeRecaptchaV3, loadRecaptchaScript } from "@/lib/recaptcha-v3";
 
 type Tab = "login" | "register";
 type RegisterStep = "form" | "code";
@@ -149,17 +141,12 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
     }, [open, onCloseAction, isPending]);
 
     useEffect(() => {
-        if (!recaptchaSiteKey || typeof window === "undefined" || document.getElementById("recaptcha-v3-script")) {
+        if (!open || !recaptchaSiteKey) {
             return;
         }
 
-        const script = document.createElement("script");
-        script.id = "recaptcha-v3-script";
-        script.src = `https://www.google.com/recaptcha/api.js?render=${encodeURIComponent(recaptchaSiteKey)}`;
-        script.async = true;
-        script.defer = true;
-        document.head.appendChild(script);
-    }, [recaptchaSiteKey]);
+        void loadRecaptchaScript(recaptchaSiteKey).catch(() => undefined);
+    }, [open, recaptchaSiteKey]);
 
     const showMessage = (text: string, tone: MessageTone = "default") => {
         setMessage(text);
@@ -179,20 +166,17 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                 : "border-admin-border bg-admin-muted text-admin-text";
 
     const getRecaptchaToken = async (action: string): Promise<string | undefined> => {
-        if (!recaptchaSiteKey || typeof window === "undefined" || !window.grecaptcha) {
+        if (!recaptchaSiteKey) {
             return undefined;
         }
 
-        return await new Promise<string | undefined>((resolve) => {
-            window.grecaptcha?.ready(async () => {
-                try {
-                    const token = await window.grecaptcha?.execute(recaptchaSiteKey, { action });
-                    resolve(token || undefined);
-                } catch {
-                    resolve(undefined);
-                }
-            });
-        });
+        try {
+            await loadRecaptchaScript(recaptchaSiteKey);
+        } catch {
+            return undefined;
+        }
+
+        return executeRecaptchaV3(recaptchaSiteKey, action);
     };
 
     const getFriendlyAuthError = (error: unknown, fallback: string): string => {

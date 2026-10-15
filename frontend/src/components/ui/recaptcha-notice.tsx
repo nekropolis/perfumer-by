@@ -7,25 +7,25 @@ type Props = {
 export default function RecaptchaNotice({ className }: Props) {
     return (
         <p className={className ?? "text-xs text-[var(--text-secondary)]"}>
-            This site is protected by reCAPTCHA and the Google{" "}
+            Этот сайт защищён reCAPTCHA, применяются{" "}
             <a
                 href="https://policies.google.com/privacy"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline underline-offset-2 hover:no-underline"
             >
-                Privacy Policy
+                Политика конфиденциальности
             </a>{" "}
-            and{" "}
+            и{" "}
             <a
                 href="https://policies.google.com/terms"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline underline-offset-2 hover:no-underline"
             >
-                Terms of Service
+                Условия использования
             </a>{" "}
-            apply.
+            Google.
         </p>
     );
 }
