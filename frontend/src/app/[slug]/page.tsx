@@ -11,13 +11,12 @@ import {
     cmsPageWebPageJsonLd,
     newsArticleJsonLd,
     productJsonLd,
-    type ProductReviewsMeta,
 } from "@/lib/json-ld";
 import { fetchCmsPageBySlug, fetchCmsPostBySlug } from "@/lib/cms-pages-api";
 import { buildSeoMetadata, mainProductImageUrlForOg } from "@/lib/seo";
 import { isApiNotFoundError } from "@/lib/api";
 import { fetchCatalogProductDetail } from "@/lib/catalog-api";
-import type { ProductDetailData } from "@/types/catalog";
+import type { ProductDetailData, ProductReviewsMeta } from "@/types/catalog";
 import type { ReviewItem } from "@/types/reviews";
 import ProductDetailPage from "@/components/product/product-detail-page";
 import {
@@ -38,7 +37,7 @@ const getProductPagePayload = cache(async (slug: string): Promise<ProductPagePay
     return {
         product: response.data,
         reviews: response.reviews?.data ?? [],
-        reviewsMeta: (response.reviews as { meta?: ProductReviewsMeta } | undefined)?.meta ?? null,
+        reviewsMeta: response.reviews?.meta ?? null,
     };
 });
 

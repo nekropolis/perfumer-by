@@ -208,10 +208,16 @@ export type ProductDetailData = {
     similar_products?: ProductListItem[];
 };
 
+export type ProductReviewsMeta = {
+    total: number;
+    average: number | null;
+};
+
 export type ProductDetailResponse = {
     data: ProductDetailData;
     reviews?: {
         data: ReviewItem[];
+        meta?: ProductReviewsMeta;
     };
 };
 

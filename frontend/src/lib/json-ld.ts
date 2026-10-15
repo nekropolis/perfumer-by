@@ -1,7 +1,7 @@
 import type { CmsPublicPage, CmsPublicPostDetail } from "@/lib/cms-pages-api";
 import { formatReviewDateRu, normalizeReviewTextForDisplay } from "@/lib/review-text-display";
 import { normalizeProductImageUrl } from "@/lib/product-image-url";
-import type { ProductDetailData, ProductImageData, ProductVariantData } from "@/types/catalog";
+import type { ProductDetailData, ProductImageData, ProductReviewsMeta, ProductVariantData } from "@/types/catalog";
 import type { ReviewItem } from "@/types/reviews";
 import type { SiteContent } from "@/lib/site-content-api";
 import { formatBynAmountDisplay } from "@/lib/format-byn";
@@ -9,6 +9,8 @@ import { applyWaitingDiscount } from "@/lib/loyalty-pricing";
 import { stripHtml } from "@/lib/seo-text";
 import { getSiteUrl } from "@/lib/seo";
 import { productDisplayName } from "@/lib/product-display-name";
+
+export type { ProductReviewsMeta };
 
 const SITE_LABEL = "Perfumer";
 
@@ -246,11 +248,6 @@ export function webSiteJsonLd(): Record<string, unknown> {
 }
 
 /** Агрегаты по всем опубликованным отзывам товара (бэкенд `reviews.meta`); список отзывов ограничен 50. */
-export type ProductReviewsMeta = {
-    total: number;
-    average: number | null;
-};
-
 function productReviewsJsonLdPayload(
     reviews: ReviewItem[],
     meta?: ProductReviewsMeta | null,
