@@ -12,6 +12,7 @@ use Modules\Loyalty\Models\GiftCertificate;
 use Modules\Loyalty\Models\GiftCertificateTemplate;
 use Modules\Loyalty\Models\ClientDiscountCard;
 use Modules\Users\Models\Client;
+use Modules\Loyalty\Services\CodeAttemptLimiter;
 use Modules\Loyalty\Services\GiftCertificateLedgerService;
 use Modules\Cart\Http\Resources\CartResource;
 use Modules\Cart\Models\Cart;
@@ -225,6 +226,12 @@ class CartController extends Controller
 
     public function applyGiftCertificate(Request $request): JsonResponse
     {
+        $client = $this->resolveAuthenticatedClient($request);
+        $attemptLimiter = app(CodeAttemptLimiter::class);
+        if ($locked = $attemptLimiter->lockedResponse($request, $client)) {
+            return $locked;
+        }
+
         $validated = $request->validate([
             'code' => ['nullable', 'string', 'max:64'],
             'number' => ['nullable', 'string', 'max:64'],
@@ -243,6 +250,8 @@ class CartController extends Controller
         $ledger = app(GiftCertificateLedgerService::class);
         $block = $ledger->giftCertificateApplyBlock($certificate);
         if ($block !== null) {
+            $attemptLimiter->recordFailure($request, $client);
+
             return response()->json([
                 'message' => $block['message'],
                 'code' => $block['code'],
@@ -270,6 +279,12 @@ class CartController extends Controller
 
     public function applyDiscountCard(Request $request): JsonResponse
     {
+        $client = $this->resolveAuthenticatedClient($request);
+        $attemptLimiter = app(CodeAttemptLimiter::class);
+        if ($locked = $attemptLimiter->lockedResponse($request, $client)) {
+            return $locked;
+        }
+
         $validated = $request->validate([
             'number' => ['required', 'string', 'max:64'],
             'session_only' => ['sometimes', 'boolean'],
@@ -278,12 +293,13 @@ class CartController extends Controller
         $cart = $this->resolveCart($request);
         $number = trim($validated['number']);
         if ($number === Cart::DISCOUNT_CARD_SUPPRESS_PROFILE_MARKER) {
+            $attemptLimiter->recordFailure($request, $client);
+
             return response()->json([
                 'message' => 'Некорректный номер карты.',
                 'code' => 'DISCOUNT_CARD_INVALID',
             ], 422);
         }
-        $client = $this->resolveAuthenticatedClient($request);
         $sessionOnly = (bool) ($validated['session_only'] ?? false);
 
         $card = DiscountCard::query()
@@ -291,6 +307,8 @@ class CartController extends Controller
             ->first();
 
         if (!$card) {
+            $attemptLimiter->recordFailure($request, $client);
+
             return response()->json([
                 'message' => 'Такой карты лояльности нет, проверьте номер.',
                 'code' => 'DISCOUNT_CARD_NOT_FOUND',
@@ -298,6 +316,8 @@ class CartController extends Controller
         }
 
         if ($card->status !== DiscountCard::STATUS_ACTIVE) {
+            $attemptLimiter->recordFailure($request, $client);
+
             return response()->json([
                 'message' => 'Карта недействительна, свяжитесь с менеджером магазина.',
                 'code' => 'DISCOUNT_CARD_INACTIVE',

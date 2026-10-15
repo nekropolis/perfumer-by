@@ -144,6 +144,21 @@ return [
         'captcha_trigger_ip_phone_attempts' => (int) env('AUTH_OTP_CAPTCHA_TRIGGER_IP_PHONE_ATTEMPTS', 2),
     ],
 
+    /*
+    | Перебор кодов подарочных сертификатов и номеров скидочных карт
+    | (корзина + привязка карты в ЛК, общий счётчик по IP и клиенту).
+    | lock_seconds — длительность блокировки на каждой ступени; последняя ступень шлёт уведомление в Telegram.
+    */
+    'code_attempts' => [
+        'max_failures' => (int) env('AUTH_CODE_ATTEMPTS_MAX_FAILURES', 3),
+        'lock_seconds' => [
+            (int) env('AUTH_CODE_ATTEMPTS_LOCK_1_SECONDS', 60),
+            (int) env('AUTH_CODE_ATTEMPTS_LOCK_2_SECONDS', 1800),
+            (int) env('AUTH_CODE_ATTEMPTS_LOCK_3_SECONDS', 86400),
+        ],
+        'decay_seconds' => (int) env('AUTH_CODE_ATTEMPTS_DECAY_SECONDS', 86400),
+    ],
+
     'login_captcha' => [
         'enabled' => filter_var(
             env('AUTH_LOGIN_CAPTCHA_ENABLED', env('AUTH_OTP_CAPTCHA_ENABLED', false)),

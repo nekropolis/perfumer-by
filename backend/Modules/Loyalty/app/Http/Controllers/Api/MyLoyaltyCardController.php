@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Modules\Loyalty\Models\DiscountCard;
 use Modules\Loyalty\Models\ClientDiscountCard;
+use Modules\Loyalty\Services\CodeAttemptLimiter;
 
 class MyLoyaltyCardController extends Controller
 {
@@ -30,6 +31,11 @@ class MyLoyaltyCardController extends Controller
         $client = $request->user();
         abort_if(! $client, 401);
 
+        $attemptLimiter = app(CodeAttemptLimiter::class);
+        if ($locked = $attemptLimiter->lockedResponse($request, $client)) {
+            return $locked;
+        }
+
         $validated = $request->validate([
             'number' => ['required', 'string', 'max:64'],
         ]);
@@ -41,6 +47,8 @@ class MyLoyaltyCardController extends Controller
             ->first();
 
         if (!$card) {
+            $attemptLimiter->recordFailure($request, $client);
+
             return response()->json([
                 'message' => 'Такой карты лояльности нет, проверьте номер.',
                 'code' => 'DISCOUNT_CARD_NOT_FOUND',
@@ -48,6 +56,8 @@ class MyLoyaltyCardController extends Controller
         }
 
         if ($card->status !== DiscountCard::STATUS_ACTIVE) {
+            $attemptLimiter->recordFailure($request, $client);
+
             return response()->json([
                 'message' => 'Карта недействительна, свяжитесь с менеджером магазина.',
                 'code' => 'DISCOUNT_CARD_INACTIVE',
