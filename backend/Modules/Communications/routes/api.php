@@ -2,8 +2,11 @@
 
 use Illuminate\Support\Facades\Route;
 use Modules\Communications\Http\Controllers\Admin\IncomingCallDeviceController;
+use Modules\Communications\Http\Controllers\Api\FrontendErrorController;
 use Modules\Communications\Http\Controllers\Api\SendToCrmController;
 use Modules\Communications\Http\Middleware\AuthenticateIncomingCallDevice;
+
+Route::middleware('throttle:30,1')->post('/internal/frontend-errors', FrontendErrorController::class);
 
 Route::middleware(['auth:sanctum', AuthenticateIncomingCallDevice::class])
     ->post('/incoming-calls/send-to-crm', SendToCrmController::class);

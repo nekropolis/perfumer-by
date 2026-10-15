@@ -802,6 +802,9 @@ ls -lh /var/backups/perfumer
 
 При любой проблеме шлёт Telegram-уведомление в тот же чат, что и бизнес-уведомления.
 
+Неожиданные backend-исключения и ошибки Next.js SSR также уходят в Telegram с дедупликацией на 10 минут.
+Полные backend stack trace остаются в `backend/storage/logs`, а ошибки SSR — в логах PM2.
+
 ```cron
 */5 * * * * /var/www/perfumer-by/scripts/health-check.sh >/dev/null 2>&1
 ```

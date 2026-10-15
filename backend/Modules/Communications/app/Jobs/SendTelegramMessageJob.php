@@ -25,7 +25,8 @@ class SendTelegramMessageJob implements ShouldQueue
      */
     public function __construct(
         public string $text,
-        public array $context = []
+        public array $context = [],
+        public ?int $requestTimeout = null,
     ) {
     }
 
@@ -47,7 +48,7 @@ class SendTelegramMessageJob implements ShouldQueue
         $enabled = is_bool($communicationsEnabled) ? $communicationsEnabled : true;
         $token = $communicationsToken !== '' ? $communicationsToken : $servicesToken;
         $chatId = $communicationsChatId !== '' ? $communicationsChatId : $servicesChatId;
-        $timeout = $communicationsTimeout > 0 ? $communicationsTimeout : 10;
+        $timeout = $this->requestTimeout ?? ($communicationsTimeout > 0 ? $communicationsTimeout : 10);
 
         if (!$enabled || $token === '' || $chatId === '') {
             return;
