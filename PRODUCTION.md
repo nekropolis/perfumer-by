@@ -309,6 +309,16 @@ NEXT_ALLOWED_DEV_ORIGINS=https://perfumer.by
 EOF
 ```
 
+### Чеклист env перед запуском
+
+- `APP_ENV=production`, `APP_DEBUG=false` — проверить: `cd backend && php artisan about --only=environment`.
+- `SMS_OTP_DRIVER` и `VIBER_OTP_DRIVER` не равны `mock` — проверить без токенов: `php artisan tinker --execute="dump(config('communications.sms.driver'), config('communications.viber.driver'));"`.
+- `SESSION_SECURE_COOKIE=true` — проверить: `php artisan tinker --execute="dump(config('session.secure'));"`.
+- `SANCTUM_STATEFUL_DOMAINS` содержит production-домены, `SANCTUM_EXPIRATION=43200` (30 дней) — проверить: `php artisan tinker --execute="dump(config('sanctum.stateful'), config('sanctum.expiration'));"`.
+- Во frontend заданы `NEXT_PUBLIC_SEO_ALLOW_INDEX=true`, `NEXT_PUBLIC_SITE_URL=https://...`, `NEXT_PUBLIC_API_URL=https://.../api` — проверить только публичные значения: `cd frontend && grep -E '^(NEXT_PUBLIC_SEO_ALLOW_INDEX|NEXT_PUBLIC_SITE_URL|NEXT_PUBLIC_API_URL)=' .env.local`.
+
+После изменения backend env обновите кеш конфигурации: `php artisan config:cache`.
+
 ### 5.2. Установка и билд
 
 ```bash

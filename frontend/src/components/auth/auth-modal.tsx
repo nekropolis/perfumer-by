@@ -616,10 +616,11 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                                     name="one-time-code"
                                     type="text"
                                     value={code}
-                                    onChange={(e) => setCode(e.target.value)}
+                                    onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                                     className={siteInput}
                                     placeholder="Введите код"
                                     inputMode="numeric"
+                                    maxLength={6}
                                     autoComplete="one-time-code"
                                     disabled={isPending}
                                 />
@@ -627,7 +628,7 @@ export default function AuthModal({ open, onCloseAction, initialTab = "login" }:
                             </div>
                             <button
                                 type="submit"
-                                disabled={isPending || !code}
+                                disabled={isPending || code.length !== 6}
                                 className={`${siteBtnPrimary} w-full`}
                             >
                                 {isPending ? "Проверка…" : "Подтвердить"}

@@ -6,6 +6,7 @@ use App\Support\Phone;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -31,7 +32,7 @@ class AuthController extends Controller
 
         $phone = $this->normalizePhone($validated['phone']);
         $this->ensureRequestCodeAllowed($request, $phone);
-        $code = (string) random_int(1000, 9999);
+        $code = (string) random_int(100000, 999999);
 
         $verification = PhoneVerification::query()->create([
             'phone' => $phone,
@@ -71,7 +72,7 @@ class AuthController extends Controller
     {
         $validated = $request->validate([
             'phone' => ['required', 'string', 'max:32'],
-            'code' => ['required', 'string', 'max:10'],
+            'code' => ['required', 'string', 'digits:6'],
             'name' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -372,7 +373,7 @@ class AuthController extends Controller
         }
 
         $this->ensureRequestCodeAllowed($request, $phone);
-        $code = (string) random_int(1000, 9999);
+        $code = (string) random_int(100000, 999999);
 
         $verification = PhoneVerification::query()->create([
             'phone' => $phone,
@@ -413,7 +414,7 @@ class AuthController extends Controller
     {
         $validated = $request->validate([
             'phone' => ['required', 'string', 'max:32'],
-            'code' => ['required', 'string', 'max:10'],
+            'code' => ['required', 'string', 'digits:6'],
         ]);
 
         $phone = $this->normalizePhone($validated['phone']);
@@ -545,7 +546,7 @@ class AuthController extends Controller
         }
 
         $this->ensureRequestCodeAllowed($request, $phone);
-        $code = (string) random_int(1000, 9999);
+        $code = (string) random_int(100000, 999999);
 
         $verification = PhoneVerification::query()->create([
             'phone' => $phone,
@@ -591,7 +592,7 @@ class AuthController extends Controller
         }
 
         $validated = $request->validate([
-            'code' => ['required', 'string', 'max:10'],
+            'code' => ['required', 'string', 'digits:6'],
         ]);
 
         $phone = $this->normalizePhone((string) ($client->phone ?? ''));
@@ -932,6 +933,20 @@ class AuthController extends Controller
      */
     protected function shouldExposeDevCredentials(?array $delivery = null): bool
     {
+        if (app()->isProduction()) {
+            $smsDriver = (string) config('communications.sms.driver');
+            $viberDriver = (string) config('communications.viber.driver');
+
+            if ($smsDriver === 'mock' || $viberDriver === 'mock') {
+                Log::warning('Production uses mock OTP delivery drivers; dev credentials remain hidden.', [
+                    'sms_driver' => $smsDriver,
+                    'viber_driver' => $viberDriver,
+                ]);
+            }
+
+            return false;
+        }
+
         if (app()->isLocal()) {
             return true;
         }

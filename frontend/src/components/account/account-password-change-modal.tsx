@@ -193,10 +193,12 @@ export default function AccountPasswordChangeModal({
                                 <input
                                     type="text"
                                     value={code}
-                                    onChange={(e) => setCode(e.target.value)}
+                                    onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                                     className={siteInput}
                                     placeholder="Введите код"
                                     inputMode="numeric"
+                                    maxLength={6}
+                                    autoComplete="one-time-code"
                                     disabled={isPending}
                                 />
                                 <SmsDevHint value={devCode} label="Код подтверждения" />
@@ -219,7 +221,7 @@ export default function AccountPasswordChangeModal({
                                 <button
                                     type="button"
                                     onClick={handleVerify}
-                                    disabled={isPending || !code}
+                                    disabled={isPending || code.length !== 6}
                                     className={siteBtnPrimary}
                                 >
                                     {isPending ? "Проверка…" : "Сменить пароль"}
