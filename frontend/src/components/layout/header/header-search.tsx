@@ -84,6 +84,11 @@ export default function HeaderSearch({
                     data-lpignore="true"
                     data-1p-ignore="true"
                     data-form-type="other"
+                    role="combobox"
+                    aria-label="Поиск"
+                    aria-expanded={searchOpen}
+                    aria-haspopup="dialog"
+                    aria-controls="header-search-popup"
                     value={searchQuery}
                     onFocus={onFocusAction}
                     onKeyDown={(e) => {
@@ -101,6 +106,7 @@ export default function HeaderSearch({
                     <button
                         type="button"
                         onClick={onResetAction}
+                        aria-label="Очистить поиск"
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] hover:text-[var(--accent)]"
                     >
                         ×
@@ -108,7 +114,7 @@ export default function HeaderSearch({
                 )}
 
                 {searchOpen ? (
-                    <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-2 shadow-xl">
+                    <div id="header-search-popup" className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-2 shadow-xl">
                         {searchLoading ? (
                             <div className="px-3 py-3 text-sm text-[var(--text-secondary)]">Поиск...</div>
                         ) : searchQuery.trim().length < 2 ? (

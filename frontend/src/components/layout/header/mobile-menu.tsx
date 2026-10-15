@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { type RefObject } from "react";
+import { type RefObject, useRef } from "react";
 import CallbackRequestTrigger from "@/components/product/callback-request-trigger";
+import { useDialogA11y } from "@/hooks/use-dialog-a11y";
 import { siteBtnPrimary, siteCard, siteMenuRow } from "@/lib/site-ui-classes";
 import { isHeaderNavLinkActive } from "@/lib/header-nav-active";
 
@@ -46,6 +47,10 @@ export default function HeaderMobileMenu({
 }: Props) {
     const pathname = usePathname();
     const searchParams = useSearchParams();
+    const fallbackRootRef = useRef<HTMLDivElement | null>(null);
+    const rootRef = menuRootRef ?? fallbackRootRef;
+
+    useDialogA11y({ open: isOpen, containerRef: rootRef, onClose: onCloseAction });
 
     if (!isOpen) {
         return null;
@@ -72,7 +77,11 @@ export default function HeaderMobileMenu({
 
     return (
         <div
-            ref={menuRootRef}
+            ref={rootRef}
+            id="mobile-menu"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Меню"
             className="fixed left-0 right-0 bottom-0 z-[130] flex w-full max-w-full flex-col overflow-x-hidden overflow-y-hidden bg-admin-surface md:hidden"
             style={{ top: `${anchorBottom || 64}px` }}
         >

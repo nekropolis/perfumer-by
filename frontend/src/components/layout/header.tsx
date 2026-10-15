@@ -126,6 +126,48 @@ export default function Header() {
     }, [setSearchOpen]);
 
     useEffect(() => {
+        if (!isAccountOpen && !isBurgerOpen && !isPhoneDropdownOpen && !searchOpen) {
+            return;
+        }
+
+        // Escape закрывает попапы шапки; если фокус был внутри — возвращаем его на триггер.
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key !== "Escape") {
+                return;
+            }
+            const active = document.activeElement;
+            const focusTrigger = (root: HTMLElement | null) => {
+                if (root && active instanceof Node && root.contains(active)) {
+                    root.querySelector<HTMLElement>("button")?.focus();
+                }
+            };
+
+            if (isAccountOpen) {
+                focusTrigger(accountRef.current);
+                setIsAccountOpen(false);
+            }
+            if (isBurgerOpen) {
+                focusTrigger(burgerMenuRef.current);
+                setIsBurgerOpen(false);
+            }
+            if (isPhoneDropdownOpen) {
+                focusTrigger(phoneDropdownRef.current);
+                setIsPhoneDropdownOpen(false);
+            }
+            if (searchOpen) {
+                const searchRoot = searchRef.current;
+                if (searchRoot && active instanceof Node && searchRoot.contains(active)) {
+                    desktopSearchInputRef.current?.focus();
+                }
+                setSearchOpen(false);
+            }
+        };
+
+        document.addEventListener("keydown", handleEscape);
+        return () => document.removeEventListener("keydown", handleEscape);
+    }, [isAccountOpen, isBurgerOpen, isPhoneDropdownOpen, searchOpen, setSearchOpen]);
+
+    useEffect(() => {
         if (!isPhoneDropdownOpen) {
             return;
         }

@@ -18,6 +18,8 @@ export default function HeaderMobileToggle({
             className={`${headerBtnIcon} md:hidden`}
             onClick={onClickAction}
             aria-label={isOpen ? "Закрыть меню" : "Открыть меню"}
+            aria-expanded={isOpen}
+            aria-controls="mobile-menu"
         >
             {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>

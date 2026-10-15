@@ -34,6 +34,9 @@ export default function HeaderAccountMenu({
                         type="button"
                         className="inline-flex h-11 items-center gap-2 rounded-2xl px-2 text-sm font-medium text-[var(--header-text)] transition hover:bg-[var(--header-control-bg)]"
                         onClick={onToggleAction}
+                        aria-expanded={isAccountOpen}
+                        aria-haspopup="true"
+                        aria-controls="account-menu"
                     >
                         <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[var(--header-control-bg)] text-[10px] font-semibold text-[var(--header-text)]">
                             {userName.slice(0, 1).toUpperCase()}
@@ -42,7 +45,7 @@ export default function HeaderAccountMenu({
                     </button>
 
                     {isAccountOpen && (
-                        <div className="absolute right-0 top-[calc(100%+8px)] z-50 min-w-56 rounded-xl border border-admin-border bg-admin-surface p-1.5 shadow-xl">
+                        <div id="account-menu" className="absolute right-0 top-[calc(100%+8px)] z-50 min-w-56 rounded-xl border border-admin-border bg-admin-surface p-1.5 shadow-xl">
                             <div className="px-3 py-2">
                                 <div className="text-sm font-medium text-admin-text">{userName}</div>
                                 <div className="mt-0.5 text-xs text-admin-text-secondary">{userPhone}</div>

@@ -2,8 +2,9 @@
 
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { X } from "lucide-react";
+import { useDialogA11y } from "@/hooks/use-dialog-a11y";
 import { adminModalOverlay, adminModalPanel } from "@/lib/admin-ui-classes";
 
 type Props = {
@@ -29,6 +30,8 @@ export default function AdminModalShell({
     closeOnOverlayClick = true,
 }: Props) {
     const [mounted, setMounted] = useState(false);
+    const titleId = useId();
+    const panelRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
         setMounted(true);
@@ -43,6 +46,14 @@ export default function AdminModalShell({
         };
     }, [open]);
 
+    // Escape следует той же семантике, что и клик по оверлею.
+    useDialogA11y({
+        open: open && mounted,
+        containerRef: panelRef,
+        onClose: onCloseAction,
+        closeOnEscape: closeOnOverlayClick,
+    });
+
     if (!open || !mounted) {
         return null;
     }
@@ -54,14 +65,16 @@ export default function AdminModalShell({
             role="presentation"
         >
             <div
+                ref={panelRef}
                 className={`${adminModalPanel} ${maxWidthClass} ${className}`}
                 onClick={(e) => e.stopPropagation()}
                 role="dialog"
                 aria-modal="true"
+                aria-labelledby={title ? titleId : undefined}
             >
                 {title ? (
                     <div className="flex flex-none items-center justify-between gap-3 border-b border-admin-border px-4 py-3 sm:px-5">
-                        <h2 className="text-base font-semibold text-admin-text">{title}</h2>
+                        <h2 id={titleId} className="text-base font-semibold text-admin-text">{title}</h2>
                         <button
                             type="button"
                             onClick={onCloseAction}
