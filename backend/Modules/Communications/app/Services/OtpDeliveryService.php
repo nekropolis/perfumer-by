@@ -2,6 +2,7 @@
 
 namespace Modules\Communications\Services;
 
+use App\Support\LogRedaction;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Modules\Communications\DTO\OtpDeliveryResult;
@@ -63,7 +64,7 @@ class OtpDeliveryService
                 );
             }
 
-            Log::info('OTP sent via mock Viber', ['phone' => $phone]);
+            Log::info('OTP sent via mock Viber', ['phone' => LogRedaction::maskPhone($phone)]);
 
             return new OtpDeliveryResult(
                 sent: true,
@@ -132,7 +133,7 @@ class OtpDeliveryService
 
         $driver = (string) config('communications.sms.driver', 'mock');
         if ($driver === 'mock') {
-            Log::info('OTP sent via mock SMS', ['phone' => $phone]);
+            Log::info('OTP sent via mock SMS', ['phone' => LogRedaction::maskPhone($phone)]);
 
             return new OtpDeliveryResult(
                 sent: true,

@@ -2,6 +2,7 @@
 
 namespace Modules\Checkout\Services\Veter;
 
+use App\Support\LogRedaction;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -110,10 +111,11 @@ class VeterTicketApiClient
         }
 
         $body = trim($response->body());
+        $safeBody = LogRedaction::truncate(LogRedaction::maskDigitRuns($body), 500);
 
         Log::info("Veter {$method} response", [
             'http' => $response->status(),
-            'body' => mb_substr($body, 0, 2000),
+            'body' => $safeBody,
         ]);
 
         if (! $response->successful()) {
@@ -121,7 +123,7 @@ class VeterTicketApiClient
                 'Veter %s returned HTTP %d: %s',
                 $method,
                 $response->status(),
-                mb_substr($body, 0, 500),
+                $safeBody,
             ));
         }
 

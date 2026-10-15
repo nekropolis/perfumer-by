@@ -2,6 +2,7 @@
 
 namespace Modules\Catalog\Http\Controllers\Api;
 
+use App\Support\LogRedaction;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller;
 use Illuminate\Http\Request;
@@ -708,7 +709,7 @@ class ProductController extends Controller
 
             try {
                 Log::info('catalog.smart_search', [
-                    'query' => $query,
+                    'query' => LogRedaction::truncate(LogRedaction::maskDigitRuns($query), 100),
                     'has_results' => ($productResultCount + count($rankedBrands)) > 0,
                     'brand_count' => count($rankedBrands),
                     'product_count' => $productResultCount,
