@@ -1,9 +1,17 @@
 import type { CheckoutLineSelectionStored, CheckoutQuote } from "@/lib/checkout-api";
+import { formatMoneyMinorUnits, parseMoneyMinorUnits } from "@/lib/format-byn";
 import type { CartData } from "@/types/cart";
 
+/** Сумма в рублях для проверок знака. Арифметика сумм идёт через копейки. */
 export function parseCheckoutMoney(s: string): number {
-    const n = Number.parseFloat(String(s).replace(",", "."));
-    return Number.isFinite(n) ? n : 0;
+    const minor = parseMoneyMinorUnits(s);
+    if (minor === 0) {
+        return 0;
+    }
+    const negative = minor < 0;
+    const abs = Math.abs(minor);
+    const value = Math.floor(abs / 100) + (abs % 100) / 100;
+    return negative ? -value : value;
 }
 
 export function selectionSignature(selection: CheckoutLineSelectionStored): string {
@@ -90,11 +98,13 @@ export function waitingDiscountAmountForLines(items: CartData["items"]): string 
         if (!item.waiting_discount || !item.base_price) {
             continue;
         }
-        const baseCents = Math.round(parseCheckoutMoney(item.base_price) * 100);
-        const priceCents = Math.round(parseCheckoutMoney(item.price) * 100);
-        cents += Math.max(0, baseCents - priceCents) * item.qty;
+        const diff = parseMoneyMinorUnits(item.base_price) - parseMoneyMinorUnits(item.price);
+        if (diff <= 0) {
+            continue;
+        }
+        cents += diff * item.qty;
     }
-    return (cents / 100).toFixed(2);
+    return formatMoneyMinorUnits(cents);
 }
 
 /**
@@ -106,9 +116,7 @@ export function cartItemListUnitPrice(item: CartData["items"][number]): string {
         return item.base_price;
     }
     if (item.old_price) {
-        const oldCents = Math.round(parseCheckoutMoney(item.old_price) * 100);
-        const priceCents = Math.round(parseCheckoutMoney(item.price) * 100);
-        if (oldCents > priceCents) {
+        if (parseMoneyMinorUnits(item.old_price) > parseMoneyMinorUnits(item.price)) {
             return item.old_price;
         }
     }
@@ -122,26 +130,24 @@ export function listSubtotalForLines(
 ): string {
     let cents = 0;
     for (const item of items) {
-        const unitCents = Math.round(parseCheckoutMoney(cartItemListUnitPrice(item)) * 100);
-        cents += unitCents * item.qty;
+        cents += parseMoneyMinorUnits(cartItemListUnitPrice(item)) * item.qty;
     }
     for (const row of giftItems) {
-        cents += Math.round(parseCheckoutMoney(row.total) * 100);
+        cents += parseMoneyMinorUnits(row.total);
     }
-    return (cents / 100).toFixed(2);
+    return formatMoneyMinorUnits(cents);
 }
 
 export function merchandisePayFromQuote(quote: CheckoutQuote): string {
     const giftPurchase = quote.gift_certificates_purchase_subtotal
-        ? parseCheckoutMoney(quote.gift_certificates_purchase_subtotal)
+        ? parseMoneyMinorUnits(quote.gift_certificates_purchase_subtotal)
         : 0;
-    return Math.max(
-        0,
-        parseCheckoutMoney(quote.subtotal) -
-            parseCheckoutMoney(quote.loyalty_discount_amount) -
-            parseCheckoutMoney(quote.gift_certificate_amount) +
-            giftPurchase,
-    ).toFixed(2);
+    const net =
+        parseMoneyMinorUnits(quote.subtotal) -
+        parseMoneyMinorUnits(quote.loyalty_discount_amount) -
+        parseMoneyMinorUnits(quote.gift_certificate_amount) +
+        giftPurchase;
+    return formatMoneyMinorUnits(Math.max(0, net));
 }
 
 type DiscountCardLine = {
@@ -164,7 +170,7 @@ export function discountCardForBreakdownFromQuote(
     if (quote == null) {
         return cart.discount_card ?? null;
     }
-    if (parseCheckoutMoney(quote.loyalty_discount_amount) > 0 && cart.discount_card) {
+    if (parseMoneyMinorUnits(quote.loyalty_discount_amount) > 0 && cart.discount_card) {
         return {
             number: cart.discount_card.number,
             discount_percent: quote.loyalty_discount_percent,
@@ -179,7 +185,7 @@ export function giftForBreakdownFromQuote(cart: CartData, quote: CheckoutQuote |
     if (quote == null) {
         return cart.gift_certificate ?? null;
     }
-    if (parseCheckoutMoney(quote.gift_certificate_amount) > 0 && cart.gift_certificate) {
+    if (parseMoneyMinorUnits(quote.gift_certificate_amount) > 0 && cart.gift_certificate) {
         return {
             code: cart.gift_certificate.code,
             number: cart.gift_certificate.number,

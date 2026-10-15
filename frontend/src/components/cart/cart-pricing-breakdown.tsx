@@ -1,6 +1,7 @@
 "use client";
 
 import { formatMoneyDisplay, formatMoneyRub } from "@/lib/format-money-display";
+import { formatMoneyMinorUnits, parseMoneyMinorUnits } from "@/lib/format-byn";
 import { withBynSign } from "@/lib/byn-sign";
 
 type DiscountCardLine = {
@@ -30,11 +31,6 @@ type Props = {
     className?: string;
 };
 
-function parseMoney(s: string): number {
-    const n = Number.parseFloat(s.replace(",", "."));
-    return Number.isFinite(n) ? n : 0;
-}
-
 export default function CartPricingBreakdown({
     itemsQty,
     subtotal,
@@ -47,15 +43,15 @@ export default function CartPricingBreakdown({
     sampleGift = false,
     className = "",
 }: Props) {
-    const sub = parseMoney(subtotal);
-    const tot = parseMoney(total);
-    const cardAmt = discountCard ? parseMoney(discountCard.discount_amount) : 0;
-    const certAmt = giftCertificate ? parseMoney(giftCertificate.amount) : 0;
-    const waitingAmt = waitingDiscountAmount ? parseMoney(waitingDiscountAmount) : 0;
+    const sub = parseMoneyMinorUnits(subtotal);
+    const tot = parseMoneyMinorUnits(total);
+    const cardAmt = discountCard ? parseMoneyMinorUnits(discountCard.discount_amount) : 0;
+    const certAmt = giftCertificate ? parseMoneyMinorUnits(giftCertificate.amount) : 0;
+    const waitingAmt = waitingDiscountAmount ? parseMoneyMinorUnits(waitingDiscountAmount) : 0;
     const savings = Math.max(0, sub - tot);
     const hasCard = discountCard && cardAmt > 0;
     const hasCert = giftCertificate && certAmt > 0;
-    const hasWaiting = waitingAmt > 0.004;
+    const hasWaiting = waitingAmt > 0;
 
     return (
         <div className={`space-y-2 text-sm text-admin-text-secondary ${className}`}>
@@ -103,10 +99,10 @@ export default function CartPricingBreakdown({
                 </div>
             ) : null}
 
-            {savings > 0.004 ? (
+            {savings > 0 ? (
                 <div className="flex items-center justify-between rounded-lg bg-admin-muted px-2 py-1.5 text-xs text-admin-text">
                     <span>Выгода по скидкам</span>
-                    <span className="font-semibold text-emerald-700">{formatMoneyRub(savings.toFixed(2))}</span>
+                    <span className="font-semibold text-emerald-700">{formatMoneyRub(formatMoneyMinorUnits(savings))}</span>
                 </div>
             ) : null}
 
@@ -114,7 +110,7 @@ export default function CartPricingBreakdown({
                 <div className="flex items-center justify-between">
                     <span>Доставка</span>
                     <span>
-                        {parseMoney(deliveryFee) < 0.005 ? (
+                        {parseMoneyMinorUnits(deliveryFee) < 1 ? (
                             <span className="text-emerald-700">Бесплатно</span>
                         ) : (
                             <span>{formatMoneyRub(deliveryFee)}</span>
