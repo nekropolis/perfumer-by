@@ -22,6 +22,7 @@ class CartItemResource extends JsonResource
         $displayStock = 0;
         $displayReserved = 0;
         $isAvailable = false;
+        $availabilitySource = 'unavailable';
         $price = 0.0;
 
         $waitingDiscount = (bool) $this->waiting_discount;
@@ -42,6 +43,7 @@ class CartItemResource extends JsonResource
             $displayStock = $presented['stock'];
             $displayReserved = $presented['reserved_stock'];
             $isAvailable = $presented['is_available'];
+            $availabilitySource = $presented['availability_source'];
             $basePrice = CatalogVariantStockPresenter::storefrontVariantPrice($variant, $presented) ?? 0.0;
             $price = $waitingDiscount && !(bool) $variant->is_promotion
                 ? WaitingDiscountPricing::apply($basePrice)
@@ -108,10 +110,10 @@ class CartItemResource extends JsonResource
             'is_preorder' => (bool) ($variant?->is_preorder ?? false),
             'is_available' => $variant ? $isAvailable : false,
             'waiting_discount' => $waitingDiscount,
-            'waiting_discount_percent' => $waitingDiscount && !(bool) $variant->is_promotion
+            'waiting_discount_percent' => $waitingDiscount && !(bool) $variant?->is_promotion
                 ? WaitingDiscountPricing::DISCOUNT_PERCENT
                 : null,
-            'availability_source' => $this->availability_source ?: ($variant ? $presented['availability_source'] : 'unavailable'),
+            'availability_source' => $this->availability_source ?: $availabilitySource,
         ];
     }
 }
