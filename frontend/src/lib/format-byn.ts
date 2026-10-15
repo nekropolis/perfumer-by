@@ -49,11 +49,3 @@ export function formatMoneyMinorUnits(minor: number): string {
     const cents = abs % 100;
     return `${negative ? "-" : ""}${whole}.${cents.toString().padStart(2, "0")}`;
 }
-
-export function addMoneyStrings(left: string, right: string): string {
-    return formatMoneyMinorUnits(parseMoneyMinorUnits(left) + parseMoneyMinorUnits(right));
-}
-
-export function subtractMoneyStrings(left: string, right: string): string {
-    return formatMoneyMinorUnits(parseMoneyMinorUnits(left) - parseMoneyMinorUnits(right));
-}

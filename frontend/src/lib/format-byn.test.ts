@@ -1,18 +1,13 @@
 import { describe, expect, it } from "vitest";
-import {
-    addMoneyStrings,
-    formatMoneyMinorUnits,
-    parseMoneyMinorUnits,
-    subtractMoneyStrings,
-} from "./format-byn";
+import { formatMoneyMinorUnits, parseMoneyMinorUnits } from "./format-byn";
 
 describe("parseMoneyMinorUnits", () => {
     it("subtracts decimal strings in minor units", () => {
-        expect(subtractMoneyStrings("10.10", "3.05")).toBe("7.05");
+        expect(formatMoneyMinorUnits(parseMoneyMinorUnits("10.10") - parseMoneyMinorUnits("3.05"))).toBe("7.05");
     });
 
     it("adds 0.1 and 0.2 without binary float error", () => {
-        expect(addMoneyStrings("0.1", "0.2")).toBe("0.30");
+        expect(formatMoneyMinorUnits(parseMoneyMinorUnits("0.1") + parseMoneyMinorUnits("0.2"))).toBe("0.30");
     });
 
     it("accepts a comma decimal separator", () => {
