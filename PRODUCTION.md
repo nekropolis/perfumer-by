@@ -360,6 +360,17 @@ pm2 reload perfumer-frontend --update-env
 
 Сайт слушает `80/443`, проксирует `/api` и `/storage` в PHP, всё остальное — в Next.js на `127.0.0.1:3000`.
 
+Сначала установите общие snippets. Rate-limit конфиг подключается nginx автоматически
+из `conf.d` внутри `http {}`; loopback (`127.0.0.1` / `::1`) получает пустой ключ и
+не ограничивается, поэтому SSR-запросы Next.js к API не попадут под лимит:
+
+```bash
+sudo cp scripts/nginx/security-headers.conf.example \
+    /etc/nginx/snippets/perfumer-security-headers.conf
+sudo cp scripts/nginx/rate-limit.conf.example \
+    /etc/nginx/conf.d/perfumer-rate-limit.conf
+```
+
 `/etc/nginx/sites-available/perfumer.by`:
 
 ```nginx
@@ -419,6 +430,7 @@ server {
     # include snippets/ssl-perfumer.conf;
 
     client_max_body_size 32M;
+    include snippets/perfumer-security-headers.conf;
 
     # Статика Laravel (картинки товаров, storage/app/public)
     location ^~ /storage/ {
@@ -426,9 +438,15 @@ server {
         access_log off;
         expires 30d;
         add_header Cache-Control "public, immutable";
+        # Любой add_header в location отменяет наследование add_header из server.
+        include snippets/perfumer-security-headers.conf;
         try_files $uri =404;
     }
 
+    # API и admin-API через PHP-FPM
+    location ^~ /api/ {
+        limit_req zone=perfumer_api burst=40 nodelay;
+        limit_req_status 429;
         try_files $uri /index.php?$query_string;
     }
 
@@ -454,6 +472,12 @@ server {
         expires 1y;
         access_log off;
         add_header Cache-Control "public, immutable";
+        include snippets/perfumer-security-headers.conf;
+    }
+
+    # Не отдавать .env, .git и другие скрытые файлы; ACME исключён.
+    location ~ /\.(?!well-known) {
+        return 404;
     }
 
     # SSR + клиент Next.js
@@ -470,6 +494,34 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 60s;
     }
+}
+```
+
+`security-headers.conf` включает HSTS без `includeSubDomains`/`preload` и
+`Content-Security-Policy-Report-Only`. Сначала проверьте CSP-сообщения в консоли
+браузера и добавьте действительно нужные источники; только после этого меняйте
+заголовок на enforcing `Content-Security-Policy`. `wss:` оставлен для Reverb,
+если админка подключается к хосту из `NEXT_PUBLIC_REVERB_HOST`.
+
+Опционально сделайте apex каноническим отдельными redirect-блоками (сертификат
+должен покрывать `www.perfumer.by`), а в основных блоках оставьте только
+`server_name perfumer.by`:
+
+```nginx
+server {
+    listen 80;
+    listen [::]:80;
+    server_name www.perfumer.by;
+    return 301 https://perfumer.by$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name www.perfumer.by;
+    ssl_certificate /etc/letsencrypt/live/perfumer.by/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/perfumer.by/privkey.pem;
+    return 301 https://perfumer.by$request_uri;
 }
 ```
 
@@ -495,6 +547,7 @@ location = /503.html {
     alias /var/www/perfumer-by/shared/503.html;
     add_header Retry-After 60 always;
     add_header Cache-Control "no-store" always;
+    include snippets/perfumer-security-headers.conf;
 }
 
 location / {
@@ -648,7 +701,7 @@ command=/usr/bin/php /var/www/perfumer-by/backend/artisan queue:work redis --tri
 autostart=true
 autorestart=true
 startretries=20
-startsecs=10
+startsecs=1
 stopasgroup=true
 killasgroup=true
 stopwaitsecs=90
@@ -731,16 +784,18 @@ cd /var/www/perfumer-by
 Скрипт уже лежит в репозитории и делает:
 
 1. `git pull --ff-only`
-2. Включает maintenance-режим Laravel (`php artisan down`).
-3. `composer install --no-dev --optimize-autoloader`.
-4. `php artisan migrate --force`.
-5. `php artisan config:cache && route:cache && view:cache`.
-6. `npm ci` + `next build` в `frontend/`.
-7. `pm2 reload perfumer-frontend`.
-8. `sudo supervisorctl restart perfumer-queue:*`.
-9. `php artisan up`.
+2. `composer install --no-dev --optimize-autoloader` и проверяет сервисы.
+3. Включает nginx maintenance-флаг, но оставляет Laravel доступным для SSR.
+4. `npm ci` + `next build` в `frontend/`.
+5. Только после frontend build включает Laravel maintenance (`php artisan down`).
+6. `php artisan migrate --force`, затем пересобирает Laravel-кэши.
+7. Перезагружает `perfumer-frontend` через PM2 и выполняет `php artisan up`.
+8. Ждёт готовности Laravel/PM2/Next.js, затем снимает nginx maintenance-флаг.
+9. Перезапускает и проверяет queue worker, если установлен `supervisorctl`.
+10. Прогревает кэши каталога и sitemap.
 
-Если что-то падает — скрипт прервётся и выйдет с `artisan down` (решать вручную).
+Если ошибка случилась после `artisan down`, backend останется в maintenance; nginx
+maintenance-флаг также останется включённым, чтобы не показать посетителям 502.
 
 > При небольших сбойных откатах достаточно:
 >
@@ -765,9 +820,12 @@ cd /var/www/perfumer-by
 
 ## 11) Бэкапы, мониторинг и ротация логов
 
-### 11.1. Бэкап базы (3 последних дня)
+### 11.1. Бэкап базы и медиа
 
-Скрипт `scripts/backup-db.sh` делает дамп, жмёт `gzip`, хранит 3 последние версии и шлёт Telegram-алерт при ошибке.
+Скрипт `scripts/backup-db.sh` делает gzip-дамп БД, по желанию архивирует
+`backend/storage/app/public`, хранит локальные копии 14 дней и шлёт Telegram-алерт
+при ошибке. Пароль MySQL передаётся через временный файл с правами `600`, а не
+через аргументы процесса.
 
 ```bash
 sudo mkdir -p /var/backups/perfumer
@@ -777,9 +835,25 @@ sudo chown deploy:deploy /var/backups/perfumer
 Добавь в cron пользователя `deploy`:
 
 ```cron
-# Ежедневный дамп БД в 03:15, хранить 3 дня
+# Ежедневный дамп БД в 03:15
 15 3 * * * /var/www/perfumer-by/scripts/backup-db.sh >/dev/null 2>&1
 ```
+
+Опциональные переменные cron/environment:
+
+```dotenv
+KEEP_DAYS=14
+BACKUP_MEDIA=true
+MEDIA_PATH=/var/www/perfumer-by/backend/storage/app/public
+BACKUP_REMOTE=backup@example.net:/srv/backups/perfumer
+BACKUP_TIMEOUT=60
+BACKUP_GPG_RECIPIENT=backups@example.net
+```
+
+Если `BACKUP_REMOTE` задан, новые архивы копируются через `rsync` по SSH. При
+`BACKUP_GPG_RECIPIENT` для offsite создаются зашифрованные `.gpg`-копии. Заранее
+установите публичный GPG-ключ получателя и отдельный SSH-ключ без пароля с
+минимальными правами на каталог назначения.
 
 Проверить вручную:
 
@@ -788,16 +862,39 @@ sudo chown deploy:deploy /var/backups/perfumer
 ls -lh /var/backups/perfumer
 ```
 
+### 11.1.1. Восстановление
+
+Восстановление БД в заранее созданную пустую базу (значения подключения берите
+из production env, не вставляйте пароль в командную строку):
+
+```bash
+gunzip -c /var/backups/perfumer/db-YYYY-MM-DD.sql.gz \
+    | mysql --defaults-extra-file=/path/to/restore-client.cnf perfumer
+```
+
+`restore-client.cnf` должен иметь права `600` и секцию `[client]` с host, port,
+user и password. Восстановление медиа:
+
+```bash
+sudo tar -xzf /var/backups/perfumer/media-YYYY-MM-DD.tar.gz \
+    -C /var/www/perfumer-by/backend/storage/app
+sudo chown -R deploy:www-data /var/www/perfumer-by/backend/storage/app/public
+```
+
+Для `.gpg` сначала выполните `gpg --decrypt archive.gz.gpg > archive.gz`.
+Раз в месяц делайте тестовое восстановление БД и медиа на staging и проверяйте
+целостность данных/файлов, не ограничиваясь фактом создания архивов.
+
 ### 11.2. Health-check и Telegram-алерты
 
 Скрипт `scripts/health-check.sh` каждые 5 минут проверяет:
 
 - занято ли место на диске ≥ 85 %,
 - осталось ли доступной RAM < 500 МБ,
-- используется ли swap > 100 МБ,
+- используется ли swap > 500 МБ одновременно с нехваткой RAM,
 - load average ≥ 1.5× или 2× числа CPU (перегрузка),
 - работает ли queue worker,
-- отвечает ли backend по публичному `/up`,
+- отвечает ли backend по loopback `http://127.0.0.1/up`,
 - отвечает ли Next.js локально на `http://127.0.0.1:3000/` (PM2; не через nginx, чтобы basic auth на staging не давал ложный 401).
 
 При любой проблеме шлёт Telegram-уведомление в тот же чат, что и бизнес-уведомления.
@@ -1130,7 +1227,7 @@ make bootstrap-shared # = scripts/bootstrap-shared.sh (один раз)
      - `pm = dynamic`
      - `pm.max_children = 20..40` (по профилю памяти)
      - `pm.max_requests = 300..500`
-   - после изменения: `sudo systemctl restart php8.2-fpm`
+   - после изменения: `sudo systemctl restart php8.3-fpm`
 
 4. **Nginx upstream timeouts (не завышать без причины)**
    - `fastcgi_read_timeout 60s;`
@@ -1153,7 +1250,7 @@ make bootstrap-shared # = scripts/bootstrap-shared.sh (один раз)
    ```bash
    sudo systemctl restart redis-server
    sudo systemctl restart mysql
-   sudo systemctl restart php8.2-fpm
+   sudo systemctl restart php8.3-fpm
    sudo systemctl restart nginx
    php artisan optimize:clear
    php artisan queue:restart

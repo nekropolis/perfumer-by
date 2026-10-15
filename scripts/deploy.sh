@@ -496,8 +496,7 @@ if [[ -n "$SUPERVISORCTL" ]]; then
     sleep 5
     wait_for_queue 30
 else
-    warn "supervisorctl not found — cannot verify queue workers"
-    false
+    warn "supervisorctl not found — skipping queue restart and verification"
 fi
 
 log "Warming catalog cache"

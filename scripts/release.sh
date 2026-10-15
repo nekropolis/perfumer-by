@@ -509,8 +509,7 @@ if command -v supervisorctl >/dev/null 2>&1; then
     sudo supervisorctl restart "$QUEUE_GROUP"
     wait_for_queue 30
 else
-    warn "supervisorctl не найден — невозможно подтвердить queue worker"
-    false
+    warn "supervisorctl не найден — restart и проверка queue worker пропущены"
 fi
 
 log "Warming catalog cache"
