@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
-# Nightly database backup for perfumer-by.
-# Keeps the last 3 daily dumps in /var/backups/perfumer.
+# Nightly database and optional media backup for perfumer-by.
 # Sends a Telegram alert on failure.
+#
+# Configuration:
+#   BACKUP_DIR=/var/backups/perfumer
+#   KEEP_DAYS=14
+#   BACKUP_MEDIA=false                 # true to archive media
+#   MEDIA_PATH=<project>/backend/storage/app/public
+#   BACKUP_REMOTE=user@host:/path      # empty disables offsite copy
+#   BACKUP_TIMEOUT=60                  # rsync I/O and SSH connect timeout
+#   BACKUP_GPG_RECIPIENT=key-or-email  # encrypt copies sent offsite
 #
 # Cron example (run as deploy user):
 #   15 3 * * * /var/www/perfumer-by/scripts/backup-db.sh >/dev/null 2>&1
@@ -11,7 +19,20 @@ set -Eeuo pipefail
 ROOT="${PROJECT_ROOT:-/var/www/perfumer-by}"
 BACKEND="$ROOT/backend"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/perfumer}"
-KEEP_DAYS=3
+KEEP_DAYS="${KEEP_DAYS:-14}"
+BACKUP_MEDIA="${BACKUP_MEDIA:-false}"
+MEDIA_PATH="${MEDIA_PATH:-$BACKEND/storage/app/public}"
+BACKUP_REMOTE="${BACKUP_REMOTE:-}"
+BACKUP_TIMEOUT="${BACKUP_TIMEOUT:-60}"
+BACKUP_GPG_RECIPIENT="${BACKUP_GPG_RECIPIENT:-}"
+MYSQL_DEFAULTS_FILE=""
+
+cleanup() {
+    if [[ -n "$MYSQL_DEFAULTS_FILE" ]]; then
+        rm -f "$MYSQL_DEFAULTS_FILE"
+    fi
+}
+trap cleanup EXIT
 
 # ---------------------------------------------------------------------------
 # Utils.
@@ -69,46 +90,118 @@ mkdir -p "$BACKUP_DIR"
 DATE_LABEL="$(date +%Y-%m-%d)"
 DUMP_FILE="$BACKUP_DIR/db-${DATE_LABEL}.sql"
 GZ_FILE="${DUMP_FILE}.gz"
+MEDIA_FILE="$BACKUP_DIR/media-${DATE_LABEL}.tar.gz"
+ARCHIVES_TO_COPY=()
 
 if [[ -f "$GZ_FILE" ]]; then
     log "Backup already exists: $GZ_FILE"
-    exit 0
+    ARCHIVES_TO_COPY+=("$GZ_FILE")
+else
+    log "Creating database backup: $GZ_FILE"
+
+    umask 077
+    MYSQL_DEFAULTS_FILE="$(mktemp "${TMPDIR:-/tmp}/perfumer-mysql.XXXXXX.cnf")"
+    chmod 600 "$MYSQL_DEFAULTS_FILE"
+    escaped_password="${DB_PASSWORD//\\/\\\\}"
+    escaped_password="${escaped_password//\"/\\\"}"
+    cat > "$MYSQL_DEFAULTS_FILE" <<EOF
+[client]
+host=$DB_HOST
+port=$DB_PORT
+user=$DB_USERNAME
+password="$escaped_password"
+EOF
+
+    if ! mysqldump \
+        --defaults-extra-file="$MYSQL_DEFAULTS_FILE" \
+        --single-transaction \
+        --no-tablespaces \
+        --quick \
+        --routines \
+        "$DB_DATABASE" > "$DUMP_FILE"; then
+        rm -f "$DUMP_FILE"
+        fail "mysqldump failed"
+        send_telegram "🚨 *Perfumer backup failed*\n\nmysqldump exited with error on $(hostname) at ${DATE_LABEL}."
+        exit 1
+    fi
+
+    rm -f "$MYSQL_DEFAULTS_FILE"
+    MYSQL_DEFAULTS_FILE=""
+    gzip -f "$DUMP_FILE"
+
+    DUMP_SIZE="$(stat -c%s "$GZ_FILE" 2>/dev/null || stat -f%z "$GZ_FILE" 2>/dev/null || echo 0)"
+    if [[ "$DUMP_SIZE" -lt 1024 ]]; then
+        rm -f "$GZ_FILE"
+        fail "Backup file is too small (${DUMP_SIZE} bytes)"
+        send_telegram "🚨 *Perfumer backup failed*\n\nBackup file is suspiciously small (${DUMP_SIZE} bytes) on $(hostname) at ${DATE_LABEL}."
+        exit 1
+    fi
+
+    log "Backup created: $GZ_FILE ($(numfmt --to=iec "$DUMP_SIZE" 2>/dev/null || echo "${DUMP_SIZE} bytes"))"
+    ARCHIVES_TO_COPY+=("$GZ_FILE")
 fi
 
-log "Creating database backup: $GZ_FILE"
-
-if ! mysqldump \
-    --host="$DB_HOST" \
-    --port="$DB_PORT" \
-    --user="$DB_USERNAME" \
-    --password="$DB_PASSWORD" \
-    --single-transaction \
-    --no-tablespaces \
-    --quick \
-    --routines \
-    "$DB_DATABASE" > "$DUMP_FILE"; then
-    rm -f "$DUMP_FILE"
-    fail "mysqldump failed"
-    send_telegram "🚨 *Perfumer backup failed*\n\nmysqldump exited with error on $(hostname) at ${DATE_LABEL}."
-    exit 1
+if [[ "$BACKUP_MEDIA" == "true" ]]; then
+    if [[ -f "$MEDIA_FILE" ]]; then
+        log "Media backup already exists: $MEDIA_FILE"
+        ARCHIVES_TO_COPY+=("$MEDIA_FILE")
+    elif [[ ! -d "$MEDIA_PATH" ]]; then
+        fail "Media path does not exist: $MEDIA_PATH"
+        send_telegram "🚨 *Perfumer backup failed*\n\nMedia path does not exist on $(hostname): ${MEDIA_PATH}"
+        exit 1
+    else
+        log "Creating media backup: $MEDIA_FILE"
+        if ! tar -czf "$MEDIA_FILE" -C "$(dirname "$MEDIA_PATH")" "$(basename "$MEDIA_PATH")"; then
+            rm -f "$MEDIA_FILE"
+            fail "Media backup failed"
+            send_telegram "🚨 *Perfumer backup failed*\n\nMedia archive failed on $(hostname) at ${DATE_LABEL}."
+            exit 1
+        fi
+        ARCHIVES_TO_COPY+=("$MEDIA_FILE")
+    fi
+else
+    log "Media backup disabled (set BACKUP_MEDIA=true to enable)"
 fi
 
-gzip -f "$DUMP_FILE"
+if [[ -n "$BACKUP_REMOTE" ]] && (( ${#ARCHIVES_TO_COPY[@]} > 0 )); then
+    OFFSITE_ARCHIVES=()
+    for archive in "${ARCHIVES_TO_COPY[@]}"; do
+        if [[ -n "$BACKUP_GPG_RECIPIENT" ]]; then
+            encrypted="${archive}.gpg"
+            log "Encrypting for offsite copy: $encrypted"
+            if ! gpg --batch --yes --recipient "$BACKUP_GPG_RECIPIENT" \
+                --output "$encrypted" --encrypt "$archive"; then
+                rm -f "$encrypted"
+                fail "GPG encryption failed"
+                send_telegram "🚨 *Perfumer backup failed*\n\nGPG encryption failed on $(hostname) at ${DATE_LABEL}."
+                exit 1
+            fi
+            OFFSITE_ARCHIVES+=("$encrypted")
+        else
+            OFFSITE_ARCHIVES+=("$archive")
+        fi
+    done
 
-DUMP_SIZE="$(stat -c%s "$GZ_FILE" 2>/dev/null || stat -f%z "$GZ_FILE" 2>/dev/null || echo 0)"
-if [[ "$DUMP_SIZE" -lt 1024 ]]; then
-    rm -f "$GZ_FILE"
-    fail "Backup file is too small (${DUMP_SIZE} bytes)"
-    send_telegram "🚨 *Perfumer backup failed*\n\nBackup file is suspiciously small (${DUMP_SIZE} bytes) on $(hostname) at ${DATE_LABEL}."
-    exit 1
+    log "Copying today's archives offsite: $BACKUP_REMOTE"
+    if ! rsync --partial --timeout="$BACKUP_TIMEOUT" \
+        -e "ssh -o ConnectTimeout=$BACKUP_TIMEOUT" \
+        -- "${OFFSITE_ARCHIVES[@]}" "${BACKUP_REMOTE%/}/"; then
+        fail "Offsite backup failed"
+        send_telegram "🚨 *Perfumer backup failed*\n\nOffsite rsync failed on $(hostname) at ${DATE_LABEL}."
+        exit 1
+    fi
+elif [[ -z "$BACKUP_REMOTE" ]]; then
+    log "Offsite backup disabled (BACKUP_REMOTE is unset)"
+else
+    log "No archives to copy offsite"
 fi
-
-log "Backup created: $GZ_FILE ($(numfmt --to=iec "$DUMP_SIZE" 2>/dev/null || echo "${DUMP_SIZE} bytes"))"
 
 # ---------------------------------------------------------------------------
 # Rotate old backups.
 # ---------------------------------------------------------------------------
 log "Removing backups older than ${KEEP_DAYS} days"
 find "$BACKUP_DIR" -maxdepth 1 -type f -name 'db-*.sql.gz' -mtime +"$KEEP_DAYS" -delete
+find "$BACKUP_DIR" -maxdepth 1 -type f -name 'media-*.tar.gz' -mtime +"$KEEP_DAYS" -delete
+find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.gz.gpg' -mtime +"$KEEP_DAYS" -delete
 
 log "Backup done"
