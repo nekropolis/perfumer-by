@@ -1,7 +1,8 @@
 "use client";
 
 import { Star, X } from "lucide-react";
-import type { FormEventHandler, RefObject } from "react";
+import { useRef, type FormEventHandler, type RefObject } from "react";
+import { useDialogA11y } from "@/hooks/use-dialog-a11y";
 import RecaptchaNotice from "@/components/ui/recaptcha-notice";
 import { siteBtnPrimary, siteBtnSecondary, siteCard, siteInput } from "@/lib/site-ui-classes";
 
@@ -58,6 +59,11 @@ export default function ReviewFormModal({
     maxText,
     showRecaptchaNotice = false,
 }: Props) {
+    const dialogRef = useRef<HTMLDivElement | null>(null);
+
+    // Фокус на первом поле ставит useReviewFormModalEffects.
+    useDialogA11y({ open, containerRef: dialogRef, onClose: onCloseAction, initialFocus: false });
+
     if (!open) {
         return null;
     }
@@ -69,6 +75,7 @@ export default function ReviewFormModal({
             role="presentation"
         >
             <div
+                ref={dialogRef}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby={titleId}
@@ -102,12 +109,18 @@ export default function ReviewFormModal({
                             id={nameId}
                             type="text"
                             autoComplete="name"
+                            aria-invalid={fieldErrors.name ? true : undefined}
+                            aria-describedby={fieldErrors.name ? `${nameId}-error` : undefined}
                             value={name}
                             onChange={(ev) => onNameChangeAction(ev.target.value)}
                             maxLength={maxName}
                             className={siteInput}
                         />
-                        {fieldErrors.name ? <p className="mt-1 text-xs text-red-600">{fieldErrors.name}</p> : null}
+                        {fieldErrors.name ? (
+                            <p id={`${nameId}-error`} role="alert" className="mt-1 text-xs text-red-600">
+                                {fieldErrors.name}
+                            </p>
+                        ) : null}
                     </div>
 
                     <div>
@@ -129,7 +142,11 @@ export default function ReviewFormModal({
                                 </button>
                             ))}
                         </div>
-                        {fieldErrors.stars ? <p className="mt-1 text-xs text-red-600">{fieldErrors.stars}</p> : null}
+                        {fieldErrors.stars ? (
+                            <p role="alert" className="mt-1 text-xs text-red-600">
+                                {fieldErrors.stars}
+                            </p>
+                        ) : null}
                     </div>
 
                     <div>
@@ -138,6 +155,8 @@ export default function ReviewFormModal({
                         </label>
                         <textarea
                             id={textId}
+                            aria-invalid={fieldErrors.text ? true : undefined}
+                            aria-describedby={fieldErrors.text ? `${textId}-error` : undefined}
                             value={text}
                             onChange={(ev) => onTextChangeAction(ev.target.value)}
                             rows={5}
@@ -146,11 +165,19 @@ export default function ReviewFormModal({
                         />
                         <div className="mt-1 flex justify-between text-xs text-admin-text-secondary">
                             <span>{text.trim().length}/{maxText}</span>
-                            {fieldErrors.text ? <span className="text-red-600">{fieldErrors.text}</span> : null}
+                            {fieldErrors.text ? (
+                                <span id={`${textId}-error`} role="alert" className="text-red-600">
+                                    {fieldErrors.text}
+                                </span>
+                            ) : null}
                         </div>
                     </div>
 
-                    {submitError ? <p className="text-sm text-red-600">{submitError}</p> : null}
+                    {submitError ? (
+                        <p role="alert" className="text-sm text-red-600">
+                            {submitError}
+                        </p>
+                    ) : null}
 
                     <div className="flex flex-wrap gap-2 pt-1">
                         <button type="submit" disabled={submitting} className={siteBtnPrimary}>

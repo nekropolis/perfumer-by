@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ChevronLeft, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import {
     CHECKOUT_LINE_SELECTION_STORAGE_KEY,
@@ -88,6 +88,7 @@ function CheckoutDeliveryDays({ days }: { days: CheckoutCityHit["delivery_days"]
                         title={on ? `${short}: доставка` : `${short}: нет`}
                     >
                         {short}
+                        <span className="sr-only">{on ? ": доставка" : ": нет доставки"}</span>
                     </span>
                 );
             })}
@@ -129,6 +130,26 @@ export default function CheckoutPage() {
     const router = useRouter();
     const { cart, loading, setCartState, refreshCart } = useCart();
     const { user, isAuthenticated } = useAuth();
+    const uid = useId();
+    const nameId = `${uid}-name`;
+    const phoneId = `${uid}-phone`;
+    const phoneErrorId = `${uid}-phone-error`;
+    const cityId = `${uid}-city`;
+    const addressId = `${uid}-address`;
+    const addressErrorId = `${uid}-address-error`;
+    const houseId = `${uid}-house`;
+    const korpusId = `${uid}-korpus`;
+    const apartmentId = `${uid}-apartment`;
+    const extraAddressId = `${uid}-extra-address`;
+    const extraHouseId = `${uid}-extra-house`;
+    const extraKorpusId = `${uid}-extra-korpus`;
+    const extraApartmentId = `${uid}-extra-apartment`;
+    const extraTimeId = `${uid}-extra-time`;
+    const commentId = `${uid}-comment`;
+    const giftCodeId = `${uid}-gift-code`;
+    const giftErrorId = `${uid}-gift-error`;
+    const cardNumberId = `${uid}-card-number`;
+    const cardErrorId = `${uid}-card-error`;
 
     const [customerName, setCustomerName] = useState("");
     const [phone, setPhone] = useState("");
@@ -570,9 +591,11 @@ export default function CheckoutPage() {
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
                 <form onSubmit={handleSubmit} className={`${siteCard} p-5`}>
                     <div className="mb-5">
-                        <label className="mb-2 block text-sm font-medium text-admin-text">Имя</label>
+                        <label htmlFor={nameId} className="mb-2 block text-sm font-medium text-admin-text">Имя</label>
                         <input
+                            id={nameId}
                             type="text"
+                            autoComplete="name"
                             value={customerName}
                             onChange={(e) => setCustomerName(e.target.value)}
                             className={siteInput}
@@ -582,7 +605,7 @@ export default function CheckoutPage() {
 
                     <div className="mb-5">
                         <div className="mb-2 flex items-center justify-between gap-3">
-                            <label className="text-sm font-medium text-admin-text">Телефон *</label>
+                            <label htmlFor={phoneId} className="text-sm font-medium text-admin-text">Телефон *</label>
                             <label className="inline-flex cursor-pointer items-center">
                                 <input
                                     type="checkbox"
@@ -607,10 +630,10 @@ export default function CheckoutPage() {
                             </label>
                         </div>
                         <div onBlur={() => setPhoneTouched(true)}>
-                            <PhoneInput value={phone} onChangeAction={setPhone} plainDigitsMode={allowPlainPhone} />
+                            <PhoneInput id={phoneId} value={phone} onChangeAction={setPhone} plainDigitsMode={allowPlainPhone} />
                         </div>
                         {showPhoneError ? (
-                            <p className="mt-2 text-xs text-red-600">
+                            <p id={phoneErrorId} role="alert" className="mt-2 text-xs text-red-600">
                                 {allowPlainPhone
                                     ? "Укажите номер с кодом страны: 8–15 цифр."
                                     : "Введите корректный номер: +375 (25/29/33/44) XXX-XX-XX"}
@@ -661,10 +684,12 @@ export default function CheckoutPage() {
                             <div className="mb-2 text-sm font-medium">Адрес доставки</div>
                             <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:gap-2">
                                 <div className="relative min-w-0 flex-[1.8]" ref={cityPickerRef}>
-                                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                    <label htmlFor={cityId} className="mb-1 block text-xs text-[var(--text-secondary)]">
                                         Населённый пункт *
                                     </label>
                                     <input
+                                        id={cityId}
+                                        autoComplete="address-level2"
                                         value={deliveryCity.trim() || cityQuery}
                                         onChange={(e) => {
                                             const v = e.target.value;
@@ -727,7 +752,7 @@ export default function CheckoutPage() {
                                 </div>
 
                                 <div className="w-full shrink-0 lg:w-[6rem]">
-                                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">Тип</label>
+                                    <span className="mb-1 block text-xs text-[var(--text-secondary)]">Тип</span>
                                     <StreetPrefixSelect
                                         value={deliveryStreetPrefix}
                                         onChange={setDeliveryStreetPrefix}
@@ -736,10 +761,14 @@ export default function CheckoutPage() {
                                 </div>
 
                                 <div className="min-w-0 flex-1">
-                                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                    <label htmlFor={addressId} className="mb-1 block text-xs text-[var(--text-secondary)]">
                                         Адрес *
                                     </label>
                                     <input
+                                        id={addressId}
+                                        autoComplete="street-address"
+                                        aria-invalid={showAddressError || undefined}
+                                        aria-describedby={showAddressError ? addressErrorId : undefined}
                                         value={deliveryAddress}
                                         onChange={(e) => setDeliveryAddress(e.target.value)}
                                         onBlur={() => setAddressTouched(true)}
@@ -748,13 +777,14 @@ export default function CheckoutPage() {
                                         required
                                     />
                                     {showAddressError ? (
-                                        <p className="mt-1 text-xs text-red-600">Укажите адрес</p>
+                                        <p id={addressErrorId} role="alert" className="mt-1 text-xs text-red-600">Укажите адрес</p>
                                     ) : null}
                                 </div>
 
                                 <div className="w-full shrink-0 lg:w-14">
-                                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">Дом</label>
+                                    <label htmlFor={houseId} className="mb-1 block text-xs text-[var(--text-secondary)]">Дом</label>
                                     <input
+                                        id={houseId}
                                         value={deliveryHouse}
                                         onChange={(e) => setDeliveryHouse(e.target.value)}
                                         className={`${siteInput} px-1.5`}
@@ -763,8 +793,9 @@ export default function CheckoutPage() {
                                     />
                                 </div>
                                 <div className="w-full shrink-0 lg:w-14">
-                                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">Корп.</label>
+                                    <label htmlFor={korpusId} className="mb-1 block text-xs text-[var(--text-secondary)]">Корп.</label>
                                     <input
+                                        id={korpusId}
                                         value={deliveryKorpus}
                                         onChange={(e) => setDeliveryKorpus(e.target.value)}
                                         className={`${siteInput} px-1.5`}
@@ -773,8 +804,9 @@ export default function CheckoutPage() {
                                     />
                                 </div>
                                 <div className="w-full shrink-0 lg:w-14">
-                                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">Кв.</label>
+                                    <label htmlFor={apartmentId} className="mb-1 block text-xs text-[var(--text-secondary)]">Кв.</label>
                                     <input
+                                        id={apartmentId}
                                         value={deliveryApartment}
                                         onChange={(e) => setDeliveryApartment(e.target.value)}
                                         className={`${siteInput} px-1.5`}
@@ -791,7 +823,7 @@ export default function CheckoutPage() {
                             <div className="mb-2 text-sm font-medium">Адрес доставки</div>
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-2">
                                 <div className="w-full shrink-0 sm:w-[6rem]">
-                                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">Тип</label>
+                                    <span className="mb-1 block text-xs text-[var(--text-secondary)]">Тип</span>
                                     <StreetPrefixSelect
                                         value={deliveryStreetPrefix}
                                         onChange={setDeliveryStreetPrefix}
@@ -799,10 +831,14 @@ export default function CheckoutPage() {
                                     />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                    <label htmlFor={addressId} className="mb-1 block text-xs text-[var(--text-secondary)]">
                                         Адрес *
                                     </label>
                                     <input
+                                        id={addressId}
+                                        autoComplete="street-address"
+                                        aria-invalid={showAddressError || undefined}
+                                        aria-describedby={showAddressError ? addressErrorId : undefined}
                                         value={deliveryAddress}
                                         onChange={(e) => setDeliveryAddress(e.target.value)}
                                         onBlur={() => setAddressTouched(true)}
@@ -811,12 +847,13 @@ export default function CheckoutPage() {
                                         required
                                     />
                                     {showAddressError ? (
-                                        <p className="mt-1 text-xs text-red-600">Укажите адрес</p>
+                                        <p id={addressErrorId} role="alert" className="mt-1 text-xs text-red-600">Укажите адрес</p>
                                     ) : null}
                                 </div>
                                 <div className="w-full shrink-0 sm:w-14">
-                                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">Дом</label>
+                                    <label htmlFor={houseId} className="mb-1 block text-xs text-[var(--text-secondary)]">Дом</label>
                                     <input
+                                        id={houseId}
                                         value={deliveryHouse}
                                         onChange={(e) => setDeliveryHouse(e.target.value)}
                                         className={`${siteInput} px-1.5`}
@@ -825,8 +862,9 @@ export default function CheckoutPage() {
                                     />
                                 </div>
                                 <div className="w-full shrink-0 sm:w-14">
-                                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">Корп.</label>
+                                    <label htmlFor={korpusId} className="mb-1 block text-xs text-[var(--text-secondary)]">Корп.</label>
                                     <input
+                                        id={korpusId}
                                         value={deliveryKorpus}
                                         onChange={(e) => setDeliveryKorpus(e.target.value)}
                                         className={`${siteInput} px-1.5`}
@@ -835,8 +873,9 @@ export default function CheckoutPage() {
                                     />
                                 </div>
                                 <div className="w-full shrink-0 sm:w-14">
-                                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">Кв.</label>
+                                    <label htmlFor={apartmentId} className="mb-1 block text-xs text-[var(--text-secondary)]">Кв.</label>
                                     <input
+                                        id={apartmentId}
                                         value={deliveryApartment}
                                         onChange={(e) => setDeliveryApartment(e.target.value)}
                                         className={`${siteInput} px-1.5`}
@@ -881,9 +920,9 @@ export default function CheckoutPage() {
                                     </div>
                                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-2">
                                         <div className="w-full shrink-0 sm:w-[6rem]">
-                                            <label className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                            <span className="mb-1 block text-xs text-[var(--text-secondary)]">
                                                 Тип
-                                            </label>
+                                            </span>
                                             <StreetPrefixSelect
                                                 value={additionalDeliveryStreetPrefix}
                                                 onChange={setAdditionalDeliveryStreetPrefix}
@@ -891,10 +930,11 @@ export default function CheckoutPage() {
                                             />
                                         </div>
                                         <div className="min-w-0 flex-1">
-                                            <label className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                            <label htmlFor={extraAddressId} className="mb-1 block text-xs text-[var(--text-secondary)]">
                                                 Адрес *
                                             </label>
                                             <input
+                                                id={extraAddressId}
                                                 value={additionalDeliveryAddress}
                                                 onChange={(e) => setAdditionalDeliveryAddress(e.target.value)}
                                                 className={siteInput}
@@ -902,10 +942,11 @@ export default function CheckoutPage() {
                                             />
                                         </div>
                                         <div className="w-full shrink-0 sm:w-14">
-                                            <label className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                            <label htmlFor={extraHouseId} className="mb-1 block text-xs text-[var(--text-secondary)]">
                                                 Дом
                                             </label>
                                             <input
+                                                id={extraHouseId}
                                                 value={additionalDeliveryHouse}
                                                 onChange={(e) => setAdditionalDeliveryHouse(e.target.value)}
                                                 className={`${siteInput} px-1.5`}
@@ -914,10 +955,11 @@ export default function CheckoutPage() {
                                             />
                                         </div>
                                         <div className="w-full shrink-0 sm:w-14">
-                                            <label className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                            <label htmlFor={extraKorpusId} className="mb-1 block text-xs text-[var(--text-secondary)]">
                                                 Корп.
                                             </label>
                                             <input
+                                                id={extraKorpusId}
                                                 value={additionalDeliveryKorpus}
                                                 onChange={(e) => setAdditionalDeliveryKorpus(e.target.value)}
                                                 className={`${siteInput} px-1.5`}
@@ -926,10 +968,11 @@ export default function CheckoutPage() {
                                             />
                                         </div>
                                         <div className="w-full shrink-0 sm:w-14">
-                                            <label className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                            <label htmlFor={extraApartmentId} className="mb-1 block text-xs text-[var(--text-secondary)]">
                                                 Кв.
                                             </label>
                                             <input
+                                                id={extraApartmentId}
                                                 value={additionalDeliveryApartment}
                                                 onChange={(e) => setAdditionalDeliveryApartment(e.target.value)}
                                                 className={`${siteInput} px-1.5`}
@@ -939,12 +982,13 @@ export default function CheckoutPage() {
                                         </div>
                                     </div>
                                     <div className="mt-3">
-                                        <label className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                        <label htmlFor={extraTimeId} className="mb-1 block text-xs text-[var(--text-secondary)]">
                                             Время доставки на этот адрес
                                         </label>
                                         <div className="flex items-center gap-2">
                                             <span className="text-sm text-admin-text">с</span>
                                             <input
+                                                id={extraTimeId}
                                                 type="time"
                                                 step={600}
                                                 value={additionalDeliveryTimeFrom}
@@ -1028,8 +1072,9 @@ export default function CheckoutPage() {
                     </fieldset>
 
                     <div className="mb-5">
-                        <label className="mb-2 block text-sm font-medium">Комментарий</label>
+                        <label htmlFor={commentId} className="mb-2 block text-sm font-medium">Комментарий</label>
                         <textarea
+                            id={commentId}
                             value={comment}
                             onChange={(e) => setComment(e.target.value)}
                             className={`${siteInput} min-h-28`}
@@ -1045,6 +1090,7 @@ export default function CheckoutPage() {
                             <input
                                 id="checkout-consent-terms"
                                 type="checkbox"
+                                aria-invalid={showConsentError || undefined}
                                 checked={consentTerms}
                                 onChange={(e) => setConsentTerms(e.target.checked)}
                                 className={`mt-0.5 h-4 w-4 shrink-0 rounded border-admin-border accent-admin-primary ${
@@ -1099,7 +1145,7 @@ export default function CheckoutPage() {
                     </button>
 
                     {errorMessage && (
-                        <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        <div role="alert" className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                             {errorMessage}
                         </div>
                     )}
@@ -1152,7 +1198,7 @@ export default function CheckoutPage() {
                     </div>
 
                     <div className="mt-6 border-t border-[var(--line)] pt-4">
-                        {quoteError ? <p className="mb-2 text-xs text-amber-700">{quoteError}</p> : null}
+                        {quoteError ? <p role="status" className="mb-2 text-xs text-amber-700">{quoteError}</p> : null}
                         <CartPricingBreakdown
                             itemsQty={checkoutLinesQty}
                             subtotal={breakdownSubtotal}
@@ -1168,11 +1214,14 @@ export default function CheckoutPage() {
 
                     <div className="mt-5 space-y-3 border-t border-[var(--line)] pt-4">
                         <div>
-                            <div className="mb-1 text-xs text-[var(--text-secondary)]">Подарочный сертификат</div>
+                            <label htmlFor={giftCodeId} className="mb-1 block text-xs text-[var(--text-secondary)]">Подарочный сертификат</label>
                             {!cart.gift_certificate ? (
                                 <>
                                     <div className="flex gap-2">
                                         <input
+                                            id={giftCodeId}
+                                            aria-invalid={giftCertificateApplyError ? true : undefined}
+                                            aria-describedby={giftCertificateApplyError ? giftErrorId : undefined}
                                             value={giftCertificateCode}
                                             onChange={(e) => {
                                                 setGiftCertificateCode(normalizeGiftCertificateCodeInput(e.target.value));
@@ -1230,7 +1279,7 @@ export default function CheckoutPage() {
                                         className="hidden"
                                     />
                                     {giftCertificateApplyError ? (
-                                        <div className="mt-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                                        <div id={giftErrorId} role="alert" className="mt-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                                             {giftCertificateApplyError}
                                         </div>
                                     ) : null}
@@ -1265,11 +1314,14 @@ export default function CheckoutPage() {
                         </div>
 
                         <div>
-                            <div className="mb-1 text-xs text-[var(--text-secondary)]">Скидочная карта</div>
+                            <label htmlFor={cardNumberId} className="mb-1 block text-xs text-[var(--text-secondary)]">Скидочная карта</label>
                             {!cart.discount_card ? (
                                 <>
                                     <div className="flex gap-2">
                                         <input
+                                            id={cardNumberId}
+                                            aria-invalid={discountCardApplyError ? true : undefined}
+                                            aria-describedby={discountCardApplyError ? cardErrorId : undefined}
                                             value={discountCardNumber}
                                             onChange={(e) => {
                                                 setDiscountCardNumber(e.target.value);
@@ -1310,7 +1362,7 @@ export default function CheckoutPage() {
                                         </button>
                                     </div>
                                     {discountCardApplyError ? (
-                                        <div className="mt-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                                        <div id={cardErrorId} role="alert" className="mt-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                                             {discountCardApplyError}
                                         </div>
                                     ) : null}
