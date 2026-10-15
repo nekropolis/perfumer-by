@@ -12,11 +12,13 @@ type HeaderNavProps = {
 
 export function HeaderNavFallback({ isCompact, links }: HeaderNavProps) {
     return (
-        <div
+        <nav
+            aria-label="Категории"
+            aria-hidden={isCompact || undefined}
+            inert={isCompact ? true : undefined}
             className={`bg-admin-surface transition-[max-height,opacity] duration-250 ease-out ${
                 isCompact ? "max-h-0 overflow-hidden opacity-0" : "max-h-12 opacity-100 md:max-h-16"
             }`}
-            aria-hidden={isCompact}
         >
             <div className="mx-auto flex h-11 max-w-7xl items-center justify-start gap-1.5 overflow-x-auto px-3 py-1 [-ms-overflow-style:none] [scrollbar-width:none] md:h-14 md:gap-2 md:py-2 sm:px-6 lg:px-8 [&::-webkit-scrollbar]:hidden">
                 {links.map((item) => (
@@ -29,7 +31,7 @@ export function HeaderNavFallback({ isCompact, links }: HeaderNavProps) {
                     </Link>
                 ))}
             </div>
-        </div>
+        </nav>
     );
 }
 
@@ -38,11 +40,13 @@ export default function HeaderNav({ isCompact, links }: HeaderNavProps) {
     const searchParams = useSearchParams();
 
     return (
-        <div
+        <nav
+            aria-label="Категории"
+            aria-hidden={isCompact || undefined}
+            inert={isCompact ? true : undefined}
             className={`bg-admin-surface transition-[max-height,opacity] duration-250 ease-out ${
                 isCompact ? "max-h-0 overflow-hidden opacity-0" : "max-h-12 opacity-100 md:max-h-16"
             }`}
-            aria-hidden={isCompact}
         >
             <div className="mx-auto flex h-11 max-w-7xl items-center justify-start gap-1.5 overflow-x-auto px-3 py-1 [-ms-overflow-style:none] [scrollbar-width:none] md:h-14 md:gap-2 md:py-2 sm:px-6 lg:px-8 [&::-webkit-scrollbar]:hidden">
                 {links.map((item) => {
@@ -64,6 +68,6 @@ export default function HeaderNav({ isCompact, links }: HeaderNavProps) {
                     );
                 })}
             </div>
-        </div>
+        </nav>
     );
 }

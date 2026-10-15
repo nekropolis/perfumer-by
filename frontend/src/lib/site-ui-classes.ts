@@ -11,20 +11,35 @@
 /** @deprecated Prefer tokens below; exported for rare composition. Rollback with file replace. */
 export const siteControlRadius = "rounded-2xl";
 
+const siteFocusVisible =
+    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-primary";
+
+export function productsCountWord(count: number): string {
+    const mod10 = count % 10;
+    const mod100 = count % 100;
+    if (mod10 === 1 && mod100 !== 11) {
+        return "товар";
+    }
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) {
+        return "товара";
+    }
+    return "товаров";
+}
+
 export const siteBtnPrimary =
     "inline-flex min-h-10 items-center justify-center rounded-2xl bg-admin-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-admin-primary-hover active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-primary disabled:cursor-not-allowed disabled:opacity-50";
 
 export const siteBtnSecondary =
-    "inline-flex min-h-10 items-center justify-center rounded-2xl border border-admin-border bg-admin-surface px-4 py-2.5 text-sm font-medium text-admin-text shadow-sm transition hover:border-admin-border-strong hover:bg-admin-muted active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50";
+    `inline-flex min-h-10 items-center justify-center rounded-2xl border border-admin-border bg-admin-surface px-4 py-2.5 text-sm font-medium text-admin-text shadow-sm transition hover:border-admin-border-strong hover:bg-admin-muted active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${siteFocusVisible}`;
 
 export const siteBtnGhost =
-    "inline-flex min-h-10 items-center justify-center rounded-2xl px-3 py-2 text-sm font-medium text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text active:scale-[0.98]";
+    `inline-flex min-h-10 items-center justify-center rounded-2xl px-3 py-2 text-sm font-medium text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text active:scale-[0.98] ${siteFocusVisible}`;
 
 export const siteBtnIcon =
     "inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-admin-border bg-admin-surface text-admin-text-secondary shadow-sm transition hover:border-admin-border-strong hover:bg-admin-muted hover:text-admin-text active:scale-[0.98]";
 
 export const headerBtnIcon =
-    "inline-flex h-11 w-11 items-center justify-center rounded-2xl text-[var(--header-text-secondary)] transition hover:bg-[var(--header-control-bg)] hover:text-[var(--header-text)] active:scale-[0.98] md:h-11 md:w-11";
+    `inline-flex h-11 w-11 items-center justify-center rounded-2xl text-[var(--header-text-secondary)] transition hover:bg-[var(--header-control-bg)] hover:text-[var(--header-text)] active:scale-[0.98] md:h-11 md:w-11 ${siteFocusVisible}`;
 
 export const siteBtnIconPrimary =
     "inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-admin-primary bg-admin-primary text-white shadow-sm transition hover:border-admin-primary-hover hover:bg-admin-primary-hover active:scale-[0.98] md:h-auto md:w-auto md:gap-2 md:px-4 md:py-2.5";
@@ -45,7 +60,7 @@ export const siteTextarea =
 
 /** Native checkbox — без focus-обводки от глобального input:focus */
 export const siteCheckbox =
-    "h-4 w-4 shrink-0 cursor-pointer rounded border border-admin-border bg-transparent accent-admin-primary outline-none ring-0 focus:border-admin-border focus:outline-none focus:ring-0 focus:shadow-none checked:focus:border-admin-primary disabled:cursor-not-allowed disabled:opacity-50";
+    `h-4 w-4 shrink-0 cursor-pointer rounded border border-admin-border bg-transparent accent-admin-primary outline-none ring-0 focus:border-admin-border focus:outline-none focus:ring-0 focus:shadow-none checked:focus:border-admin-primary disabled:cursor-not-allowed disabled:opacity-50 ${siteFocusVisible}`;
 
 export const siteCard =
     "rounded-xl border border-admin-border bg-admin-surface shadow-sm";

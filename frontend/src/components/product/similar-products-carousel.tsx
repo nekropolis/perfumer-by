@@ -89,6 +89,12 @@ export default function SimilarProductsCarousel({ products, title = "Похож�
             return;
         }
 
+        const scrollBehavior: ScrollBehavior =
+            typeof window !== "undefined" &&
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches
+                ? "auto"
+                : "smooth";
+
         const cols = similarVisibleColumns();
         const scrollLeft = el.scrollLeft;
         const maxScroll = Math.max(0, el.scrollWidth - el.clientWidth);
@@ -103,16 +109,16 @@ export default function SimilarProductsCarousel({ products, title = "Похож�
         if (dir > 0) {
             const nextIndex = activeIndex + cols;
             if (nextIndex >= slides.length) {
-                el.scrollTo({ left: maxScroll, behavior: "smooth" });
+                el.scrollTo({ left: maxScroll, behavior: scrollBehavior });
                 return;
             }
             const targetLeft = Math.min(slides[nextIndex].offsetLeft, maxScroll);
-            el.scrollTo({ left: targetLeft, behavior: "smooth" });
+            el.scrollTo({ left: targetLeft, behavior: scrollBehavior });
             return;
         }
 
         const prevIndex = Math.max(0, activeIndex - cols);
-        el.scrollTo({ left: slides[prevIndex].offsetLeft, behavior: "smooth" });
+        el.scrollTo({ left: slides[prevIndex].offsetLeft, behavior: scrollBehavior });
     }, []);
 
     return (

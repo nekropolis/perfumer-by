@@ -458,15 +458,23 @@ export default function CartPage() {
                                             type="button"
                                             onClick={() => changeGiftTemplateQty(item.id, item.qty - 1)}
                                             disabled={isPending || item.qty <= 1}
+                                            aria-label="Уменьшить количество"
                                             className="inline-flex h-10 w-10 items-center justify-center rounded-l-2xl text-base disabled:opacity-40"
                                         >
                                             −
                                         </button>
-                                        <span className="inline-flex min-w-[36px] items-center justify-center text-sm font-medium">{item.qty}</span>
+                                        <span
+                                            aria-live="polite"
+                                            aria-atomic="true"
+                                            className="inline-flex min-w-[36px] items-center justify-center text-sm font-medium"
+                                        >
+                                            {item.qty}
+                                        </span>
                                         <button
                                             type="button"
                                             onClick={() => changeGiftTemplateQty(item.id, item.qty + 1)}
                                             disabled={isPending}
+                                            aria-label="Увеличить количество"
                                             className="inline-flex h-10 w-10 items-center justify-center rounded-r-2xl text-base disabled:opacity-40"
                                         >
                                             +
@@ -558,12 +566,17 @@ export default function CartPage() {
                                             type="button"
                                             onClick={() => changeQty(item.id, item.qty - 1)}
                                             disabled={isPending || item.qty <= 1}
+                                            aria-label="Уменьшить количество"
                                             className="inline-flex h-10 w-10 items-center justify-center rounded-l-2xl text-base text-[var(--foreground)] transition hover:bg-[var(--surface)] disabled:opacity-40"
                                         >
                                             −
                                         </button>
 
-                                        <span className="inline-flex min-w-[36px] items-center justify-center text-sm font-medium">
+                                        <span
+                                            aria-live="polite"
+                                            aria-atomic="true"
+                                            className="inline-flex min-w-[36px] items-center justify-center text-sm font-medium"
+                                        >
                                             {item.qty}
                                         </span>
 
@@ -571,6 +584,7 @@ export default function CartPage() {
                                             type="button"
                                             onClick={() => changeQty(item.id, item.qty + 1)}
                                             disabled={isPending}
+                                            aria-label="Увеличить количество"
                                             className="inline-flex h-10 w-10 items-center justify-center rounded-r-2xl text-base text-[var(--foreground)] transition hover:bg-[var(--surface)] disabled:opacity-40"
                                         >
                                             +
