@@ -38,6 +38,7 @@ port      = http,https
 filter    = nginx-limit-req
 logpath   = /var/log/nginx/error.log
 maxretry  = 10
+bantime   = 15m
 
 [nginx-auth]
 enabled   = true

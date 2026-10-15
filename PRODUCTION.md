@@ -1009,7 +1009,7 @@ sudo supervisorctl restart perfumer-queue:*
 sudo /var/www/perfumer-by/scripts/setup-fail2ban.sh
 ```
 
-Скрипт установит fail2ban, настроит jail для `sshd`, `nginx-auth`, `nginx-limit-req` и перезапустит сервис.
+Скрипт установит fail2ban, настроит jail для `sshd`, `nginx-auth`, `nginx-limit-req` и перезапустит сервис. `sshd` и `nginx-auth` банят на 1 час; `nginx-limit-req` (10 отказов `limit_req` за 10 минут) — на 15 минут.
 
 ### 12.4. Автообновления безопасности
 
