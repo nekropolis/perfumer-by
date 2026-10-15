@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { productJsonLd } from "./json-ld";
+import { homeStoreJsonLd, productJsonLd } from "./json-ld";
+import type { ReviewItem } from "@/types/reviews";
 import type { ProductDetailData, ProductVariantData } from "@/types/catalog";
 
 function makeVariant(overrides: Partial<ProductVariantData> & Pick<ProductVariantData, "id">): ProductVariantData {
@@ -154,5 +155,75 @@ describe("productJsonLd", () => {
         expect(ld.description).toBe("Hugo Boss Alive 100% оригинал.");
         expect(String(ld.description)).not.toContain("&nbsp;");
         expect(String(ld.description)).not.toContain("<b>");
+    });
+});
+
+function makeReview(id: number, stars: number): ReviewItem {
+    return {
+        id,
+        type: "product",
+        product_id: 1,
+        name: `Покупатель ${id}`,
+        text: "Хороший аромат, рекомендую.",
+        stars,
+        created_at: "2026-01-01T10:00:00+00:00",
+        published_at: "2026-01-01T10:00:00+00:00",
+    };
+}
+
+describe("productJsonLd aggregateRating", () => {
+    const reviews = [makeReview(1, 5), makeReview(2, 3)];
+
+    it("falls back to loaded reviews when meta is absent", () => {
+        const ld = productJsonLd(makeProduct(), reviews);
+        const rating = ld.aggregateRating as Record<string, unknown>;
+        expect(rating.reviewCount).toBe(2);
+        expect(rating.ratingValue).toBe(4);
+    });
+
+    it("uses backend meta totals when available", () => {
+        const ld = productJsonLd(makeProduct(), reviews, { total: 120, average: 4.67 });
+        const rating = ld.aggregateRating as Record<string, unknown>;
+        expect(rating.reviewCount).toBe(120);
+        expect(rating.ratingValue).toBe(4.7);
+        expect(ld.review).toHaveLength(2);
+    });
+
+    it("ignores inconsistent meta", () => {
+        const ld = productJsonLd(makeProduct(), reviews, { total: 1, average: 5 });
+        const rating = ld.aggregateRating as Record<string, unknown>;
+        expect(rating.reviewCount).toBe(2);
+        expect(rating.ratingValue).toBe(4);
+    });
+
+    it("omits rating without reviews", () => {
+        const ld = productJsonLd(makeProduct(), [], { total: 0, average: null });
+        expect(ld.aggregateRating).toBeUndefined();
+    });
+});
+
+describe("productJsonLd offers without variants", () => {
+    it("does not claim offerCount for a price range", () => {
+        const ld = productJsonLd(
+            makeProduct({ variants: [], price_range: { min: "10.00", max: "20.00" } }),
+        );
+        const offers = ld.offers as Record<string, unknown>;
+        expect(offers["@type"]).toBe("AggregateOffer");
+        expect(offers.lowPrice).toBe("10.00");
+        expect(offers.highPrice).toBe("20.00");
+        expect(offers).not.toHaveProperty("offerCount");
+    });
+});
+
+describe("homeStoreJsonLd aggregateRating", () => {
+    const snippets = [{ id: 1, name: "А", text: "Отлично", rating: 5, date: "1 января 2026" }];
+
+    it("is omitted without full stats", () => {
+        expect(homeStoreJsonLd(snippets).aggregateRating).toBeUndefined();
+    });
+
+    it("uses full stats", () => {
+        const ld = homeStoreJsonLd(snippets, { stats: { total: 340, average: 4.86 } });
+        expect(ld.aggregateRating).toMatchObject({ ratingValue: "4.9", reviewCount: "340" });
     });
 });

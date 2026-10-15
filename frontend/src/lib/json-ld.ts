@@ -245,7 +245,16 @@ export function webSiteJsonLd(): Record<string, unknown> {
     };
 }
 
-function productReviewsJsonLdPayload(reviews: ReviewItem[]): {
+/** Агрегаты по всем опубликованным отзывам товара (бэкенд `reviews.meta`); список отзывов ограничен 50. */
+export type ProductReviewsMeta = {
+    total: number;
+    average: number | null;
+};
+
+function productReviewsJsonLdPayload(
+    reviews: ReviewItem[],
+    meta?: ProductReviewsMeta | null,
+): {
     review: Record<string, unknown>[];
     aggregateRating: Record<string, unknown>;
 } | null {
@@ -271,19 +280,30 @@ function productReviewsJsonLdPayload(reviews: ReviewItem[]): {
         }
         return row;
     });
-    const sum = reviews.reduce((acc, r) => acc + r.stars, 0);
-    const avg = sum / reviews.length;
+    const hasMeta =
+        meta != null &&
+        Number.isInteger(meta.total) &&
+        meta.total >= reviews.length &&
+        meta.average != null &&
+        Number.isFinite(meta.average);
+    const avg = hasMeta
+        ? meta.average!
+        : reviews.reduce((acc, r) => acc + r.stars, 0) / reviews.length;
     const aggregateRating = {
         "@type": "AggregateRating",
         ratingValue: Math.round(avg * 10) / 10,
-        reviewCount: reviews.length,
+        reviewCount: hasMeta ? meta.total : reviews.length,
         bestRating: 5,
         worstRating: 1,
     };
     return { review, aggregateRating };
 }
 
-export function productJsonLd(product: ProductDetailData, reviews?: ReviewItem[]): Record<string, unknown> {
+export function productJsonLd(
+    product: ProductDetailData,
+    reviews?: ReviewItem[],
+    reviewsMeta?: ProductReviewsMeta | null,
+): Record<string, unknown> {
     const site = getSiteUrl();
     const productUrl = `${site}/${product.slug}`;
     const description = productJsonLdDescription(product);
@@ -329,7 +349,6 @@ export function productJsonLd(product: ProductDetailData, reviews?: ReviewItem[]
                 priceCurrency: "BYN",
                 lowPrice: formatBynAmountDisplay(minP),
                 highPrice: formatBynAmountDisplay(maxP),
-                offerCount: 1,
                 availability,
             };
         } else if (minP) {
@@ -367,7 +386,7 @@ export function productJsonLd(product: ProductDetailData, reviews?: ReviewItem[]
         payload.brand = brand;
     }
 
-    const reviewsLd = reviews?.length ? productReviewsJsonLdPayload(reviews) : null;
+    const reviewsLd = reviews?.length ? productReviewsJsonLdPayload(reviews, reviewsMeta) : null;
     if (reviewsLd) {
         payload.review = reviewsLd.review;
         payload.aggregateRating = reviewsLd.aggregateRating;
@@ -519,7 +538,7 @@ export function homeStoreJsonLd(
         name?: string;
         description?: string;
         urlPath?: string;
-        /** Полная статистика магазина (страница /reviews) — предпочтительнее среза из сниппетов. */
+        /** Полная статистика магазина; без неё aggregateRating не выводится (по срезу из сниппетов не считаем). */
         stats?: { total: number; average: number | null } | null;
     },
 ): Record<string, unknown> {
@@ -544,16 +563,6 @@ export function homeStoreJsonLd(
             "@type": "AggregateRating",
             ratingValue: String(Math.round(statsAverage * 10) / 10),
             reviewCount: String(statsTotal),
-            bestRating: "5",
-            worstRating: "1",
-        };
-    } else if (reviews.length > 0) {
-        const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
-        const avg = sum / reviews.length;
-        base.aggregateRating = {
-            "@type": "AggregateRating",
-            ratingValue: String(Math.round(avg * 10) / 10),
-            reviewCount: String(reviews.length),
             bestRating: "5",
             worstRating: "1",
         };

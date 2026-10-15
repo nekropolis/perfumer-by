@@ -10,11 +10,12 @@ import {
     storeReviewItemsToHomeSnippets,
     type HomePageReviewSnippet,
 } from "@/lib/json-ld";
-import { fetchStoreReviews } from "@/lib/reviews-api";
+import { fetchStoreReviewStats, fetchStoreReviews } from "@/lib/reviews-api";
 import { buildSeoMetadata } from "@/lib/seo";
 import { DEFAULT_SITE_CONTENT, fetchSiteContent } from "@/lib/site-content-api";
 import { fetchHomeRecommendedProducts } from "@/lib/catalog-api";
 import type { ProductListItem } from "@/types/catalog";
+import type { PublishedReviewStats } from "@/types/reviews";
 
 export async function generateMetadata(): Promise<Metadata> {
     const page = await fetchCmsPageBySlug("glavnaya");
@@ -40,11 +41,17 @@ export default async function HomePage() {
     const contentHtml = page?.content || "";
 
     let storeReviews: HomePageReviewSnippet[] = [];
-    try {
-        const reviewsRes = await fetchStoreReviews(HOME_STORE_REVIEWS_ON_HOME_LIMIT, 0);
-        storeReviews = storeReviewItemsToHomeSnippets(reviewsRes.data);
-    } catch {
-        /* API недоступен или нет отзывов — главная без блока отзывов в JSON-LD */
+    let storeReviewStats: PublishedReviewStats | null = null;
+    const [reviewsResult, statsResult] = await Promise.allSettled([
+        fetchStoreReviews(HOME_STORE_REVIEWS_ON_HOME_LIMIT, 0),
+        fetchStoreReviewStats(),
+    ]);
+    /* API недоступен или нет отзывов — главная без блока отзывов / aggregateRating в JSON-LD */
+    if (reviewsResult.status === "fulfilled") {
+        storeReviews = storeReviewItemsToHomeSnippets(reviewsResult.value.data);
+    }
+    if (statsResult.status === "fulfilled") {
+        storeReviewStats = statsResult.value;
     }
 
     let popularBrands = DEFAULT_SITE_CONTENT.home_popular_brands;
@@ -67,7 +74,7 @@ export default async function HomePage() {
 
     return (
         <>
-            <JsonLd data={[homeStoreJsonLd(storeReviews), faqPageJsonLd(HOME_PAGE_FAQ_ITEMS)]} />
+            <JsonLd data={[homeStoreJsonLd(storeReviews, { stats: storeReviewStats }), faqPageJsonLd(HOME_PAGE_FAQ_ITEMS)]} />
             <HomeTemplate
                 heroTitle={heroTitle}
                 heroDescription={heroDescription}

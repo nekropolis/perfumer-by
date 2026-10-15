@@ -45,6 +45,8 @@ const getServerSnapshot = () => false;
 type Props = {
     product: ProductDetailData;
     initialProductReviews?: ReviewItem[];
+    /** Всего опубликованных отзывов (список ограничен 50). */
+    initialProductReviewsTotal?: number;
     attributesContent: React.ReactNode;
     descriptionContent: React.ReactNode;
     deliveryDate?: string | null;
@@ -55,6 +57,7 @@ type Props = {
 export default function ProductDetailInteractive({
     product,
     initialProductReviews,
+    initialProductReviewsTotal,
     attributesContent,
     descriptionContent,
     deliveryDate,
@@ -63,7 +66,7 @@ export default function ProductDetailInteractive({
 }: Props) {
     const [isPending, startTransition] = useTransition();
     const [activeTab, setActiveTab] = useState<"attributes" | "reviews">("attributes");
-    const reviewsTabCount = initialProductReviews?.length ?? 0;
+    const reviewsTabCount = initialProductReviewsTotal ?? initialProductReviews?.length ?? 0;
     const { cart, setCartState } = useCart();
     const { isInWishlist, toggleWishlist } = useWishlist();
     const { user, isAuthenticated } = useAuth();
@@ -513,6 +516,8 @@ export default function ProductDetailInteractive({
                             <button
                                 type="button"
                                 role="tab"
+                                id="product-tab-attributes"
+                                aria-controls="product-tabpanel-attributes"
                                 aria-selected={activeTab === "attributes"}
                                 onClick={() => setActiveTab("attributes")}
                                 className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors ${
@@ -527,6 +532,8 @@ export default function ProductDetailInteractive({
                             <button
                                 type="button"
                                 role="tab"
+                                id="product-tab-reviews"
+                                aria-controls="product-tabpanel-reviews"
                                 aria-selected={activeTab === "reviews"}
                                 onClick={() => setActiveTab("reviews")}
                                 className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors ${
@@ -547,6 +554,8 @@ export default function ProductDetailInteractive({
                             <div
                                 className={activeTab === "attributes" ? "block" : "hidden"}
                                 role="tabpanel"
+                                id="product-tabpanel-attributes"
+                                aria-labelledby="product-tab-attributes"
                                 aria-hidden={activeTab !== "attributes"}
                             >
                                 {attributesContent}
@@ -555,6 +564,8 @@ export default function ProductDetailInteractive({
                             <div
                                 className={activeTab === "reviews" ? "block" : "hidden"}
                                 role="tabpanel"
+                                id="product-tabpanel-reviews"
+                                aria-labelledby="product-tab-reviews"
                                 aria-hidden={activeTab !== "reviews"}
                             >
                                 <ProductReviewsTab

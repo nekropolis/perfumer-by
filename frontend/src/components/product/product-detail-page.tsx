@@ -12,12 +12,15 @@ import type { ReviewItem } from "@/types/reviews";
 type Props = {
     product: ProductDetailData;
     initialProductReviews?: ReviewItem[];
+    /** Всего опубликованных отзывов (список ограничен 50). */
+    initialProductReviewsTotal?: number;
     variantFromQuery?: number;
 };
 
 export default async function ProductDetailPage({
     product,
     initialProductReviews,
+    initialProductReviewsTotal,
     variantFromQuery = 0,
 }: Props) {
     let deliveryDate = DEFAULT_SITE_CONTENT.waiting_discount_delivery_date;
@@ -44,6 +47,7 @@ export default async function ProductDetailPage({
             <ProductDetailInteractive
                 product={product}
                 initialProductReviews={initialProductReviews}
+                initialProductReviewsTotal={initialProductReviewsTotal}
                 attributesContent={<ProductDetailAttributes product={product} />}
                 descriptionContent={<ProductDetailDescription description={product.description} />}
                 deliveryDate={deliveryDate}

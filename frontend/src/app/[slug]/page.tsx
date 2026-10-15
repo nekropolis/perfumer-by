@@ -11,6 +11,7 @@ import {
     cmsPageWebPageJsonLd,
     newsArticleJsonLd,
     productJsonLd,
+    type ProductReviewsMeta,
 } from "@/lib/json-ld";
 import { fetchCmsPageBySlug, fetchCmsPostBySlug } from "@/lib/cms-pages-api";
 import { buildSeoMetadata, mainProductImageUrlForOg } from "@/lib/seo";
@@ -19,7 +20,6 @@ import { fetchCatalogProductDetail } from "@/lib/catalog-api";
 import type { ProductDetailData } from "@/types/catalog";
 import type { ReviewItem } from "@/types/reviews";
 import ProductDetailPage from "@/components/product/product-detail-page";
-import ProductReviewsSeoHtml from "@/components/product/product-reviews-seo-html";
 import {
     buildProductMetaDescription,
     buildProductMetaTitle,
@@ -30,6 +30,7 @@ import { getProductBreadcrumbItems } from "@/lib/product-breadcrumbs";
 type ProductPagePayload = {
     product: ProductDetailData;
     reviews: ReviewItem[];
+    reviewsMeta: ProductReviewsMeta | null;
 };
 
 const getProductPagePayload = cache(async (slug: string): Promise<ProductPagePayload> => {
@@ -37,6 +38,7 @@ const getProductPagePayload = cache(async (slug: string): Promise<ProductPagePay
     return {
         product: response.data,
         reviews: response.reviews?.data ?? [],
+        reviewsMeta: (response.reviews as { meta?: ProductReviewsMeta } | undefined)?.meta ?? null,
     };
 });
 
@@ -171,15 +173,15 @@ export default async function RootSlugPage({
 
     try {
         const payload = await getProductPagePayload(slug);
-        const { product, reviews: initialProductReviews } = payload;
+        const { product, reviews: initialProductReviews, reviewsMeta } = payload;
         const crumbs = getProductBreadcrumbItems(product);
         return (
             <>
-                <JsonLd data={[productJsonLd(product, initialProductReviews), breadcrumbListJsonLd(crumbs)]} />
-                <ProductReviewsSeoHtml reviews={initialProductReviews} />
+                <JsonLd data={[productJsonLd(product, initialProductReviews, reviewsMeta), breadcrumbListJsonLd(crumbs)]} />
                 <ProductDetailPage
                     product={product}
                     initialProductReviews={initialProductReviews}
+                    initialProductReviewsTotal={reviewsMeta?.total}
                     variantFromQuery={variantFromQuery}
                 />
             </>

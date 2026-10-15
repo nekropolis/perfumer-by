@@ -23,7 +23,7 @@ const MAX_NAME = 100;
 type Props = {
     productId: number;
     isActive: boolean;
-    /** SSR: начальное состояние списка (дублирование в HTML для SEO — в `page.tsx`, `ProductReviewsSeoHtml`). */
+    /** SSR: начальный список рендерится в HTML вкладки (скрытой через CSS, пока вкладка неактивна). */
     initialReviews?: ReviewItem[];
 };
 
@@ -153,10 +153,6 @@ export default function ProductReviewsTab({ productId, isActive, initialReviews 
             setSubmitting(false);
         }
     };
-
-    if (!isActive) {
-        return null;
-    }
 
     return (
         <div className="space-y-6">
