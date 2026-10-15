@@ -22,8 +22,8 @@ const cormorant = Cormorant_Garamond({
 
 export const metadata: Metadata = {
     metadataBase: new URL(getSiteUrl()),
-    title: "Perfumer",
-    description: "Perfumer store",
+    title: "Perfumer — интернет-магазин парфюмерии",
+    description: "Интернет-магазин парфюмерии и косметики с доставкой по Минску и всей Беларуси.",
     robots: getSiteDefaultRobots(),
     icons: {
         icon: [
