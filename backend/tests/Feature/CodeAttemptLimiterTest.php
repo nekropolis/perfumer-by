@@ -75,9 +75,22 @@ class CodeAttemptLimiterTest extends TestCase
         $this->travel(61)->seconds();
         $this->failCardTimes(self::IP_A, 3);
 
-        $this->travel(86401)->seconds();
+        $this->travel(1800 + 86401)->seconds();
         $this->failCardTimes(self::IP_A, 3);
         $this->assertRetryAfterAbout($this->applyCard(self::IP_A, 'WRONG')->assertStatus(429), 60);
+    }
+
+    public function test_day_lock_repeats_when_brute_force_resumes_right_after_ban(): void
+    {
+        $this->failCardTimes(self::IP_A, 3);
+        $this->travel(61)->seconds();
+        $this->failCardTimes(self::IP_A, 3);
+        $this->travel(1801)->seconds();
+        $this->failCardTimes(self::IP_A, 3);
+
+        $this->travel(86401)->seconds();
+        $this->failCardTimes(self::IP_A, 3);
+        $this->assertRetryAfterAbout($this->applyCard(self::IP_A, 'WRONG')->assertStatus(429), 86400);
     }
 
     public function test_success_does_not_reset_failures_or_level(): void

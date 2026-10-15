@@ -12,7 +12,7 @@ use Modules\Users\Models\Client;
 /**
  * Ступенчатая блокировка перебора кодов сертификатов и номеров скидочных карт.
  * Считаются только неудачные попытки; успешная попытка ступень не сбрасывает.
- * Ступень истекает через decay_seconds после последней блокировки.
+ * Ступень истекает через decay_seconds после окончания последней блокировки.
  */
 class CodeAttemptLimiter
 {
@@ -60,9 +60,9 @@ class CodeAttemptLimiter
             Cache::forget($failsKey);
             $levelKey = $this->key($identity, 'level');
             $level = (int) Cache::get($levelKey, 0) + 1;
-            Cache::put($levelKey, $level, now()->addSeconds($decaySeconds));
-
             $lockSeconds = (int) $lockSteps[min($level, count($lockSteps)) - 1];
+            Cache::put($levelKey, $level, now()->addSeconds($lockSeconds + $decaySeconds));
+
             Cache::put(
                 $this->key($identity, 'locked_until'),
                 now()->getTimestamp() + $lockSeconds,
