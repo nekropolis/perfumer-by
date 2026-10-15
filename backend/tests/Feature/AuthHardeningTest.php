@@ -5,7 +5,10 @@ namespace Tests\Feature;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Laravel\Sanctum\PersonalAccessToken;
+use Modules\Users\Http\Controllers\Api\AuthController;
 use Modules\Users\Models\PhoneVerification;
+use Modules\Users\Models\User;
 use Tests\TestCase;
 
 class AuthHardeningTest extends TestCase
@@ -33,12 +36,24 @@ class AuthHardeningTest extends TestCase
             $table->timestamp('verified_at')->nullable();
             $table->timestamps();
         });
+
+        Schema::create('personal_access_tokens', function (Blueprint $table): void {
+            $table->id();
+            $table->morphs('tokenable');
+            $table->text('name');
+            $table->string('token', 64)->unique();
+            $table->text('abilities')->nullable();
+            $table->timestamp('last_used_at')->nullable();
+            $table->timestamp('expires_at')->nullable()->index();
+            $table->timestamps();
+        });
     }
 
     protected function tearDown(): void
     {
         app()->instance('env', 'testing');
         config()->set('app.env', 'testing');
+        Schema::dropIfExists('personal_access_tokens');
         Schema::dropIfExists('phone_verifications');
 
         parent::tearDown();
@@ -85,5 +100,57 @@ class AuthHardeningTest extends TestCase
         ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('code');
+    }
+
+    public function test_frontend_login_tokens_expire_but_device_tokens_do_not(): void
+    {
+        config()->set('auth.frontend_token_ttl_minutes', 43200);
+
+        $user = new User();
+        $user->forceFill(['id' => 1]);
+        $user->exists = true;
+
+        $controller = new class extends AuthController
+        {
+            /**
+             * @return array{message: string, token: string, user: array<string, mixed>}
+             */
+            public function frontendLoginPayloadForTest(User $user): array
+            {
+                return $this->authSuccessPayload($user);
+            }
+        };
+
+        $payload = $controller->frontendLoginPayloadForTest($user);
+        $this->assertNotEmpty($payload['token']);
+
+        $frontendToken = PersonalAccessToken::query()
+            ->where('name', 'frontend')
+            ->firstOrFail();
+
+        $this->assertNotNull($frontendToken->expires_at);
+        $this->assertEqualsWithDelta(
+            now()->addMinutes(43200)->timestamp,
+            $frontendToken->expires_at->timestamp,
+            5,
+        );
+
+        $user->createToken('incoming-call-device:test', ['incoming-call:send-to-crm']);
+
+        $deviceToken = PersonalAccessToken::query()
+            ->where('name', 'incoming-call-device:test')
+            ->firstOrFail();
+
+        $this->assertNull($deviceToken->expires_at);
+
+        config()->set('auth.frontend_token_ttl_minutes', 0);
+        $controller->frontendLoginPayloadForTest($user);
+
+        $frontendTokenWithoutTtl = PersonalAccessToken::query()
+            ->where('name', 'frontend')
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertNull($frontendTokenWithoutTtl->expires_at);
     }
 }

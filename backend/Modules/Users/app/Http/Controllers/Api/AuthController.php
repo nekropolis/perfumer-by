@@ -122,7 +122,7 @@ class AuthController extends Controller
         }
 
         $this->attachOrdersToClient($client, $phone);
-        $token = $client->createToken('frontend')->plainTextToken;
+        $token = $this->createFrontendToken($client);
         $this->clearVerifyFailures($phone);
 
         return response()->json([
@@ -640,7 +640,7 @@ class AuthController extends Controller
             OrderAccountScope::linkOrdersForClient($actor);
         }
 
-        $token = $actor->createToken('frontend')->plainTextToken;
+        $token = $this->createFrontendToken($actor);
 
         return [
             'message' => 'Authenticated',
@@ -660,6 +660,14 @@ class AuthController extends Controller
         }
 
         return $password;
+    }
+
+    protected function createFrontendToken(Client|User $actor): string
+    {
+        $ttlMinutes = (int) config('auth.frontend_token_ttl_minutes', 43200);
+        $expiresAt = $ttlMinutes > 0 ? now()->addMinutes($ttlMinutes) : null;
+
+        return $actor->createToken('frontend', ['*'], $expiresAt)->plainTextToken;
     }
 
     protected function findActiveVerification(string $phone, string $code, string $purpose): ?PhoneVerification

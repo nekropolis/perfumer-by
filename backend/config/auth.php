@@ -120,6 +120,8 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    'frontend_token_ttl_minutes' => (int) env('FRONTEND_TOKEN_TTL_MINUTES', 43200),
+
     /*
     |--------------------------------------------------------------------------
     | OTP / login anti-spam (phone auth)
