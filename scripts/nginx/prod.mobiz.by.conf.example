@@ -4,6 +4,10 @@
 # Once:
 #   sudo mkdir -p /var/www/perfumer-by/shared
 #   sudo cp /var/www/perfumer-by/scripts/nginx/503.html /var/www/perfumer-by/shared/503.html
+#   sudo cp /var/www/perfumer-by/scripts/nginx/security-headers.conf.example \
+#     /etc/nginx/snippets/perfumer-security-headers.conf
+#   sudo cp /var/www/perfumer-by/scripts/nginx/rate-limit.conf.example \
+#     /etc/nginx/conf.d/perfumer-rate-limit.conf
 #   sudo nginx -t && sudo systemctl reload nginx
 #
 # Put this map in http {} (e.g. /etc/nginx/conf.d/perfumer-upgrade-map.conf):
@@ -74,6 +78,7 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
 
     client_max_body_size 32M;
+    include snippets/perfumer-security-headers.conf;
 
     # Branded 503 (named location — надёжнее, чем alias + /503.html)
     error_page 502 503 504 @maintenance;
@@ -85,6 +90,8 @@ server {
         try_files /503.html =404;
         add_header Retry-After 60 always;
         add_header Cache-Control "no-store" always;
+        # This location has add_header directives, so repeat the shared headers.
+        include snippets/perfumer-security-headers.conf;
     }
 
     location ^~ /storage/ {
@@ -93,11 +100,14 @@ server {
         access_log off;
         expires 30d;
         add_header Cache-Control "public, immutable";
+        include snippets/perfumer-security-headers.conf;
         try_files $uri =404;
     }
 
     location ^~ /api/ {
         auth_basic off;
+        limit_req zone=perfumer_api burst=40 nodelay;
+        limit_req_status 429;
         try_files $uri /index.php?$query_string;
     }
 
@@ -123,6 +133,12 @@ server {
         expires 1y;
         access_log off;
         add_header Cache-Control "public, immutable";
+        include snippets/perfumer-security-headers.conf;
+    }
+
+    # Block hidden files (.env, .git, etc.), but keep ACME available.
+    location ~ /\.(?!well-known) {
+        return 404;
     }
 
     # ISR revalidate (admin cache reset) — outside basic auth

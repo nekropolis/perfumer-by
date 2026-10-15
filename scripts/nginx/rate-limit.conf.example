@@ -1,0 +1,9 @@
+# Copy to /etc/nginx/conf.d/perfumer-rate-limit.conf (inside nginx http {}).
+# An empty key exempts Next.js SSR requests sent through loopback.
+geo $perfumer_rate_limit_key {
+    default   $binary_remote_addr;
+    127.0.0.1 "";
+    ::1       "";
+}
+
+limit_req_zone $perfumer_rate_limit_key zone=perfumer_api:10m rate=20r/s;

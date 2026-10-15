@@ -55,6 +55,15 @@ failregex = ^ \[error\] \d+#\d+: \*\d+ user "\S+": password mismatch, client: <H
 ignoreregex =
 EOF
 
+log "Creating nginx limit_req filter"
+cat > /etc/fail2ban/filter.d/nginx-limit-req.conf <<'EOF'
+[Definition]
+# Matches nginx error lines such as:
+# limiting requests, excess: 40.100 by zone "perfumer_api", client: 192.0.2.10,
+failregex = ^.*limiting requests, excess:.* by zone "perfumer_api", client: <HOST>,
+ignoreregex =
+EOF
+
 log "Restarting fail2ban"
 systemctl enable fail2ban
 systemctl restart fail2ban
