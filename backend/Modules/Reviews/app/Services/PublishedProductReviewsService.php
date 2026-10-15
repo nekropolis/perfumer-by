@@ -30,4 +30,30 @@ class PublishedProductReviewsService
             ->values()
             ->all();
     }
+
+    /**
+     * Агрегаты по всем опубликованным отзывам товара (не ограничены лимитом списка).
+     *
+     * @return array{total: int, average: float|null}
+     */
+    public function statsForProduct(int $productId): array
+    {
+        if ($productId <= 0) {
+            return ['total' => 0, 'average' => null];
+        }
+
+        $row = Review::query()
+            ->published()
+            ->where('type', Review::TYPE_PRODUCT)
+            ->where('product_id', $productId)
+            ->selectRaw('COUNT(*) as total, AVG(stars) as average')
+            ->first();
+
+        $total = (int) ($row?->getAttribute('total') ?? 0);
+
+        return [
+            'total' => $total,
+            'average' => $total > 0 ? round((float) $row->getAttribute('average'), 2) : null,
+        ];
+    }
 }

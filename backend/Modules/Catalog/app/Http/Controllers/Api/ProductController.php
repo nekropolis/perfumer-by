@@ -255,6 +255,7 @@ class ProductController extends Controller
                 'data' => $detail,
                 'reviews' => [
                     'data' => $this->reviewsService->listForProduct((int) $product->id),
+                    'meta' => $this->reviewsService->statsForProduct((int) $product->id),
                 ],
             ];
         });

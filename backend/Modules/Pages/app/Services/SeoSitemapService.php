@@ -17,7 +17,7 @@ use Modules\Pages\Models\CmsPost;
  */
 class SeoSitemapService
 {
-    public const CACHE_KEY = 'seo:sitemap-urls:v2';
+    public const CACHE_KEY = 'seo:sitemap-urls:v3';
 
     public const CACHE_TTL_SECONDS = 3600;
 
@@ -60,6 +60,7 @@ class SeoSitemapService
 
         $pages = CmsPage::query()
             ->where('is_active', true)
+            ->whereNotIn('slug', CmsPage::HOME_ALIAS_SLUGS)
             ->select(['slug', 'name', 'h1', 'updated_at'])
             ->get();
 
