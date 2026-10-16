@@ -104,6 +104,12 @@ server {
         try_files $uri =404;
     }
 
+    # Admin API polls many endpoints; do not rate-limit (avoids fail2ban bans of office IPs).
+    location ^~ /api/admin/ {
+        auth_basic off;
+        try_files $uri /index.php?$query_string;
+    }
+
     location ^~ /api/ {
         auth_basic off;
         limit_req zone=perfumer_api burst=40 nodelay;

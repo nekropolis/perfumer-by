@@ -443,7 +443,12 @@ server {
         try_files $uri =404;
     }
 
-    # API и admin-API через PHP-FPM
+    # Admin API polls many endpoints — без limit_req (иначе fail2ban банит офисный IP).
+    location ^~ /api/admin/ {
+        try_files $uri /index.php?$query_string;
+    }
+
+    # Публичный API через PHP-FPM
     location ^~ /api/ {
         limit_req zone=perfumer_api burst=40 nodelay;
         limit_req_status 429;
