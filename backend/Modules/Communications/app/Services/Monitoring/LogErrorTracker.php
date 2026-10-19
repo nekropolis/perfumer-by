@@ -3,6 +3,8 @@
 namespace Modules\Communications\Services\Monitoring;
 
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class LogErrorTracker
 {
@@ -137,14 +139,33 @@ class LogErrorTracker
      */
     private function saveState(array $state): void
     {
-        $dir = storage_path('app/monitoring');
-        if (!is_dir($dir)) {
-            File::makeDirectory($dir, 0755, true);
-        }
+        try {
+            $dir = storage_path('app/monitoring');
+            if (! is_dir($dir)) {
+                File::makeDirectory($dir, 0775, true);
+            }
 
-        file_put_contents(
-            storage_path('app/' . self::STATE_PATH),
-            json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
-        );
+            $path = storage_path('app/'.self::STATE_PATH);
+            if (file_exists($path) && ! is_writable($path)) {
+                Log::warning('LogErrorTracker: state file is not writable', ['path' => $path]);
+
+                return;
+            }
+            if (! file_exists($path) && ! is_writable($dir)) {
+                Log::warning('LogErrorTracker: monitoring directory is not writable', ['path' => $dir]);
+
+                return;
+            }
+
+            file_put_contents(
+                $path,
+                json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+            );
+        } catch (Throwable $e) {
+            // Must not escalate into a Telegram exception loop from cron.
+            Log::warning('LogErrorTracker: failed to persist state', [
+                'message' => $e->getMessage(),
+            ]);
+        }
     }
 }

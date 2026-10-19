@@ -54,7 +54,7 @@ class ExceptionTelegramReporter
     public function reportFrontend(array $payload): void
     {
         try {
-            if ($this->disabled()) {
+            if ($this->disabled() || $this->isNoisyFrontendPayload($payload)) {
                 return;
             }
 
@@ -79,6 +79,32 @@ class ExceptionTelegramReporter
         } catch (Throwable) {
             // The internal reporting endpoint must always remain harmless.
         }
+    }
+
+    /**
+     * @param array<string, string|null> $payload
+     */
+    private function isNoisyFrontendPayload(array $payload): bool
+    {
+        $haystack = strtolower(implode("\n", [
+            (string) ($payload['message'] ?? ''),
+            (string) ($payload['path'] ?? ''),
+            (string) ($payload['routePath'] ?? ''),
+        ]));
+
+        // Null-byte / encoded probes and other scanner junk → nginx 400, not our bug.
+        if (str_contains($haystack, "\0")
+            || str_contains($haystack, '%00')
+            || str_contains($haystack, '400 bad request')
+            || preg_match('/\bAPI error:\s*400\b/i', $haystack) === 1) {
+            return true;
+        }
+
+        // Common vulnerability scan filenames hitting /[slug].
+        return preg_match(
+            '/(?:^|[\/\s%])(?:\.env|mail\.yaml|s3config\.js|server\.json|wp-login\.php|phpinfo\.php|actuator|cgi-bin)\b/i',
+            $haystack,
+        ) === 1;
     }
 
     private function sendDeduplicated(string $signature, string $message): void
@@ -131,7 +157,15 @@ class ExceptionTelegramReporter
             return true;
         }
 
-        return $exception instanceof HttpExceptionInterface && $exception->getStatusCode() < 500;
+        if ($exception instanceof HttpExceptionInterface && $exception->getStatusCode() < 500) {
+            return true;
+        }
+
+        // Cron as deploy cannot always write www-data state files; do not alert on that.
+        $message = $exception->getMessage();
+
+        return str_contains($message, 'log-error-state.json')
+            && str_contains($message, 'Permission denied');
     }
 
     private function requestContext(?Request $request): string

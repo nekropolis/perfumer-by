@@ -89,4 +89,32 @@ class ExceptionTelegramReporterTest extends TestCase
 
         $this->assertTrue(true);
     }
+
+    public function test_noisy_frontend_scanner_payloads_are_not_reported(): void
+    {
+        Bus::fake();
+        $reporter = new ExceptionTelegramReporter(allowInTesting: true);
+
+        $reporter->reportFrontend([
+            'name' => 'ApiFetchError',
+            'message' => 'API error: 400 http://127.0.0.1/api/catalog/products/%00mail.yaml. <html>400 Bad Request</html>',
+            'path' => '/%00mail.yaml',
+            'routePath' => '/[slug]',
+            'method' => 'GET',
+        ]);
+
+        Bus::assertNotDispatched(SendTelegramMessageJob::class);
+    }
+
+    public function test_permission_denied_on_log_error_state_is_not_reported(): void
+    {
+        Bus::fake();
+        $reporter = new ExceptionTelegramReporter(allowInTesting: true);
+
+        $reporter->report(new RuntimeException(
+            'file_put_contents(/var/www/perfumer-by/backend/storage/app/monitoring/log-error-state.json): Failed to open stream: Permission denied'
+        ));
+
+        Bus::assertNotDispatched(SendTelegramMessageJob::class);
+    }
 }
