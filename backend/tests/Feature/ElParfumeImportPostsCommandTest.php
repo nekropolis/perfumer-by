@@ -6,6 +6,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Modules\Pages\Models\CmsPost;
 use Tests\TestCase;
 
@@ -143,5 +144,59 @@ SQL);
         $this->assertSame($countAfterFirst, DB::table('cms_posts')->count());
 
         @unlink($overridesPath);
+    }
+
+    public function test_inline_images_are_copied_from_images_dir(): void
+    {
+        Storage::fake('public');
+
+        $imagesDir = dirname($this->dumpPath).'/site';
+        mkdir($imagesDir.'/image/catalog/news', 0777, true);
+        file_put_contents($imagesDir.'/image/catalog/news/a b.jpg', 'jpg');
+
+        file_put_contents($this->dumpPath, <<<'SQL'
+CREATE TABLE `oc_url_alias` (
+  `url_alias_id` int NOT NULL,
+  `query` varchar(255) NOT NULL,
+  `keyword` varchar(255) NOT NULL
+);
+CREATE TABLE `oc_oct_blog_article` (
+  `oct_blog_article_id` int NOT NULL,
+  `image` varchar(255) DEFAULT NULL,
+  `status` tinyint(1) NOT NULL DEFAULT '0',
+  `date_added` datetime NOT NULL,
+  `date_modified` datetime NOT NULL
+);
+CREATE TABLE `oc_oct_blog_article_description` (
+  `oct_blog_article_id` int NOT NULL,
+  `language_id` int NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `description` text NOT NULL,
+  `meta_title` varchar(255) NOT NULL,
+  `meta_description` varchar(255) NOT NULL
+);
+INSERT INTO `oc_url_alias` VALUES (1,'oct_blog_article_id=1','article-img');
+INSERT INTO `oc_oct_blog_article` VALUES (1,'',1,'2020-01-01 10:00:00','2020-01-01 10:00:00');
+INSERT INTO `oc_oct_blog_article_description` VALUES (1,1,'Title','&lt;img src=&quot;https://el-parfume.by/image/catalog/news/a%20b.jpg&quot;&gt;&lt;img src=&quot;https://el-parfume.by/image/catalog/news/missing.jpg&quot;&gt;','','');
+SQL);
+        file_put_contents($this->mapPath, 'old_path,type,old_id,url_form,target,method,decision,score,slug_score,name_score,old_name,our_id,our_name,cand2,cand3,gsc_impressions,note');
+
+        $exit = Artisan::call('elparfume:import-posts', [
+            '--dump' => $this->dumpPath,
+            '--map' => $this->mapPath,
+            '--images-from' => $imagesDir,
+        ]);
+        $this->assertSame(0, $exit);
+
+        $content = (string) DB::table('cms_posts')->where('slug', 'article-img')->value('content');
+        $this->assertStringNotContainsString('el-parfume.by/image/catalog/news/a%20b.jpg', $content);
+        $this->assertStringContainsString('el-parfume.by/image/catalog/news/missing.jpg', $content);
+        Storage::disk('public')->assertExists('cms/posts/import/elparfume/catalog/news/a b.jpg');
+
+        @unlink($imagesDir.'/image/catalog/news/a b.jpg');
+        @rmdir($imagesDir.'/image/catalog/news');
+        @rmdir($imagesDir.'/image/catalog');
+        @rmdir($imagesDir.'/image');
+        @rmdir($imagesDir);
     }
 }

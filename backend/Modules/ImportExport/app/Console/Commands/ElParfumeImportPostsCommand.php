@@ -71,6 +71,7 @@ class ElParfumeImportPostsCommand extends Command
             $rawContent = ElParfumeHtmlContent::decode(trim((string) ($description['description'] ?? '')));
             $content = ElParfumeHtmlContent::normalizeNewlines($rawContent);
             $content = ElParfumeHtmlContent::rewriteLinks($content, $redirectMap);
+            $content = $this->localizeInlineImages($content, $imagesFrom, $dryRun);
             ElParfumeHtmlContent::collectRemoteImageUrls($content, $remoteImages);
 
             if ($title === '' && $content === '') {
@@ -265,6 +266,31 @@ class ElParfumeImportPostsCommand extends Command
         $remoteImages[$url] = true;
 
         return $url;
+    }
+
+    private function localizeInlineImages(string $html, string $imagesFrom, bool $dryRun): string
+    {
+        if ($html === '' || $imagesFrom === '') {
+            return $html;
+        }
+
+        return (string) preg_replace_callback(
+            '#(\bsrc\s*=\s*["\'])https?://(?:www\.)?el-parfume\.by/image/([^"\']+)#i',
+            function (array $matches) use ($imagesFrom, $dryRun): string {
+                $relativePath = ltrim(rawurldecode(html_entity_decode($matches[2], ENT_QUOTES | ENT_HTML5, 'UTF-8')), '/');
+                $local = rtrim($imagesFrom, '/\\').'/image/'.$relativePath;
+                if (str_contains($relativePath, '..') || ! is_file($local)) {
+                    return $matches[0];
+                }
+                $dest = 'cms/posts/import/elparfume/'.$relativePath;
+                if (! $dryRun) {
+                    Storage::disk('public')->put($dest, (string) file_get_contents($local));
+                }
+
+                return $matches[1].Storage::url($dest);
+            },
+            $html,
+        );
     }
 
     /**
