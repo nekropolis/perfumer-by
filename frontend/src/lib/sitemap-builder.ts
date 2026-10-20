@@ -52,6 +52,7 @@ export const SITEMAP_STATIC_PATHS: { path: string; priority: number; title: stri
     { path: "/dostavka", priority: 0.6, title: "Доставка" },
     { path: "/vozvrat-i-obmen", priority: 0.5, title: "Возврат и обмен" },
     { path: "/gift-certificates", priority: 0.7, title: "Подарочные сертификаты" },
+    { path: "/proverka-batch-coda", priority: 0.65, title: "Проверка батч-кода" },
 ];
 
 function priorityForType(type: BuiltSitemapEntryType, path: string): number {
