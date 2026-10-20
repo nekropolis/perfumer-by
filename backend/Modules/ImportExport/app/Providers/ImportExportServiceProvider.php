@@ -12,6 +12,7 @@ use Modules\ImportExport\Console\Commands\FixLegacyOrdersDeliveryDateCommand;
 use Modules\ImportExport\Console\Commands\ImportLegacyReviewsCommand;
 use Modules\ImportExport\Console\Commands\ElParfumeExtractUrlsCommand;
 use Modules\ImportExport\Console\Commands\ElParfumeMatchCommand;
+use Modules\ImportExport\Console\Commands\ElParfumeImportLandingsCommand;
 use Modules\ImportExport\Console\Commands\ElParfumeImportPostsCommand;
 use Modules\ImportExport\Console\Commands\ElParfumeImportReviewsCommand;
 use Modules\ImportExport\Console\Commands\ElParfumeBuildNginxMapCommand;
@@ -45,6 +46,7 @@ class ImportExportServiceProvider extends ModuleServiceProvider
         ElParfumeExtractUrlsCommand::class,
         ElParfumeMatchCommand::class,
         ElParfumeImportPostsCommand::class,
+        ElParfumeImportLandingsCommand::class,
         ElParfumeImportReviewsCommand::class,
         ElParfumeBuildNginxMapCommand::class,
         ElParfumeVerifyRedirectsCommand::class,
