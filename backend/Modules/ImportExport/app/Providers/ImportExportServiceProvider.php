@@ -15,6 +15,7 @@ use Modules\ImportExport\Console\Commands\ElParfumeMatchCommand;
 use Modules\ImportExport\Console\Commands\ElParfumeImportPostsCommand;
 use Modules\ImportExport\Console\Commands\ElParfumeImportReviewsCommand;
 use Modules\ImportExport\Console\Commands\ElParfumeBuildNginxMapCommand;
+use Modules\ImportExport\Console\Commands\ElParfumeVerifyRedirectsCommand;
 use Modules\ImportExport\Console\Commands\MapLegacyProductsBySlugCommand;
 use Modules\ImportExport\Console\Commands\NormalizeUserPhonesCommand;
 use Modules\ImportExport\Console\Commands\PurgeSellerOneDataCommand;
@@ -46,6 +47,7 @@ class ImportExportServiceProvider extends ModuleServiceProvider
         ElParfumeImportPostsCommand::class,
         ElParfumeImportReviewsCommand::class,
         ElParfumeBuildNginxMapCommand::class,
+        ElParfumeVerifyRedirectsCommand::class,
         ImportLegacyProductImagesCommand::class,
         ImportLegacyCustomersCommand::class,
         ImportLegacyDiscountCardsCommand::class,
