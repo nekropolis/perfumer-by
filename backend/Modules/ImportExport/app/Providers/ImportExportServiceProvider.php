@@ -10,6 +10,7 @@ use Modules\ImportExport\Console\Commands\ImportLegacyDiscountCardsCommand;
 use Modules\ImportExport\Console\Commands\ImportLegacyOrdersCommand;
 use Modules\ImportExport\Console\Commands\FixLegacyOrdersDeliveryDateCommand;
 use Modules\ImportExport\Console\Commands\ImportLegacyReviewsCommand;
+use Modules\ImportExport\Console\Commands\ElParfumeExtractUrlsCommand;
 use Modules\ImportExport\Console\Commands\MapLegacyProductsBySlugCommand;
 use Modules\ImportExport\Console\Commands\NormalizeUserPhonesCommand;
 use Modules\ImportExport\Console\Commands\PurgeSellerOneDataCommand;
@@ -36,6 +37,7 @@ class ImportExportServiceProvider extends ModuleServiceProvider
     protected array $commands = [
         MapLegacyBrandsBySlugCommand::class,
         MapLegacyProductsBySlugCommand::class,
+        ElParfumeExtractUrlsCommand::class,
         ImportLegacyProductImagesCommand::class,
         ImportLegacyCustomersCommand::class,
         ImportLegacyDiscountCardsCommand::class,
