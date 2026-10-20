@@ -4,6 +4,7 @@ namespace Modules\Catalog\Http\Requests\Admin;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 use Modules\Catalog\Models\ProductAttribute;
 use Modules\Catalog\Models\ProductAttributeOption;
 
@@ -31,14 +32,14 @@ class StoreCatalogLandingRequest extends FormRequest
         ];
     }
 
-    public function withValidator($validator): void
+    public function withValidator(Validator $validator): void
     {
-        $validator->after(function ($validator): void {
+        $validator->after(function (Validator $validator): void {
             $this->validateFilterAttributeKeys($validator);
         });
     }
 
-    private function validateFilterAttributeKeys($validator): void
+    private function validateFilterAttributeKeys(Validator $validator): void
     {
         $filters = $this->input('filters');
         if (! is_array($filters) || $filters === []) {

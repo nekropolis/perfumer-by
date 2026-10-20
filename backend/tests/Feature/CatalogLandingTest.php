@@ -124,12 +124,15 @@ class CatalogLandingTest extends TestCase
 
     private function adminUser(): Authenticatable
     {
-        return User::query()->create([
+        $user = User::query()->create([
             'name' => 'Admin',
             'email' => fake()->unique()->safeEmail(),
             'password' => 'password',
             'role' => Role::ADMIN->value,
         ]);
+        assert($user instanceof Authenticatable);
+
+        return $user;
     }
 
     private function createSchema(): void
