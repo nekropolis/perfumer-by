@@ -59,6 +59,14 @@ class SeoSitemapHomeSlugTest extends TestCase
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
+        Schema::create('catalog_landings', function (Blueprint $table): void {
+            $table->id();
+            $table->string('slug');
+            $table->string('h1');
+            $table->boolean('is_active')->default(true);
+            $table->integer('sort')->default(0);
+            $table->timestamps();
+        });
 
         Cache::forget(SeoSitemapService::CACHE_KEY);
     }
@@ -67,7 +75,7 @@ class SeoSitemapHomeSlugTest extends TestCase
     {
         if ($this->sqliteDriverAvailable()) {
             Cache::forget(SeoSitemapService::CACHE_KEY);
-            foreach (['brands', 'product_variant_links', 'products', 'cms_posts', 'cms_pages'] as $table) {
+            foreach (['catalog_landings', 'brands', 'product_variant_links', 'products', 'cms_posts', 'cms_pages'] as $table) {
                 Schema::dropIfExists($table);
             }
         }

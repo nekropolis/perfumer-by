@@ -5,6 +5,7 @@ namespace Modules\Pages\Services;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Modules\Catalog\Models\Brand;
+use Modules\Catalog\Models\CatalogLanding;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Support\CatalogProductQueryFilters;
 use Modules\Pages\Models\CmsPage;
@@ -17,7 +18,7 @@ use Modules\Pages\Models\CmsPost;
  */
 class SeoSitemapService
 {
-    public const CACHE_KEY = 'seo:sitemap-urls:v3';
+    public const CACHE_KEY = 'seo:sitemap-urls:v4';
 
     public const CACHE_TTL_SECONDS = 3600;
 
@@ -128,6 +129,24 @@ class SeoSitemapService
             }
             $title = trim((string) $brand->name) ?: null;
             $byPath[$path] = $this->row($path, $brand->updated_at, 'brand', $title);
+        }
+
+        $landings = CatalogLanding::query()
+            ->where('is_active', true)
+            ->select(['slug', 'h1', 'updated_at'])
+            ->orderBy('sort')
+            ->get();
+
+        foreach ($landings as $landing) {
+            if ($landing->slug === '') {
+                continue;
+            }
+            $path = '/catalog/'.$landing->slug;
+            if (isset($byPath[$path])) {
+                continue;
+            }
+            $title = trim((string) $landing->h1) ?: null;
+            $byPath[$path] = $this->row($path, $landing->updated_at, 'catalog_landing', $title);
         }
 
         return array_values($byPath);

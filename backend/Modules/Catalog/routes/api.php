@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Modules\Catalog\Http\Controllers\Admin\AdminProductLinkSearchController;
+use Modules\Catalog\Http\Controllers\Admin\CatalogLandingAdminController;
 use Modules\Catalog\Http\Controllers\Admin\AttributeController;
 use Modules\Catalog\Http\Controllers\Admin\AttributeOptionController;
 use Modules\Catalog\Http\Controllers\Admin\BrandController;
@@ -17,6 +18,7 @@ use Modules\Catalog\Http\Controllers\Admin\ProductSetAdminController;
 use Modules\Catalog\Http\Controllers\Admin\ProductVariantAdminController;
 use Modules\Catalog\Http\Controllers\Admin\VanilleImportController;
 use Modules\Catalog\Http\Controllers\Admin\WarehouseManualPriceReviewController;
+use Modules\Catalog\Http\Controllers\Api\CatalogLandingController;
 use Modules\Catalog\Http\Controllers\Api\ProductController;
 
 Route::prefix('catalog')->group(function () {
@@ -32,6 +34,8 @@ Route::prefix('catalog')->group(function () {
         ->middleware('throttle:60,1')
         ->whereNumber('id');
     Route::get('/products/{slug}', [ProductController::class, 'show']);
+    Route::get('/landings/{slug}', [CatalogLandingController::class, 'showBySlug'])
+        ->where('slug', '[A-Za-z0-9._-]+');
 });
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/vanille')->group(function () {
@@ -105,6 +109,14 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/import-export/sel
     Route::post('/rules', [VanilleImportController::class, 'createSellerOneRule']);
     Route::put('/rules/{id}', [VanilleImportController::class, 'updateSellerOneRule']);
     Route::delete('/rules/{id}', [VanilleImportController::class, 'deleteSellerOneRule']);
+});
+
+Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/catalog-landings')->group(function () {
+    Route::get('/', [CatalogLandingAdminController::class, 'index']);
+    Route::post('/', [CatalogLandingAdminController::class, 'store']);
+    Route::get('/{id}', [CatalogLandingAdminController::class, 'show'])->whereNumber('id');
+    Route::put('/{id}', [CatalogLandingAdminController::class, 'update'])->whereNumber('id');
+    Route::delete('/{id}', [CatalogLandingAdminController::class, 'destroy'])->whereNumber('id');
 });
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/brands')->group(function () {
