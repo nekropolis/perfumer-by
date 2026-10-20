@@ -34,6 +34,9 @@ server {
         if ($elp_target_args != "") {
             return 301 https://perfumer.by$elp_target_args;
         }
+        if ($args = "") {
+            return 301 https://perfumer.by/;
+        }
         return 301 https://perfumer.by/catalog;
     }
 
@@ -69,6 +72,9 @@ server {
     location = /index.php {
         if ($elp_target_args != "") {
             return 301 https://perfumer.by$elp_target_args;
+        }
+        if ($args = "") {
+            return 301 https://perfumer.by/;
         }
         return 301 https://perfumer.by/catalog;
     }

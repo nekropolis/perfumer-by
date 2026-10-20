@@ -282,6 +282,9 @@ NGINX;
         if (\$elp_target_args != "") {
             return 301 {$host}\$elp_target_args;
         }
+        if (\$args = "") {
+            return 301 {$host}/;
+        }
         return 301 {$host}/catalog;
     }
 
