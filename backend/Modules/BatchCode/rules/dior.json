@@ -1,0 +1,22 @@
+{
+    "id": "lvmh-dior",
+    "brands": ["christian-dior", "dior"],
+    "status": "approximate",
+    "regex": "^[0-9][A-HJ-MNP-Z][A-Z0-9]{2}$",
+    "decoder": {
+        "type": "lvmh_year_month",
+        "params": {
+            "early_alphabet": "ABCDEFGHJKLM",
+            "late_alphabet": "NPQRSTUVWXYZ",
+            "early_windows": [[1998, 2007], [2018, 2027]],
+            "late_window": [2008, 2017]
+        }
+    },
+    "valid_period": {"from": "1998-01", "to": "2027-12"},
+    "confidence": "medium",
+    "sources": [
+        "https://raidersofthelostscent.blogspot.com/2013/10/how-to-recognize-christian-dior.html"
+    ],
+    "period_note": "Четыре символа: первая цифра — последняя цифра года, вторая — буква месяца. Буквы A–M (без I) использовались в 1998–2007 и снова с 2018, поэтому у такого кода две возможные даты. Буквы N–Z (без O) относятся к 2008–2017 и дают одну дату. Хвост кода — не день. Это ориентир по опубликованному описанию формата.",
+    "notes": "Letters I and O are skipped. Months after the current month are dropped. Pre-1998 codes of other lengths are not read. One consumer guide; not a manufacturer table."
+}

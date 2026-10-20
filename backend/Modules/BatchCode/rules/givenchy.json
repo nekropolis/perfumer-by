@@ -1,0 +1,22 @@
+{
+    "id": "lvmh-givenchy",
+    "brands": ["givenchy"],
+    "status": "approximate",
+    "regex": "^[0-9][A-HJ-MNP-Z][A-Z0-9]{2}$",
+    "decoder": {
+        "type": "lvmh_year_month",
+        "params": {
+            "early_alphabet": "ABCDEFGHJKLM",
+            "late_alphabet": "NPQRSTUVWXYZ",
+            "early_windows": [[2002, 2007], [2018, 2027]],
+            "late_window": [2008, 2017]
+        }
+    },
+    "valid_period": {"from": "2002-01", "to": "2027-12"},
+    "confidence": "medium",
+    "sources": [
+        "https://www.raidersofthelostscent.blog/2014/03/how-to-recognize-givenchy-perfumes.html"
+    ],
+    "period_note": "С 2002 года четыре символа читаются так же: цифра года и буква месяца. Буквы A–M (без I) — это 2002–2007 и снова с 2018, поэтому многие такие коды дают две даты. Буквы N–Z (без O) — 2008–2017. Месяц берётся из порядка букв; в описании источника часто назван только год.",
+    "notes": "Same letter order as Dior, but the A–M window starts in 2002, not 1998. US factory codes are not this pattern. Source captions for 8L01 and 0F01 name the year; the month is the letter index."
+}

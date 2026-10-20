@@ -10,5 +10,6 @@
     "Pages": true,
     "Loyalty": true,
     "Settings": true,
-    "Reviews": true
+    "Reviews": true,
+    "BatchCode": true
 }

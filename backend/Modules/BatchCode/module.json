@@ -1,0 +1,11 @@
+{
+    "name": "BatchCode",
+    "alias": "batchcode",
+    "description": "Approximate perfume batch-code checks",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\BatchCode\\Providers\\BatchCodeServiceProvider"
+    ],
+    "files": []
+}

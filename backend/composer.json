@@ -58,7 +58,8 @@
             "Modules\\Settings\\Database\\Seeders\\": "Modules/Settings/database/seeders/",
             "Modules\\Reviews\\": "Modules/Reviews/app/",
             "Modules\\Reviews\\Database\\Factories\\": "Modules/Reviews/database/factories/",
-            "Modules\\Reviews\\Database\\Seeders\\": "Modules/Reviews/database/seeders/"
+            "Modules\\Reviews\\Database\\Seeders\\": "Modules/Reviews/database/seeders/",
+            "Modules\\BatchCode\\": "Modules/BatchCode/app/"
         }
     },
     "autoload-dev": {

@@ -105,6 +105,10 @@ function BatchCodeResultPanel({ data, codeRaw }: { data: BatchCodeCheckData; cod
                 </p>
             ) : null}
 
+            {data.status !== "approximate" && data.period_note?.trim() ? (
+                <p className="text-sm text-admin-text-secondary">{data.period_note.trim()}</p>
+            ) : null}
+
             {data.status === "manufacturer_portal" ? (
                 <div className="space-y-3">
                     <p className="text-sm text-admin-text">
@@ -428,14 +432,13 @@ export default function BatchCodeCheckForm({ brands }: Props) {
             {result ? (
                 <>
                     <BatchCodeResultPanel data={result} codeRaw={lastCode} />
-                    <BatchCodeFeedbackForm
-                        brandSlug={
-                            result.brand?.slug ??
-                            (brandSlug === BATCH_CODE_OTHER_BRAND_SLUG ? "other" : brandSlug)
-                        }
-                        code={lastCode}
-                        brandName={result.brand?.name ?? selectedBrandName}
-                    />
+                    {brandSlug !== BATCH_CODE_OTHER_BRAND_SLUG ? (
+                        <BatchCodeFeedbackForm
+                            brandSlug={result.brand?.slug ?? brandSlug}
+                            code={lastCode}
+                            brandName={result.brand?.name ?? selectedBrandName}
+                        />
+                    ) : null}
                 </>
             ) : null}
         </section>

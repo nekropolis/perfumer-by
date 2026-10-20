@@ -1,0 +1,17 @@
+{
+    "id": "chanel-fr-4digit",
+    "brands": ["chanel"],
+    "status": "format_recognized",
+    "regex": "^[0-9]{4}$",
+    "decoder": {
+        "type": "format_only",
+        "params": {}
+    },
+    "confidence": "low",
+    "sources": [
+        "https://www.raidersofthelostscent.blog/2015/03/chanel-batch-codes-solving-major-issue.html",
+        "https://basenotes.com/threads/chanel-date-code.249933/"
+    ],
+    "period_note": "У французского 4-значного кода духов первые две цифры — счётчик месяцев с циклом около 8 лет и 4 месяцев. Опубликованные точки отсчёта расходятся примерно на 4 месяца, поэтому одну дату этот сервис не возвращает.",
+    "notes": "Owner decision: recognize the 4-digit shape and do not return candidate dates. Letter codes and other lengths are not this rule."
+}

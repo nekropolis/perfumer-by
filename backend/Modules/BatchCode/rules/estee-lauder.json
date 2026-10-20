@@ -1,0 +1,23 @@
+{
+    "id": "el-3char",
+    "brands": ["estee-lauder"],
+    "status": "approximate",
+    "regex": "^[A-Z0-9][1-9ABC][0-9]$",
+    "decoder": {
+        "type": "el_3char",
+        "params": {
+            "month_symbols": "123456789ABC",
+            "decade_bases": [1990, 2000, 2010, 2020]
+        }
+    },
+    "valid_period": {"from": "1990-01", "to": "2029-12"},
+    "confidence": "medium",
+    "sources": [
+        "https://eladies.sina.com.cn/beauty/liangli/2009/0312/1806840039.shtml",
+        "https://jingyan.baidu.com/article/5552ef47d7e49f518efbc95e.html",
+        "https://www.reddit.com/r/MakeupAddiction/comments/11q9th/deciphering_the_batch_code_on_mac_and_est%C3%A9e/",
+        "https://www.youtube.com/watch?v=liQtjgGj9_c"
+    ],
+    "period_note": "Три символа: второй — месяц (1–9, затем A, B, C), третий — последняя цифра года. Десятилетие в коде не записано, поэтому подходят несколько лет. Первый символ дату не кодирует.",
+    "notes": "Decade window is a product bound (1990s through 2020s), not a manufacturer limit. Months after the current month are dropped. Clinique and MAC are not included: the same 3-character scheme is described for makeup and skincare, and there is no perfume pair. The 5-character variant is not implemented."
+}

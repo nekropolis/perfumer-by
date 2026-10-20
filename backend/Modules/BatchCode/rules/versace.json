@@ -1,0 +1,22 @@
+{
+    "id": "versace-euroitalia",
+    "brands": ["versace"],
+    "status": "approximate",
+    "regex": "^(?:(?:1[0-9]|2[0-9])[0-9]{5}|[5-9][0-9]{5}|[0-9]{5}[A-Z])$",
+    "decoder": {
+        "type": "euroitalia_year_prefix",
+        "params": {
+            "seven_digit_from": 2010,
+            "six_digit_from": 2005,
+            "six_digit_to": 2009,
+            "letter_suffix_bases": [2010, 2020]
+        }
+    },
+    "valid_period": {"from": "2005-01", "to": "2029-12"},
+    "confidence": "low",
+    "sources": [
+        "https://www.raidersofthelostscent.blog/2014/02/how-to-recognize-versace-perfumes.html"
+    ],
+    "period_note": "С 2010 года у 7-значного кода первые две цифры — год. В 2005–2009 у 6-значного кода первая цифра — последняя цифра года. Код из 5 цифр и буквы может относиться к разным десятилетиям. Остальные символы дату не кодируют.",
+    "notes": "Year position only, from one consumer guide. Do not copy this rule onto Moschino. A 7-digit year after the current year is recognized as a shape and is not given a date. The 5-digit-plus-letter shape is two decades (example 03072M as 2010 or 2020)."
+}

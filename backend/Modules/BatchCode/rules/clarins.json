@@ -1,0 +1,18 @@
+{
+    "id": "clarins-trust-portal",
+    "brands": ["clarins"],
+    "status": "manufacturer_portal",
+    "regex": "^[A-Z0-9]{2,20}$",
+    "decoder": {
+        "type": "manufacturer_portal",
+        "params": {}
+    },
+    "confidence": null,
+    "official_url": "https://traceability.trust.clarins.com/en_US",
+    "sources": [
+        "https://traceability.trust.clarins.com/en_US",
+        "https://www.clarins.co.uk/clarins-trust/"
+    ],
+    "period_note": "Дату розлива по номеру лота показывает портал Clarins T.R.U.S.T. В опубликованном FAQ речь об уходе; про парфюмерию там не сказано. Этот сервис дату сам не вычисляет.",
+    "notes": "Link only. The lot grammar is not published. UK FAQ describes skincare; fragrance coverage is not stated. Do not call the portal from the server."
+}
