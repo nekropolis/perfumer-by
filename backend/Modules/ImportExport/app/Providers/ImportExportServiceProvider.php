@@ -10,6 +10,7 @@ use Modules\ImportExport\Console\Commands\ImportLegacyDiscountCardsCommand;
 use Modules\ImportExport\Console\Commands\ImportLegacyOrdersCommand;
 use Modules\ImportExport\Console\Commands\FixLegacyOrdersDeliveryDateCommand;
 use Modules\ImportExport\Console\Commands\ImportLegacyReviewsCommand;
+use Modules\ImportExport\Console\Commands\ElParfumeBuildNginxMapCommand;
 use Modules\ImportExport\Console\Commands\ElParfumeExtractUrlsCommand;
 use Modules\ImportExport\Console\Commands\ElParfumeMatchCommand;
 use Modules\ImportExport\Console\Commands\MapLegacyProductsBySlugCommand;
@@ -39,6 +40,7 @@ class ImportExportServiceProvider extends ModuleServiceProvider
         MapLegacyBrandsBySlugCommand::class,
         MapLegacyProductsBySlugCommand::class,
         ElParfumeExtractUrlsCommand::class,
+        ElParfumeBuildNginxMapCommand::class,
         ElParfumeMatchCommand::class,
         ImportLegacyProductImagesCommand::class,
         ImportLegacyCustomersCommand::class,

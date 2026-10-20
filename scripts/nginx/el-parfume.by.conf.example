@@ -1,0 +1,82 @@
+# el-parfume.by — 301 redirects to https://perfumer.by (one hop).
+# Install map in http {}:
+#   include /etc/nginx/el-parfume.by.map.conf;
+# Site:
+#   sudo cp el-parfume.by.conf.example /etc/nginx/sites-available/el-parfume.by
+#   sudo ln -s /etc/nginx/sites-available/el-parfume.by /etc/nginx/sites-enabled/
+# TLS:
+#   certbot --nginx -d el-parfume.by -d www.el-parfume.by
+#
+# Optional access log format (http {}) to inspect matched paths:
+#   log_format elparfume_redirect '$remote_addr $request_uri -> path=$elp_target_path args_map=$elp_target_args';
+#
+# Incoming query strings (utm, page, sort) are dropped; targets carry their own query.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name el-parfume.by www.el-parfume.by;
+
+    access_log /var/log/nginx/el-parfume.access.log;
+
+    location /.well-known/acme-challenge/ { root /var/www/letsencrypt; }
+
+    location = /robots.txt {
+        default_type text/plain;
+        return 200 "User-agent: *\nAllow: /\n";
+    }
+
+    location = /sitemap.xml {
+        return 301 https://perfumer.by/sitemap.xml;
+    }
+
+    location = /index.php {
+        if ($elp_target_args != "") {
+            return 301 https://perfumer.by$elp_target_args;
+        }
+        return 301 https://perfumer.by/catalog;
+    }
+
+    location / {
+        if ($elp_target_path != "") {
+            return 301 https://perfumer.by$elp_target_path;
+        }
+        return 301 https://perfumer.by/catalog;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name el-parfume.by www.el-parfume.by;
+
+    # ssl_certificate /etc/letsencrypt/live/el-parfume.by/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/el-parfume.by/privkey.pem;
+
+    access_log /var/log/nginx/el-parfume.access.log;
+
+    location /.well-known/acme-challenge/ { root /var/www/letsencrypt; }
+
+    location = /robots.txt {
+        default_type text/plain;
+        return 200 "User-agent: *\nAllow: /\n";
+    }
+
+    location = /sitemap.xml {
+        return 301 https://perfumer.by/sitemap.xml;
+    }
+
+    location = /index.php {
+        if ($elp_target_args != "") {
+            return 301 https://perfumer.by$elp_target_args;
+        }
+        return 301 https://perfumer.by/catalog;
+    }
+
+    location / {
+        if ($elp_target_path != "") {
+            return 301 https://perfumer.by$elp_target_path;
+        }
+        return 301 https://perfumer.by/catalog;
+    }
+}
