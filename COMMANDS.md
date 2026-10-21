@@ -237,6 +237,8 @@ Make/npm — из корня или `frontend/`, как указано.
 | `php artisan legacy:map-brands-by-slug --dry-run` | Сопоставление legacy-брендов по slug. |
 | `php artisan legacy:map-products-by-slug --dry-run` | Сопоставление legacy-товаров по slug. |
 | `php artisan legacy:map-products-by-slug --sync-fields` | + описания, SEO, нормализация name/h1. |
+| `php artisan seo:import-gsc-redirects --dry-run` | Превью GSC-редиректов (бренды/категории/info + `index.php?…`). |
+| `php artisan seo:import-gsc-redirects` | Upsert в `seo_redirects` (`source=gsc_migration`). После деплоя на прод. |
 | `php artisan legacy:import-customers --dry-run` | Клиенты из OpenCart. |
 | `php artisan legacy:import-discount-cards --dry-run` | Накопительные карты из `oc_coupon` (без привязки к клиентам). |
 | `php artisan legacy:import-orders --dry-run` | Заказы. |

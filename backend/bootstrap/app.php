@@ -3,6 +3,7 @@
 use App\Http\Middleware\EnsureClient;
 use App\Http\Middleware\IsAdmin;
 use App\Http\Middleware\IsAdminOrManager;
+use App\Http\Middleware\LegacyOpenCartRedirect;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -26,6 +27,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'is_admin' => IsAdmin::class,
             'is_admin_or_manager' => IsAdminOrManager::class,
         ]);
+        // OpenCart /index.php?route=… hits PHP (nginx), not Next — resolve seo_redirects here.
+        $middleware->prepend(LegacyOpenCartRedirect::class);
         // seo-redirects/resolve: trailing spaces in legacy from_path are meaningful.
         $middleware->trimStrings(except: [
             'path',

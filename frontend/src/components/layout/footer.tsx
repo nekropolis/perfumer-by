@@ -8,7 +8,7 @@ import { siteNavLink } from "@/lib/site-ui-classes";
 const INFO_LINKS = [
     { label: "Подарочные сертификаты", href: "/gift-certificates" },
     { label: "Отзывы о магазине", href: "/reviews" },
-    { label: "Акции и скидки", href: "/catalog?sale=1" },
+    { label: "Акции и скидки", href: "/akczii-i-skidki" },
 ] as const;
 
 const EXTRA_LINKS = [

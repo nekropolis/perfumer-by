@@ -2,6 +2,7 @@
 
 namespace Modules\ImportExport\Providers;
 
+use Modules\ImportExport\Console\Commands\ImportGscMigrationRedirectsCommand;
 use Modules\ImportExport\Console\Commands\MapLegacyBrandsBySlugCommand;
 use Modules\ImportExport\Console\Commands\ImportLegacyProductImagesCommand;
 use Modules\ImportExport\Console\Commands\ImportLegacyPostsCommand;
@@ -34,6 +35,7 @@ class ImportExportServiceProvider extends ModuleServiceProvider
     ];
 
     protected array $commands = [
+        ImportGscMigrationRedirectsCommand::class,
         MapLegacyBrandsBySlugCommand::class,
         MapLegacyProductsBySlugCommand::class,
         ImportLegacyProductImagesCommand::class,

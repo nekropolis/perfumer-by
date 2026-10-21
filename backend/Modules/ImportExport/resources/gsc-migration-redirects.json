@@ -1,0 +1,822 @@
+[
+  {
+    "from_path": "/armaf",
+    "to_path": "/brands/armaf",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/rammstein",
+    "to_path": "/brands/rammstein",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/joe-sorrento",
+    "to_path": "/brands/joe-sorrento",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/playboy",
+    "to_path": "/brands/playboy",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/miu-miu",
+    "to_path": "/brands/miu-miu",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/serge-lutens",
+    "to_path": "/brands/serge-lutens",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/franck-boclet",
+    "to_path": "/brands/franck-boclet",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/rasasi",
+    "to_path": "/brands/rasasi",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/jaguar",
+    "to_path": "/brands/jaguar",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/karl-lagerfeld",
+    "to_path": "/brands/karl-lagerfeld",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/ferrari",
+    "to_path": "/brands/ferrari",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/beyonce",
+    "to_path": "/brands/beyonce",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/diptyque",
+    "to_path": "/brands/diptyque",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/louis-feraud",
+    "to_path": "/brands/louis-feraud",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/versace",
+    "to_path": "/brands/versace",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/narciso-rodriguez",
+    "to_path": "/brands/narciso-rodriguez",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/salvador-dali",
+    "to_path": "/brands/salvador-dali",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/sarah-jessica-parker",
+    "to_path": "/brands/sarah-jessica-parker",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/dior",
+    "to_path": "/brands/dior",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/paco-rabanne",
+    "to_path": "/brands/paco-rabanne",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/lanvin",
+    "to_path": "/brands/lanvin",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/carven-",
+    "to_path": "/brands/carven",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/franck_boclet",
+    "to_path": "/brands/franck-boclet",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/s-t-dupont",
+    "to_path": "/brands/st-dupont",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/aroma-narcotique-",
+    "to_path": "/brands/narcotica",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/aroma-narcotique",
+    "to_path": "/brands/narcotica",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/rammstein-",
+    "to_path": "/brands/rammstein",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/bottega-veneta-",
+    "to_path": "/brands/bottega-veneta",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/rance-1795",
+    "to_path": "/brands/rance",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/john-varvators-",
+    "to_path": "/brands/john-varvatos",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/korloff-paris",
+    "to_path": "/brands/korloff",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/ralph-lauren-",
+    "to_path": "/brands/ralph-lauren",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/mercedes-benz-",
+    "to_path": "/brands/mercedes-benz",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/norana-perfumes",
+    "to_path": "/brands/noran-perfumes",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/abercrombie-fitch-",
+    "to_path": "/brands/abercrombie-and-fitch",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/Christina_Aguilera",
+    "to_path": "/brands/christina-aguilera",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/le-parfumeur-",
+    "to_path": "/brands/le-parfumeur",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/gaultier-",
+    "to_path": "/brands/jean-paul-gaultier",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/britney-spears-",
+    "to_path": "/brands/britney-spears",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/jean-paul-gaultier-",
+    "to_path": "/brands/jean-paul-gaultier",
+    "note": "gsc step1 brand/category slug"
+  },
+  {
+    "from_path": "/girinovskiy",
+    "to_path": "/brands/zhirinovskiy",
+    "note": "gsc step1 brand Жириновский"
+  },
+  {
+    "from_path": "/sale",
+    "to_path": "/catalog?sale=1",
+    "note": "gsc step2/4 sale → catalog sale filter"
+  },
+  {
+    "from_path": "/contact-us",
+    "to_path": "/contacts",
+    "note": "gsc step2 info"
+  },
+  {
+    "from_path": "/contact-us/",
+    "to_path": "/contacts",
+    "note": "gsc step2 info"
+  },
+  {
+    "from_path": "/delivery",
+    "to_path": "/dostavka",
+    "note": "gsc step2 info"
+  },
+  {
+    "from_path": "/discont",
+    "to_path": "/catalog?sale=1",
+    "note": "gsc step2/4 discont → catalog sale filter"
+  },
+  {
+    "from_path": "/shares",
+    "to_path": "/akczii-i-skidki",
+    "note": "gsc step2/4 shares → CMS"
+  },
+  {
+    "from_path": "/about_us",
+    "to_path": "/",
+    "note": "gsc step2 info"
+  },
+  {
+    "from_path": "/certificate",
+    "to_path": "/",
+    "note": "gsc step2 info"
+  },
+  {
+    "from_path": "/pomenyalsya-aromat",
+    "to_path": "/articles",
+    "note": "gsc step2 info"
+  },
+  {
+    "from_path": "/ifra",
+    "to_path": "/articles",
+    "note": "gsc step2 info"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=68",
+    "to_path": "/catalog",
+    "note": "gsc step1 oc catalog root → /catalog"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=59_339",
+    "to_path": "/brands/armaf",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=339",
+    "to_path": "/brands/armaf",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=280_318",
+    "to_path": "/brands/zhirinovskiy",
+    "note": "gsc step1 oc Жириновский"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=318",
+    "to_path": "/brands/zhirinovskiy",
+    "note": "gsc step1 oc Жириновский"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=62_147",
+    "to_path": "/brands/dsquared2",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=147",
+    "to_path": "/brands/dsquared2",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=84_319",
+    "to_path": "/brands/rammstein",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=319",
+    "to_path": "/brands/rammstein",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=76_330",
+    "to_path": "/brands/joe-sorrento",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=330",
+    "to_path": "/brands/joe-sorrento",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=82_331",
+    "to_path": "/brands/playboy",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=331",
+    "to_path": "/brands/playboy",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=79_311",
+    "to_path": "/brands/miu-miu",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=311",
+    "to_path": "/brands/miu-miu",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=60_116",
+    "to_path": "/brands/bottega-veneta",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=116",
+    "to_path": "/brands/bottega-veneta",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=84_334",
+    "to_path": "/brands/rance",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=334",
+    "to_path": "/brands/rance",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=59_338",
+    "to_path": "/brands/narcotica",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=338",
+    "to_path": "/brands/narcotica",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=76_199",
+    "to_path": "/brands/john-varvatos",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=199",
+    "to_path": "/brands/john-varvatos",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=77_337",
+    "to_path": "/brands/korloff",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=337",
+    "to_path": "/brands/korloff",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=62_145",
+    "to_path": "/brands/donna-karan",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=145",
+    "to_path": "/brands/donna-karan",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=84_253",
+    "to_path": "/brands/roberto-verino",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=253",
+    "to_path": "/brands/roberto-verino",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=76_198",
+    "to_path": "/brands/john-richmond",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=198",
+    "to_path": "/brands/john-richmond",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=84_249",
+    "to_path": "/brands/ralph-lauren",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=249",
+    "to_path": "/brands/ralph-lauren",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=61_126",
+    "to_path": "/brands/carolina-herrera",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=126",
+    "to_path": "/brands/carolina-herrera",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=79_288",
+    "to_path": "/brands/mercedes-benz",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=288",
+    "to_path": "/brands/mercedes-benz",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=80_320",
+    "to_path": "/brands/noran-perfumes",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=320",
+    "to_path": "/brands/noran-perfumes",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=65_103",
+    "to_path": "/brands/giorgio-armani",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=103",
+    "to_path": "/brands/giorgio-armani",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=82_241",
+    "to_path": "/brands/paco-rabanne",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=241",
+    "to_path": "/brands/paco-rabanne",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=59_97",
+    "to_path": "/brands/angel-schlesser",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=97",
+    "to_path": "/brands/angel-schlesser",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=91_279",
+    "to_path": "/brands/yohji-yamamoto",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=279",
+    "to_path": "/brands/yohji-yamamoto",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=59_341",
+    "to_path": "/brands/abercrombie-and-fitch",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=341",
+    "to_path": "/brands/abercrombie-and-fitch",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=61_293",
+    "to_path": "/brands/christina-aguilera",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=293",
+    "to_path": "/brands/christina-aguilera",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=78_217",
+    "to_path": "/brands/le-parfumeur",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=217",
+    "to_path": "/brands/le-parfumeur",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=60_111",
+    "to_path": "/brands/blumarine",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=111",
+    "to_path": "/brands/blumarine",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=59_96",
+    "to_path": "/brands/amouage",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=96",
+    "to_path": "/brands/amouage",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=85",
+    "to_path": "/brands",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=84_251",
+    "to_path": "/brands/rampage",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=251",
+    "to_path": "/brands/rampage",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=85_256",
+    "to_path": "/brands/salvatore-ferragamo",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=256",
+    "to_path": "/brands/salvatore-ferragamo",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=65_180",
+    "to_path": "/brands/jean-paul-gaultier",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=180",
+    "to_path": "/brands/jean-paul-gaultier",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=76_201",
+    "to_path": "/brands/eisenberg",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=201",
+    "to_path": "/brands/eisenberg",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=79_224",
+    "to_path": "/brands/marc-jacobs",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=224",
+    "to_path": "/brands/marc-jacobs",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=85_260",
+    "to_path": "/brands/sergio-tacchini",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=260",
+    "to_path": "/brands/sergio-tacchini",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=91_281",
+    "to_path": "/brands/yves-saint-laurent",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=281",
+    "to_path": "/brands/yves-saint-laurent",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=62_140",
+    "to_path": "/brands/david-yurman",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=140",
+    "to_path": "/brands/david-yurman",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=78_216",
+    "to_path": "/brands/laura-biagiotti",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=216",
+    "to_path": "/brands/laura-biagiotti",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=75_172",
+    "to_path": "/brands/etat-libre-dorange",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=172",
+    "to_path": "/brands/etat-libre-dorange",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=76_296",
+    "to_path": "/brands/jeanne-arthes",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=296",
+    "to_path": "/brands/jeanne-arthes",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=79_228",
+    "to_path": "/brands/mdci",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=228",
+    "to_path": "/brands/mdci",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=59_67",
+    "to_path": "/brands/antonio-banderas",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=67",
+    "to_path": "/brands/antonio-banderas",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=61_74",
+    "to_path": "/brands/christian-dior",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=74",
+    "to_path": "/brands/christian-dior",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=60_291",
+    "to_path": "/brands/britney-spears",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=291",
+    "to_path": "/brands/britney-spears",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=76_317",
+    "to_path": "/brands/jean-paul-gaultier",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=317",
+    "to_path": "/brands/jean-paul-gaultier",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=79_229",
+    "to_path": "/brands/mexx",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=229",
+    "to_path": "/brands/mexx",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=65_182",
+    "to_path": "/brands/gian-marco-venturi",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=182",
+    "to_path": "/brands/gian-marco-venturi",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=85_259",
+    "to_path": "/brands/serge-lutens",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=259",
+    "to_path": "/brands/serge-lutens",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=64_323",
+    "to_path": "/brands/franck-boclet",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=323",
+    "to_path": "/brands/franck-boclet",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=84_321",
+    "to_path": "/brands/rasasi",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=321",
+    "to_path": "/brands/rasasi",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=76_326",
+    "to_path": "/brands/jaguar",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=326",
+    "to_path": "/brands/jaguar",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=77_333",
+    "to_path": "/brands/karl-lagerfeld",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=333",
+    "to_path": "/brands/karl-lagerfeld",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=64_327",
+    "to_path": "/brands/ferrari",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=327",
+    "to_path": "/brands/ferrari",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=60_336",
+    "to_path": "/brands/beyonce",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=336",
+    "to_path": "/brands/beyonce",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=85_315",
+    "to_path": "/brands/sarah-jessica-parker",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=product/category&path=315",
+    "to_path": "/brands/sarah-jessica-parker",
+    "note": "gsc step1 oc category"
+  },
+  {
+    "from_path": "/index.php?route=information/anystore_testimonial",
+    "to_path": "/reviews",
+    "note": "gsc step2 reviews"
+  },
+  {
+    "from_path": "/index.php?route=product/anystore_reviews",
+    "to_path": "/reviews",
+    "note": "gsc step2 reviews"
+  },
+  {
+    "from_path": "/index.php?route=information/contact",
+    "to_path": "/contacts",
+    "note": "gsc step2 info"
+  }
+]
