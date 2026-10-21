@@ -1,5 +1,53 @@
 # AGENTS.md
 
+Источник правды для агента по этому репо. Перед прод/SSH/деплоем — читать секцию **Infrastructure**. Менять её только при реальном изменении фактов (не догадки, не DNS-угадывания).
+
+## Infrastructure
+
+Актуально на 2026-10-21.
+
+### Production (новый стек Laravel/Next)
+
+| | |
+| --- | --- |
+| SSH | `deploy@45.135.234.8` |
+| Hostname | `cloudvps.perfumer.by` |
+| Ключ | `~/.ssh/id_rsa` (`IdentitiesOnly=yes`) |
+| Проект | `/var/www/perfumer-by` |
+| Локальные дампы БД | `/var/backups/perfumer` (хранить 3 последние) |
+| Скрипт бэкапа | `scripts/backup-db.sh` |
+
+```bash
+ssh -i ~/.ssh/id_rsa -o IdentitiesOnly=yes deploy@45.135.234.8
+```
+
+### Offsite backup (SFTP)
+
+| | |
+| --- | --- |
+| SFTP | `backup@31.220.42.4` порт `22` |
+| Каталог | `/data` |
+| Доступ | только SFTP (shell нет) |
+| На remote | один актуальный `db-*.sql.gz` |
+| Приватный ключ (локально) | `~/.ssh/perfumer-backup-ed25519` |
+| Приватный ключ (на проде) | `/home/deploy/.ssh/perfumer-backup-ed25519` |
+| Env на проде | `/home/deploy/backup.env` (cron 03:15 sourcing) |
+| Env пример в репо | `scripts/backup.env.example` |
+
+### Не путать
+
+- `perfumer.by` DNS A → `45.135.234.155` — **старый** сайт (LiteSpeed/OpenCart). **Не** SSH-хост нового стека.
+- Dev: `root@192.168.0.25`, проект `/var/www/perfumer-by` (`APP_ENV=local`).
+
+### Правила работы с продом
+
+- Хост/юзер/ключ брать **только** из этой секции, не из `dig` / whois / перебора.
+- На прод — только `deploy` + `id_rsa`, пока владелец не сказал иначе.
+- Не перебирать ключи. Не логиниться под `root`, если не попросили явно.
+- После смены IP/ключей/путей — сразу обновить эту секцию.
+
+---
+
 ## Project Structure
 
 This is a monorepo.
