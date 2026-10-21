@@ -4,9 +4,12 @@ namespace Modules\Catalog\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Modules\Catalog\Models\ProductImage;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Support\CatalogListingStockContext;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
+use Modules\Catalog\Support\ProductDisplayName;
+use Modules\Catalog\Support\ProductImagePathResolver;
 use Modules\Catalog\Support\WaitingDiscountPricing;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 use Modules\Warehouse\Services\StockLotService;
@@ -126,7 +129,9 @@ class ProductVariantResource extends JsonResource
             'is_preorder' => $effectivePreorder,
             'is_available' => $presented['is_available'],
             'is_promotion' => (bool) $variant->is_promotion,
+            'is_discontinued' => (bool) $variant->is_discontinued,
             'availability_source' => $presented['availability_source'],
+            'replacement' => $this->serializeReplacement($variant),
 
             /** Подсказка для админки: склад / поставщик (логика как у {@see CatalogVariantStockPresenter::forListing()}). */
             'fulfillment_tooltip' => self::adminFulfillmentTooltip($variant, $mainStock, $supplierStock, $mainMinPurchase),
@@ -138,6 +143,57 @@ class ProductVariantResource extends JsonResource
                     $supplierStock
                     && max(0, (int) $supplierStock->stock - (int) $supplierStock->reserved_stock) > 0
                 ),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     variant_id: int,
+     *     product_id: int,
+     *     product_name: string,
+     *     product_slug: string,
+     *     brand_name: string|null,
+     *     display_name: string,
+     *     variant_title: string,
+     *     image: string|null
+     * }|null
+     */
+    private function serializeReplacement(ProductVariantLink $variant): ?array
+    {
+        if (! (bool) $variant->is_discontinued || $variant->replacement_variant_id === null) {
+            return null;
+        }
+
+        $replacement = $variant->relationLoaded('replacementVariant')
+            ? $variant->replacementVariant
+            : $variant->replacementVariant()
+                ->with(['definition', 'product.brand', 'product.images' => static function ($q): void {
+                    $q->orderByDesc('is_main')->orderBy('sort_order')->limit(1);
+                }])
+                ->first();
+
+        if (! $replacement instanceof ProductVariantLink || ! $replacement->product) {
+            return null;
+        }
+
+        $product = $replacement->product;
+        $brandName = $product->brand?->name;
+        $image = null;
+        $images = $product->relationLoaded('images') ? $product->images : $product->images()->orderByDesc('is_main')->orderBy('sort_order')->limit(1)->get();
+        $firstImage = $images->first();
+        if ($firstImage instanceof ProductImage) {
+            $image = ProductImagePathResolver::resolve($firstImage, 'card');
+        }
+
+        return [
+            'variant_id' => (int) $replacement->id,
+            'product_id' => (int) $product->id,
+            'product_name' => (string) $product->name,
+            'product_slug' => (string) $product->slug,
+            'brand_name' => $brandName,
+            'display_name' => ProductDisplayName::format($brandName, (string) $product->name),
+            'variant_title' => (string) ($replacement->title ?: $replacement->display_name ?: ''),
+            'image' => $image,
         ];
     }
 

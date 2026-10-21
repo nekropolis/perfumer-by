@@ -48,6 +48,15 @@ export type AdminProductVariantItem = {
     is_preorder?: boolean;
     is_active?: boolean;
     is_promotion?: boolean;
+    is_discontinued?: boolean;
+    replacement_variant_id?: number | null;
+    replacement?: {
+        variant_id: number;
+        product_id: number;
+        product_name: string;
+        brand_name?: string | null;
+        variant_title: string;
+    } | null;
     is_set?: boolean;
     active_supplier_offers_count?: number;
     /** Как цена уходит на витрину (null — не показываем «висячую» розницу без канала продаж). */
@@ -87,6 +96,8 @@ export type ProductVariantPayload = {
     is_preorder?: boolean;
     is_active?: boolean;
     is_promotion?: boolean;
+    is_discontinued?: boolean;
+    replacement_variant_id?: number | null;
     sort_order?: number;
 };
 

@@ -37,6 +37,8 @@ class ProductVariantLink extends Model
         'is_preorder',
         'is_active',
         'is_promotion',
+        'is_discontinued',
+        'replacement_variant_id',
         'sort_order',
     ];
 
@@ -48,6 +50,7 @@ class ProductVariantLink extends Model
         'is_preorder' => 'boolean',
         'is_active' => 'boolean',
         'is_promotion' => 'boolean',
+        'is_discontinued' => 'boolean',
     ];
 
     public function product(): BelongsTo
@@ -58,6 +61,11 @@ class ProductVariantLink extends Model
     public function definition(): BelongsTo
     {
         return $this->belongsTo(VariantDefinition::class, 'variant_definition_id');
+    }
+
+    public function replacementVariant(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'replacement_variant_id');
     }
 
     public function supplierOffers(): HasMany

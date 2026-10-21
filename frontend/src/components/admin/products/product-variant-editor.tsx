@@ -15,10 +15,11 @@ import {
 } from "@/lib/admin-product-variants-api";
 import ProductVariantSuppliersModal from "@/components/admin/products/product-variant-suppliers-modal";
 import VariantPromotionToggle from "@/components/admin/products/variant-promotion-toggle";
+import VariantReplacementPickerModal from "@/components/admin/products/variant-replacement-picker-modal";
 import { VariantAvailabilityChannelBadge } from "@/components/admin/products/variant-availability-channel";
 import { adminCheckbox } from "@/lib/admin-ui-classes";
 import { formatSetDisplayTitle } from "@/lib/variant-definition-display";
-import { Layers } from "lucide-react";
+import { Layers, Replace } from "lucide-react";
 
 type Props = {
     productId: number;
@@ -38,6 +39,7 @@ type VariantFormState = {
     is_preorder: boolean;
     is_active: boolean;
     is_promotion: boolean;
+    is_discontinued: boolean;
     sort_order: string;
 };
 
@@ -50,6 +52,7 @@ const emptyForm: VariantFormState = {
     is_preorder: false,
     is_active: true,
     is_promotion: false,
+    is_discontinued: false,
     sort_order: "0",
 };
 
@@ -64,6 +67,7 @@ function toFormState(item: AdminProductVariantItem): VariantFormState {
         is_preorder: !!item.is_preorder,
         is_active: item.is_active ?? true,
         is_promotion: !!item.is_promotion,
+        is_discontinued: !!item.is_discontinued,
         sort_order: item.sort_order != null ? String(item.sort_order) : "0",
     };
 }
@@ -172,6 +176,14 @@ function VariantBadges({ item }: { item: AdminProductVariantItem }) {
             >
                 {primary.label}
             </span>
+            {Boolean(item.is_discontinued) ? (
+                <span
+                    className="whitespace-nowrap rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-800"
+                    title="Вариант отмечен как снятый с производства"
+                >
+                    Снят
+                </span>
+            ) : null}
         </div>
     );
 }
@@ -280,6 +292,18 @@ function VariantFormFields({
                     />
                     <span>Акция</span>
                 </label>
+
+                <label className="inline-flex items-center gap-2 text-sm text-admin-text">
+                    <input
+                        type="checkbox"
+                        checked={form.is_discontinued}
+                        onChange={(e) =>
+                            setForm((prev) => ({ ...prev, is_discontinued: e.target.checked }))
+                        }
+                        className={adminCheckbox}
+                    />
+                    <span>Снят с производства</span>
+                </label>
             </div>
         </div>
     );
@@ -310,6 +334,7 @@ export default function ProductVariantsEditor({
     const [success, setSuccess] = useState("");
     const [suppliersModalOpen, setSuppliersModalOpen] = useState(false);
     const [suppliersModalFocusId, setSuppliersModalFocusId] = useState<number | null>(null);
+    const [replacementTarget, setReplacementTarget] = useState<AdminProductVariantItem | null>(null);
     const [runtimeItems, setRuntimeItems] = useState<AdminProductVariantItem[]>(items);
     const [priceDrafts, setPriceDrafts] = useState<Record<number, string>>({});
     const [priceSavingId, setPriceSavingId] = useState<number | null>(null);
@@ -584,6 +609,7 @@ export default function ProductVariantsEditor({
                 is_preorder: createForm.is_preorder,
                 is_active: createForm.is_active,
                 is_promotion: createForm.is_promotion,
+                is_discontinued: createForm.is_discontinued,
                 sort_order: Number(createForm.sort_order || 0),
             });
 
@@ -619,6 +645,10 @@ export default function ProductVariantsEditor({
                 is_preorder: editForm.is_preorder,
                 is_active: editForm.is_active,
                 is_promotion: editForm.is_promotion,
+                is_discontinued: editForm.is_discontinued,
+                ...(editForm.is_discontinued
+                    ? {}
+                    : { replacement_variant_id: null }),
                 sort_order: Number(editForm.sort_order || 0),
             });
 
@@ -794,6 +824,31 @@ export default function ProductVariantsEditor({
                                         </td>
                                         <td className="whitespace-nowrap px-2 py-1.5 align-middle">
                                             <div className="flex items-center justify-end gap-1">
+                                                {Boolean(item.is_discontinued) ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setReplacementTarget(item)}
+                                                        className={`inline-flex h-7 w-7 items-center justify-center rounded-lg border transition ${
+                                                            item.replacement_variant_id || item.replacement
+                                                                ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                                                : "border-violet-200 text-violet-700 hover:bg-violet-50"
+                                                        }`}
+                                                        title={
+                                                            item.replacement
+                                                                ? `Замена: ${[
+                                                                      item.replacement.brand_name,
+                                                                      item.replacement.product_name,
+                                                                      item.replacement.variant_title,
+                                                                  ]
+                                                                      .filter(Boolean)
+                                                                      .join(" · ")}`
+                                                                : "Выбрать замену"
+                                                        }
+                                                        aria-label="Выбрать замену"
+                                                    >
+                                                        <Replace className="h-3.5 w-3.5" />
+                                                    </button>
+                                                ) : null}
                                                 <button
                                                     type="button"
                                                     onClick={() => openInfo(item)}
@@ -943,6 +998,21 @@ export default function ProductVariantsEditor({
                 productBrandName={productBrandName}
                 highlightVariantId={suppliersModalFocusId}
                 singleVariantId={suppliersModalFocusId}
+            />
+
+            <VariantReplacementPickerModal
+                open={Boolean(replacementTarget)}
+                productId={productId}
+                variant={replacementTarget}
+                onCloseAction={() => setReplacementTarget(null)}
+                onErrorAction={setError}
+                onSavedAction={(next) => {
+                    setRuntimeItems((prev) =>
+                        prev.map((row) => (row.id === next.id ? { ...row, ...next } : row)),
+                    );
+                    void loadVariants();
+                    void onReloadAction();
+                }}
             />
 
             <AdminModalShell

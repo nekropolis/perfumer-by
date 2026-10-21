@@ -9,6 +9,17 @@ export type ProductSetComponentData = {
     sort_order?: number;
 };
 
+export type ProductVariantReplacementData = {
+    variant_id: number;
+    product_id: number;
+    product_name: string;
+    product_slug: string;
+    brand_name: string | null;
+    display_name: string;
+    variant_title: string;
+    image: string | null;
+};
+
 export type ProductVariantData = {
     id: number;
     volume: number | null;
@@ -33,6 +44,8 @@ export type ProductVariantData = {
     is_preorder: boolean;
     is_available: boolean;
     is_promotion: boolean;
+    is_discontinued?: boolean;
+    replacement?: ProductVariantReplacementData | null;
     availability_source: ProductAvailabilitySource;
 };
 

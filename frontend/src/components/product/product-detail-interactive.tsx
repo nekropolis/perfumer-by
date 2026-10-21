@@ -13,6 +13,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import CopyText from "@/components/ui/copy-text";
 import { HEADER_STICKY_EXTENSION_ID } from "@/components/layout/header/constants";
 import ProductBuyBox from "@/components/product/product-buy-box";
+import ProductDiscontinuedReplacement from "@/components/product/product-discontinued-replacement";
 import ProductServiceInfo, {
     type ProductServiceDeliveryInfo,
 } from "@/components/product/product-service-info";
@@ -450,13 +451,23 @@ export default function ProductDetailInteractive({
                                                     )}
 
                                                     <span className={`text-[11px] leading-4 ${availability.className}`}>
-                                                        {availability.text}
+                                                        {variant.is_discontinued && variant.replacement
+                                                            ? "Снят"
+                                                            : availability.text}
                                                     </span>
                                                 </div>
                                             </button>
                                         );
                                     })}
                                 </div>
+
+                                {selectedVariant?.is_discontinued && selectedVariant.replacement ? (
+                                    <div className="mt-4">
+                                        <ProductDiscontinuedReplacement
+                                            replacement={selectedVariant.replacement}
+                                        />
+                                    </div>
+                                ) : null}
                             </div>
                         </>
                     ) : (
