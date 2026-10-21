@@ -495,6 +495,7 @@ class AllparfumeMatchService
             ?? $suggestedProduct?->brand;
 
         $offers = [];
+        $minFromOffers = null;
         if ($variant->relationLoaded('shopOffers')) {
             foreach ($variant->shopOffers as $offer) {
                 $offers[] = [
@@ -503,6 +504,13 @@ class AllparfumeMatchService
                     'price' => $offer->price,
                     'offer_url' => $offer->offer_url,
                 ];
+                if ($offer->price === null || ! is_numeric((string) $offer->price)) {
+                    continue;
+                }
+                $float = (float) $offer->price;
+                if ($minFromOffers === null || $float < $minFromOffers) {
+                    $minFromOffers = $float;
+                }
             }
         }
 
@@ -523,7 +531,9 @@ class AllparfumeMatchService
             'external_id' => $product?->external_id !== null ? (int) $product->external_id : null,
             'variant_key' => $variant->variant_key,
             'raw_label' => $variant->raw_label,
-            'min_price' => $variant->min_price,
+            'min_price' => $minFromOffers !== null
+                ? number_format($minFromOffers, 2, '.', '')
+                : $variant->min_price,
             'offers_count' => $offersCount,
             'shop_offers' => $offers,
             'is_linked' => $isLinked,

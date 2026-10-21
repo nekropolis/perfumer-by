@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { BellRing } from "lucide-react";
+import { BellRing, ChevronRight } from "lucide-react";
 import StockNotificationModal from "@/components/product/stock-notification-modal";
 import OneClickOrderTrigger from "@/components/product/one-click-order-trigger";
-import type { ProductVariantData } from "@/types/catalog";
+import type { ProductReplacementData, ProductVariantData } from "@/types/catalog";
 import {
     formatSetComponentLines,
     formatVariantConcentrationLabel,
@@ -15,6 +16,7 @@ import {
     formatVariantVolumeLine,
     getVariantAvailabilityState,
 } from "@/lib/product-detail-utils";
+import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
 import { siteBtnPrimary, siteBtnSecondary, siteCard } from "@/lib/site-ui-classes";
 
 const emptySubscribe = () => () => { };
@@ -63,6 +65,7 @@ type Props = {
     waitingDiscountApplicable?: boolean;
     onWaitingDiscountChangeAction?: (active: boolean) => void;
     deliveryDate?: string | null;
+    replacement?: ProductReplacementData | null;
     surface?: "desktop" | "mobile" | "all";
 };
 
@@ -84,6 +87,7 @@ export default function ProductBuyBox({
     waitingDiscountApplicable = false,
     onWaitingDiscountChangeAction,
     deliveryDate,
+    replacement = null,
     surface = "all",
 }: Props) {
     const showDesktop = surface === "all" || surface === "desktop";
@@ -97,6 +101,14 @@ export default function ProductBuyBox({
     const canAddToCart = hasVariant && selectedVariant.is_available;
     const selectedVariantId = selectedVariant?.id ?? null;
     const selectedVariantTitle = selectedVariant?.display_name ?? null;
+    const replacementTitle = replacement
+        ? (replacement.display_name || replacement.product_name).trim()
+        : "";
+    const replacementHref = replacement ? `/${replacement.product_slug}` : null;
+    const replacementImageSrc = replacement?.image
+        ? normalizeProductImageUrl(replacement.image)
+        : null;
+    const showReplacementCta = !hasVariant && Boolean(replacementHref && replacementTitle);
 
     const hasLoyaltyDiscount = Boolean(
         loyaltyCardNumber &&
@@ -240,6 +252,73 @@ export default function ProductBuyBox({
         </button>
     );
 
+    const renderReplacementThumb = (sizeClassName: string) => (
+        <div
+            className={`relative shrink-0 overflow-hidden rounded-xl bg-admin-muted ${sizeClassName}`}
+        >
+            {replacementImageSrc ? (
+                <Image
+                    src={replacementImageSrc}
+                    alt={replacementTitle}
+                    fill
+                    sizes="72px"
+                    loader={productImageLoader}
+                    className="object-contain p-1"
+                />
+            ) : (
+                <div className="flex h-full w-full items-center justify-center text-[10px] text-admin-text-secondary">
+                    Нет фото
+                </div>
+            )}
+        </div>
+    );
+
+    const renderReplacementPanel = () => {
+        if (!replacementHref || !replacementTitle) {
+            return null;
+        }
+
+        return (
+            <div className="flex flex-col gap-4">
+                <div className="flex items-stretch gap-3">
+                    {renderReplacementThumb("h-[4.5rem] w-[4.5rem]")}
+                    <div className="w-px shrink-0 self-stretch bg-admin-border" aria-hidden />
+                    <div className="min-w-0 flex-1 self-center">
+                        <div className="text-sm leading-5 text-admin-text-secondary">
+                            Предлагаем замену –
+                        </div>
+                        <div className="mt-0.5 text-base font-semibold leading-snug text-admin-text">
+                            {replacementTitle}
+                        </div>
+                    </div>
+                </div>
+                <Link
+                    href={replacementHref}
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-admin-primary px-5 py-3.5 text-base font-semibold text-white shadow-sm transition hover:bg-admin-primary-hover active:scale-[0.98]"
+                >
+                    Посмотреть замену
+                    <ChevronRight className="h-5 w-5 shrink-0" aria-hidden />
+                </Link>
+            </div>
+        );
+    };
+
+    const renderReplacementMobileAction = () => {
+        if (!replacementHref) {
+            return null;
+        }
+
+        return (
+            <Link
+                href={replacementHref}
+                className={`${siteBtnPrimary} inline-flex h-11 shrink-0 items-center justify-center gap-1 px-4 text-sm`}
+            >
+                Замена
+                <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
+            </Link>
+        );
+    };
+
     const renderWaitingDiscountRow = (compact = false) => {
         if (!showWaitingCheckbox) {
             return null;
@@ -303,6 +382,10 @@ export default function ProductBuyBox({
 
     const renderCartAction = (compact: boolean) => {
         if (!hasVariant) {
+            if (showReplacementCta) {
+                return renderReplacementMobileAction();
+            }
+
             return (
                 <button
                     type="button"
@@ -446,6 +529,18 @@ export default function ProductBuyBox({
                                     </div>
                                 ) : null}
                             </>
+                        ) : showReplacementCta ? (
+                            <div className="flex min-w-0 items-center gap-2.5">
+                                {renderReplacementThumb("h-11 w-11")}
+                                <div className="min-w-0">
+                                    <div className="text-[11px] leading-4 text-admin-text-secondary">
+                                        Предлагаем замену –
+                                    </div>
+                                    <div className="truncate text-sm font-semibold leading-5 text-admin-text">
+                                        {replacementTitle}
+                                    </div>
+                                </div>
+                            </div>
                         ) : (
                             <div className="text-sm font-medium leading-5 text-admin-text">Ожидается поступление</div>
                         )}
@@ -563,6 +658,8 @@ export default function ProductBuyBox({
                                 </div>
                             )}
                         </>
+                    ) : showReplacementCta ? (
+                        renderReplacementPanel()
                     ) : (
                         <>
                             <div className="mb-4 text-xl font-semibold leading-tight text-admin-text">

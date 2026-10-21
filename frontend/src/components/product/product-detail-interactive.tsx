@@ -510,6 +510,7 @@ export default function ProductDetailInteractive({
                             onWaitingDiscountChangeAction={handleWaitingDiscountChange}
                             waitingDiscountApplicable={selectedVariantEligibleForWaiting}
                             deliveryDate={deliveryDate}
+                            replacement={product.replacement ?? null}
                             surface="desktop"
                         />
                     </div>
@@ -616,6 +617,7 @@ export default function ProductDetailInteractive({
                 onWaitingDiscountChangeAction={handleWaitingDiscountChange}
                 waitingDiscountApplicable={selectedVariantEligibleForWaiting}
                 deliveryDate={deliveryDate}
+                replacement={product.replacement ?? null}
                 surface="mobile"
             />
         </>

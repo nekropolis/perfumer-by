@@ -43,16 +43,14 @@ const STATUS_MAP: Record<ProductStatusCode, ProductStatusMeta> = {
         shortLabel: "Нет в наличии",
         label: "Ожидается поступление",
         adminClassName: "bg-stone-100 text-stone-700 border-stone-200",
-        storefrontClassName:
-            "border border-white/30 bg-[#14110F]/50 tracking-[0.08em] text-[#F4EEE4] shadow-[inset_0_1px_0_rgba(255,255,255,0.22)] backdrop-blur-md",
+        storefrontClassName: "bg-[#14110F]/85 tracking-[0.08em] text-[#F4EEE4]",
     },
     has_replacement: {
         code: "has_replacement",
         shortLabel: "Есть замена",
         label: "Есть замена",
         adminClassName: "bg-violet-50 text-violet-800 border-violet-100",
-        storefrontClassName:
-            "border border-white/30 bg-[#5B4A8A]/75 tracking-[0.06em] text-[#F4EEE4] shadow-[inset_0_1px_0_rgba(255,255,255,0.22)] backdrop-blur-md",
+        storefrontClassName: "bg-[#5B4A8A] tracking-[0.06em] text-[#F4EEE4]",
     },
 };
 
