@@ -336,13 +336,7 @@ class ProductVariantAdminController extends Controller
 
         $variants = ProductVariantLink::query()
             ->where('product_id', $product->id)
-            ->with([
-                'definition',
-                'productSet:id,product_variant_link_id',
-                'replacementVariant.definition',
-                'replacementVariant.product:id,name,brand_id',
-                'replacementVariant.product.brand:id,name',
-            ])
+            ->with(['definition', 'productSet:id,product_variant_link_id'])
             ->withCount([
                 'supplierOffers as supplier_offers_count',
                 'supplierOffers as active_supplier_offers_count' => static function ($query) {
@@ -380,10 +374,7 @@ class ProductVariantAdminController extends Controller
             $presented = CatalogVariantStockPresenter::forListing($variant, $mainStock, $supplierStock);
             $catalogListPrice = CatalogVariantStockPresenter::storefrontVariantPrice($variant, $presented);
 
-            $row = $variant->toArray();
-            unset($row['replacement_variant']);
-
-            return array_merge($row, [
+            return array_merge($variant->toArray(), [
                 'product_set_id' => $variant->productSet?->id,
                 'main_available_stock' => $mainAvailableStock,
                 'main_warehouse_stock' => $this->mainWarehouseOnHandQtyFromRow($mainStock),
@@ -398,7 +389,6 @@ class ProductVariantAdminController extends Controller
                     ->values()
                     ->all(),
                 'catalog_list_price' => $catalogListPrice,
-                'replacement' => $this->serializeReplacementSummary($variant),
             ]);
         })->values();
 
@@ -419,8 +409,6 @@ class ProductVariantAdminController extends Controller
             'is_preorder' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
             'is_promotion' => ['nullable', 'boolean'],
-            'is_discontinued' => ['nullable', 'boolean'],
-            'replacement_variant_id' => ['nullable', 'integer', 'exists:product_variant_links,id'],
             'sort_order' => ['nullable', 'integer'],
         ]);
 
@@ -435,14 +423,6 @@ class ProductVariantAdminController extends Controller
             $this->assertPromotionCanBeEnabled($existingId);
         }
 
-        $isDiscontinued = (bool) ($validated['is_discontinued'] ?? false);
-        $replacementVariantId = $isDiscontinued
-            ? ($validated['replacement_variant_id'] ?? null)
-            : null;
-        if ($replacementVariantId !== null) {
-            $this->assertReplacementVariantAllowed((int) $replacementVariantId, null);
-        }
-
         $variant = ProductVariantLink::query()->firstOrCreate(
             [
                 'product_id' => $product->id,
@@ -455,25 +435,18 @@ class ProductVariantAdminController extends Controller
                 'is_preorder' => $validated['is_preorder'] ?? false,
                 'is_active' => $validated['is_active'] ?? true,
                 'is_promotion' => $validated['is_promotion'] ?? false,
-                'is_discontinued' => $isDiscontinued,
-                'replacement_variant_id' => $replacementVariantId,
                 'sort_order' => $validated['sort_order'] ?? 0,
             ],
         );
 
         $created = $variant->wasRecentlyCreated;
         if (!$created) {
-            $patch = [
+            $variant->update([
                 'is_active' => $validated['is_active'] ?? $variant->is_active,
                 'is_preorder' => $validated['is_preorder'] ?? $variant->is_preorder,
                 'is_promotion' => $validated['is_promotion'] ?? $variant->is_promotion,
                 'sort_order' => $validated['sort_order'] ?? $variant->sort_order,
-            ];
-            if (array_key_exists('is_discontinued', $validated)) {
-                $patch['is_discontinued'] = $isDiscontinued;
-                $patch['replacement_variant_id'] = $replacementVariantId;
-            }
-            $variant->update($patch);
+            ]);
         }
 
         if ($definition->is_set) {
@@ -504,8 +477,6 @@ class ProductVariantAdminController extends Controller
             'is_preorder' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
             'is_promotion' => ['nullable', 'boolean'],
-            'is_discontinued' => ['nullable', 'boolean'],
-            'replacement_variant_id' => ['nullable', 'integer', 'exists:product_variant_links,id'],
             'sort_order' => ['nullable', 'integer'],
         ]);
 
@@ -546,26 +517,6 @@ class ProductVariantAdminController extends Controller
         }
         if (array_key_exists('sort_order', $validated)) {
             $updates['sort_order'] = $validated['sort_order'] ?? $variant->sort_order;
-        }
-
-        $nextDiscontinued = array_key_exists('is_discontinued', $validated)
-            ? (bool) $validated['is_discontinued']
-            : (bool) $variant->is_discontinued;
-
-        if (array_key_exists('is_discontinued', $validated)) {
-            $updates['is_discontinued'] = $nextDiscontinued;
-        }
-
-        if (array_key_exists('replacement_variant_id', $validated) || array_key_exists('is_discontinued', $validated)) {
-            if (! $nextDiscontinued) {
-                $updates['replacement_variant_id'] = null;
-            } elseif (array_key_exists('replacement_variant_id', $validated)) {
-                $replacementId = $validated['replacement_variant_id'];
-                if ($replacementId !== null) {
-                    $this->assertReplacementVariantAllowed((int) $replacementId, (int) $variant->id);
-                }
-                $updates['replacement_variant_id'] = $replacementId;
-            }
         }
 
         if ($updates !== []) {
@@ -718,53 +669,6 @@ class ProductVariantAdminController extends Controller
     /**
      * @return array{id: int, supplier_name: string, name: string, part_number: string}
      */
-    /**
-     * @return array{
-     *     variant_id: int,
-     *     product_id: int,
-     *     product_name: string,
-     *     brand_name: string|null,
-     *     variant_title: string
-     * }|null
-     */
-    private function serializeReplacementSummary(ProductVariantLink $variant): ?array
-    {
-        if (! (bool) $variant->is_discontinued || $variant->replacement_variant_id === null) {
-            return null;
-        }
-
-        $replacement = $variant->relationLoaded('replacementVariant')
-            ? $variant->replacementVariant
-            : $variant->replacementVariant()->with(['definition', 'product.brand'])->first();
-
-        if (! $replacement instanceof ProductVariantLink) {
-            return null;
-        }
-
-        return [
-            'variant_id' => (int) $replacement->id,
-            'product_id' => (int) $replacement->product_id,
-            'product_name' => (string) ($replacement->product?->name ?? ''),
-            'brand_name' => $replacement->product?->brand?->name,
-            'variant_title' => (string) ($replacement->title ?: $replacement->display_name ?: ''),
-        ];
-    }
-
-    private function assertReplacementVariantAllowed(int $replacementVariantId, ?int $sourceVariantId): void
-    {
-        if ($sourceVariantId !== null && $replacementVariantId === $sourceVariantId) {
-            throw ValidationException::withMessages([
-                'replacement_variant_id' => 'Нельзя указать тот же вариант как замену',
-            ]);
-        }
-
-        if (! ProductVariantLink::query()->whereKey($replacementVariantId)->exists()) {
-            throw ValidationException::withMessages([
-                'replacement_variant_id' => 'Вариант замены не найден',
-            ]);
-        }
-    }
-
     private function serializeLinkedOffer(SupplierVariantOffer $offer): array
     {
         $name = trim((string) ($offer->external_product_name ?? ''));

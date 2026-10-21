@@ -9,14 +9,12 @@ export type ProductSetComponentData = {
     sort_order?: number;
 };
 
-export type ProductVariantReplacementData = {
-    variant_id: number;
+export type ProductReplacementData = {
     product_id: number;
     product_name: string;
     product_slug: string;
     brand_name: string | null;
     display_name: string;
-    variant_title: string;
     image: string | null;
 };
 
@@ -44,8 +42,6 @@ export type ProductVariantData = {
     is_preorder: boolean;
     is_available: boolean;
     is_promotion: boolean;
-    is_discontinued?: boolean;
-    replacement?: ProductVariantReplacementData | null;
     availability_source: ProductAvailabilitySource;
 };
 
@@ -111,6 +107,8 @@ export type ProductListItem = {
     is_hit: boolean;
     is_set?: boolean;
     is_out_of_stock: boolean;
+    /** Есть привязанный товар-замена (карточка каталога). */
+    has_replacement?: boolean;
 
     price_range: {
         min: string | null;
@@ -216,6 +214,7 @@ export type ProductDetailData = {
     stock_total: number;
     variants: ProductVariantData[];
     default_variant_id: number | null;
+    replacement?: ProductReplacementData | null;
 
     /** Подбор по скорингу на бэкенде (бренд, категория, атрибуты, объём, цена, наличие). */
     similar_products?: ProductListItem[];

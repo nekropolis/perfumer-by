@@ -5,11 +5,19 @@ type Props = {
     isHit: boolean;
     hasPromotion: boolean;
     isOutOfStock?: boolean;
+    hasReplacement?: boolean;
     className?: string;
 };
 
-export default function ProductStatusLabels({ isNew, isHit, hasPromotion, isOutOfStock = false, className = "" }: Props) {
-    const labels = resolveProductStatuses({ isNew, isHit, hasPromotion, isOutOfStock });
+export default function ProductStatusLabels({
+    isNew,
+    isHit,
+    hasPromotion,
+    isOutOfStock = false,
+    hasReplacement = false,
+    className = "",
+}: Props) {
+    const labels = resolveProductStatuses({ isNew, isHit, hasPromotion, isOutOfStock, hasReplacement });
 
     if (labels.length === 0) {
         return null;
@@ -18,7 +26,7 @@ export default function ProductStatusLabels({ isNew, isHit, hasPromotion, isOutO
     return (
         <div className={`absolute left-3 top-3 z-10 flex flex-col gap-1 ${className}`}>
             {labels.map((label) => {
-                const isStockBadge = label.code === "out_of_stock";
+                const isStockBadge = label.code === "out_of_stock" || label.code === "has_replacement";
 
                 return (
                     <span
@@ -27,7 +35,7 @@ export default function ProductStatusLabels({ isNew, isHit, hasPromotion, isOutO
                             isStockBadge ? "gap-1 font-medium" : "font-semibold"
                         } ${label.storefrontClassName}`}
                     >
-                        {isStockBadge ? (
+                        {label.code === "out_of_stock" ? (
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
                                 viewBox="0 0 12 12"

@@ -451,9 +451,7 @@ export default function ProductDetailInteractive({
                                                     )}
 
                                                     <span className={`text-[11px] leading-4 ${availability.className}`}>
-                                                        {variant.is_discontinued && variant.replacement
-                                                            ? "Снят"
-                                                            : availability.text}
+                                                        {availability.text}
                                                     </span>
                                                 </div>
                                             </button>
@@ -461,15 +459,19 @@ export default function ProductDetailInteractive({
                                     })}
                                 </div>
 
-                                {selectedVariant?.is_discontinued && selectedVariant.replacement ? (
+                                {product.replacement ? (
                                     <div className="mt-4">
                                         <ProductDiscontinuedReplacement
-                                            replacement={selectedVariant.replacement}
+                                            replacement={product.replacement}
                                         />
                                     </div>
                                 ) : null}
                             </div>
                         </>
+                    ) : product.replacement ? (
+                        <div className="mb-6">
+                            <ProductDiscontinuedReplacement replacement={product.replacement} />
+                        </div>
                     ) : (
                         <div className="mb-6 rounded-3xl border border-amber-200 bg-amber-50/70 p-5">
                             <div className="mb-2 text-2xl font-semibold leading-tight text-amber-900">

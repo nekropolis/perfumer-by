@@ -10,6 +10,7 @@ use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Catalog\Support\CatalogProductLinkNameTokenizer;
 use Modules\Catalog\Support\CatalogSearchScoring;
+use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
 use Modules\Warehouse\Services\StockLotService;
@@ -178,8 +179,12 @@ class CatalogProductLinkSearchService
      *
      * @return list<array<string, mixed>>
      */
-    public function searchForAdminProductList(string $query, ?int $brandIdHint, int $limit): array
-    {
+    public function searchForAdminProductList(
+        string $query,
+        ?int $brandIdHint,
+        int $limit,
+        bool $inStockOnly = false,
+    ): array {
         $query = trim($query);
         if (mb_strlen($query, 'UTF-8') < 2) {
             return [];
@@ -215,10 +220,10 @@ class CatalogProductLinkSearchService
         }
 
         $tokens = CatalogProductLinkNameTokenizer::linkSearchTokensFromRest($rest, null);
-        $pool = $this->fetchPoolByTokens($tokens, $brandFilter);
+        $pool = $this->fetchPoolByTokens($tokens, $brandFilter, $inStockOnly);
 
         if ($pool->isEmpty()) {
-            $pool = $this->fetchPoolByFullNeedle($query, $brandFilter);
+            $pool = $this->fetchPoolByFullNeedle($query, $brandFilter, $inStockOnly);
         }
 
         if ($pool->isEmpty()) {
@@ -282,7 +287,7 @@ class CatalogProductLinkSearchService
      * @param  list<string>  $tokens
      * @return Collection<int, Product>
      */
-    private function fetchPoolByTokens(array $tokens, ?int $brandId): Collection
+    private function fetchPoolByTokens(array $tokens, ?int $brandId, bool $inStockOnly = false): Collection
     {
         $significant = array_values(array_filter(
             $tokens,
@@ -300,6 +305,10 @@ class CatalogProductLinkSearchService
             ->select(['id', 'brand_id', 'name', 'slug', 'is_active', 'is_new', 'is_hit', 'is_out_of_stock'])
             ->withCount('variants')
             ->with(['brand:id,name,slug']);
+
+        if ($inStockOnly) {
+            $this->constrainAdminLinkSearchInStock($q);
+        }
 
         if ($brandId !== null && $brandId > 0) {
             $q->where('brand_id', $brandId);
@@ -369,7 +378,7 @@ class CatalogProductLinkSearchService
     /**
      * @return Collection<int, Product>
      */
-    private function fetchPoolByFullNeedle(string $query, ?int $brandId): Collection
+    private function fetchPoolByFullNeedle(string $query, ?int $brandId, bool $inStockOnly = false): Collection
     {
         $escaped = CatalogSearchScoring::escapeLikeValue($query);
         $needle = '%'.$escaped.'%';
@@ -382,11 +391,35 @@ class CatalogProductLinkSearchService
                 $w->where('name', 'like', $needle)->orWhere('slug', 'like', $needle);
             });
 
+        if ($inStockOnly) {
+            $this->constrainAdminLinkSearchInStock($q);
+        }
+
         if ($brandId !== null && $brandId > 0) {
             $q->where('brand_id', $brandId);
         }
 
         return $q->orderByDesc('id')->limit(self::POOL_LIMIT)->get();
+    }
+
+    /**
+     * Только активные товары с вариантами «в наличии» (флаг is_out_of_stock + есть варианты).
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<Product>  $query
+     */
+    private function constrainAdminLinkSearchInStock($query): void
+    {
+        $query->where('is_active', true)
+            ->where('is_out_of_stock', false)
+            ->whereHas('variants', static function ($variantQuery): void {
+                $variantQuery->where(function ($q): void {
+                    $q->where('stock', '>', 0)
+                        ->orWhere('is_preorder', true)
+                        ->orWhereHas('supplierOffers', static function ($sq): void {
+                            CatalogVariantStockPresenter::applySupplierOfferListingScope($sq);
+                        });
+                });
+            });
     }
 
     /**

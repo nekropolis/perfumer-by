@@ -84,8 +84,6 @@ class ProductController extends Controller
         'is_preorder',
         'is_active',
         'is_promotion',
-        'is_discontinued',
-        'replacement_variant_id',
         'stock',
         'reserved_stock',
         'sort_order',
@@ -203,6 +201,7 @@ class ProductController extends Controller
                     'is_hit',
                     'is_set',
                     'is_out_of_stock',
+                    'replacement_product_id',
                     'name',
                     'slug',
                     'h1',
@@ -230,45 +229,24 @@ class ProductController extends Controller
                         $q->select('id', 'product_attribute_value_id', 'product_attribute_option_id');
                     },
                     'attributeValues.selectedOptions.productAttributeOption:id,name',
-                    // PDP: обычные витринные варианты + снятые с производства с заменой (даже без остатка).
-                    'variants' => static function ($q): void {
+                    'activeVariants' => static function ($q): void {
                         $q->select(self::VARIANT_LINK_COLUMNS)
-                            ->where(function ($outer): void {
-                                $outer->where(function ($eligible): void {
-                                    CatalogVariantStockPresenter::applyStorefrontListingEligibleScope($eligible);
-                                })->orWhere(function ($discontinued): void {
-                                    $discontinued
-                                        ->where('is_discontinued', true)
-                                        ->whereNotNull('replacement_variant_id');
-                                });
-                            })
                             ->with([
                                 'definition' => static function ($dq): void {
                                     $dq->select(self::VARIANT_DEFINITION_COLUMNS);
                                 },
                                 'productSet.components',
-                                'replacementVariant' => static function ($rq): void {
-                                    $rq->select([
-                                        'id',
-                                        'product_id',
-                                        'variant_definition_id',
-                                    ])->with([
-                                        'definition' => static function ($dq): void {
-                                            $dq->select(self::VARIANT_DEFINITION_COLUMNS);
-                                        },
-                                        'product' => static function ($pq): void {
-                                            $pq->select(['id', 'name', 'slug', 'brand_id'])
-                                                ->with([
-                                                    'brand:id,name',
-                                                    'images' => static function ($iq): void {
-                                                        $iq->select('id', 'product_id', 'path', 'is_main', 'sort_order')
-                                                            ->orderByDesc('is_main')
-                                                            ->orderBy('sort_order')
-                                                            ->limit(1);
-                                                    },
-                                                ]);
-                                        },
-                                    ]);
+                            ]);
+                    },
+                    'replacementProduct' => static function ($q): void {
+                        $q->select(['id', 'name', 'slug', 'brand_id', 'is_active', 'is_out_of_stock'])
+                            ->with([
+                                'brand:id,name',
+                                'images' => static function ($iq): void {
+                                    $iq->select('id', 'product_id', 'path', 'is_main', 'sort_order')
+                                        ->orderByDesc('is_main')
+                                        ->orderBy('sort_order')
+                                        ->limit(1);
                                 },
                             ]);
                     },
@@ -1866,6 +1844,7 @@ class ProductController extends Controller
                 'is_new' => (bool) $product->is_new,
                 'is_hit' => (bool) $product->is_hit,
                 'is_out_of_stock' => $listingAvailableTotal <= 0 && !$isPreorderAvailable,
+                'has_replacement' => $this->smartSearchHasAvailableReplacement($product),
                 'price_range' => [
                     'min' => $minPrice,
                     'max' => $maxPrice,
@@ -1900,7 +1879,7 @@ class ProductController extends Controller
      */
     private function smartSearchProductColumns(): array
     {
-        return ['id', 'brand_id', 'name', 'slug', 'is_new', 'is_hit', 'is_out_of_stock'];
+        return ['id', 'brand_id', 'name', 'slug', 'is_new', 'is_hit', 'is_out_of_stock', 'replacement_product_id'];
     }
 
     private function smartSearchLegacyProductQuery(): Builder
@@ -1931,6 +1910,7 @@ class ProductController extends Controller
     {
         $relations = [
             'brand:id,name',
+            'replacementProduct:id,is_active,is_out_of_stock',
             'variants' => static function ($q): void {
                 $q->select('id', 'product_id', 'variant_definition_id', 'price', 'old_price', 'stock', 'reserved_stock', 'is_preorder', 'is_active', 'is_promotion')
                     ->with(['definition:id,title']);
@@ -1946,6 +1926,19 @@ class ProductController extends Controller
         }
 
         return $relations;
+    }
+
+    private function smartSearchHasAvailableReplacement(Product $product): bool
+    {
+        if ($product->replacement_product_id === null) {
+            return false;
+        }
+
+        $replacement = $product->relationLoaded('replacementProduct')
+            ? $product->replacementProduct
+            : $product->replacementProduct()->select(['id', 'is_active', 'is_out_of_stock'])->first();
+
+        return $replacement instanceof Product && $replacement->isAvailableAsReplacement();
     }
 
     /**

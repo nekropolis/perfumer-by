@@ -8,8 +8,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Modules\Catalog\Http\Resources\ProductDetailResource;
 use Modules\Catalog\Http\Resources\ProductVariantResource;
+use Modules\Catalog\Models\ProductImage;
+use Modules\Catalog\Support\ProductImagePathResolver;
 use Modules\Catalog\Jobs\RebuildProductSimilarsJob;
 use Modules\Catalog\Models\Product;
 use Modules\Catalog\Models\Brand;
@@ -36,7 +39,11 @@ class ProductAdminController extends Controller
     public function index(Request $request, CatalogProductLinkSearchService $linkSearch): JsonResponse
     {
         $query = Product::query()
-            ->with(['brand'])
+            ->with([
+                'brand',
+                'replacementProduct:id,name,slug,brand_id,is_active,is_out_of_stock',
+                'replacementProduct.brand:id,name',
+            ])
             ->withCount('variants')
             ->withSum('dailyViews as views_count', 'views_count')
             ->withCount([
@@ -93,31 +100,47 @@ class ProductAdminController extends Controller
 
         $products = $query->paginate(20);
 
-        if ($request->filled('search')) {
-            $search = trim($request->string('search')->toString());
-            $isNumericIdSearch = preg_match('/^\d{1,12}$/', $search) === 1 && (int) $search > 0;
-            $productIds = $products->getCollection()->pluck('id')->map(static fn ($id): int => (int) $id)->all();
+        $search = $request->filled('search') ? trim($request->string('search')->toString()) : '';
+        $isNumericIdSearch = $search !== ''
+            && preg_match('/^\d{1,12}$/', $search) === 1
+            && (int) $search > 0;
+        $productIds = $products->getCollection()->pluck('id')->map(static fn ($id): int => (int) $id)->all();
 
-            $matchedVariantIdsByProductId = collect();
-            if ($isNumericIdSearch && $productIds !== []) {
-                $variantRows = ProductVariantLink::query()
-                    ->whereIn('product_id', $productIds)
-                    ->where((new ProductVariantLink())->getQualifiedKeyName(), (int) $search)
-                    ->get(['id', 'product_id']);
+        $matchedVariantIdsByProductId = collect();
+        if ($isNumericIdSearch && $productIds !== []) {
+            $variantRows = ProductVariantLink::query()
+                ->whereIn('product_id', $productIds)
+                ->where((new ProductVariantLink())->getQualifiedKeyName(), (int) $search)
+                ->get(['id', 'product_id']);
 
-                $matchedVariantIdsByProductId = $variantRows
-                    ->groupBy('product_id')
-                    ->map(static fn ($rows): array => $rows->pluck('id')->map(static fn ($id): int => (int) $id)->values()->all());
-            }
-
-            $products->setCollection(
-                $products->getCollection()->map(function (Product $product) use ($matchedVariantIdsByProductId): Product {
-                    $product->setAttribute('matched_variant_ids', $matchedVariantIdsByProductId->get((int) $product->id, []));
-
-                    return $product;
-                })
-            );
+            $matchedVariantIdsByProductId = $variantRows
+                ->groupBy('product_id')
+                ->map(static fn ($rows): array => $rows->pluck('id')->map(static fn ($id): int => (int) $id)->values()->all());
         }
+
+        $products->setCollection(
+            $products->getCollection()->map(function (Product $product) use ($matchedVariantIdsByProductId): Product {
+                if ($matchedVariantIdsByProductId->isNotEmpty()) {
+                    $product->setAttribute(
+                        'matched_variant_ids',
+                        $matchedVariantIdsByProductId->get((int) $product->id, []),
+                    );
+                }
+
+                $replacement = $product->replacementProduct;
+                $product->setAttribute(
+                    'replacement',
+                    $this->serializeReplacementProduct($replacement),
+                );
+                $product->setAttribute(
+                    'replacement_unavailable',
+                    $replacement instanceof Product && ! $replacement->isAvailableAsReplacement(),
+                );
+                $product->unsetRelation('replacementProduct');
+
+                return $product;
+            })
+        );
 
         return response()->json($products);
     }
@@ -291,11 +314,16 @@ class ProductAdminController extends Controller
                 'sets.components',
                 'attributeValues.productAttribute.activeOptions',
                 'attributeValues.selectedOptions.productAttributeOption',
+                'replacementProduct.brand',
+                'replacementProduct.images' => static function ($q): void {
+                    $q->orderByDesc('is_main')->orderBy('sort_order')->limit(1);
+                },
             ])
             ->withCount('variants')
             ->findOrFail($id);
 
         $resolved = ProductDetailResource::make($product)->resolve();
+        $replacement = $product->replacementProduct;
 
         $legacyDetector = app(LegacyProductDetector::class);
         $legacyDetector->preload([(int) $product->id]);
@@ -304,8 +332,96 @@ class ProductAdminController extends Controller
             'data' => array_merge($resolved, [
                 'is_legacy_for_import' => $legacyDetector->isLegacy((int) $product->id),
                 'description_rewritten_at' => optional($product->description_rewritten_at)?->toIso8601String(),
+                'replacement_unavailable' => $replacement instanceof Product
+                    && ! $replacement->isAvailableAsReplacement(),
             ]),
         ]);
+    }
+
+    public function updateReplacement(Request $request, int $id): JsonResponse
+    {
+        $product = Product::query()->findOrFail($id);
+
+        $validated = $request->validate([
+            'replacement_product_id' => ['nullable', 'integer', 'exists:products,id'],
+        ]);
+
+        $replacementId = $validated['replacement_product_id'] ?? null;
+        if ($replacementId !== null) {
+            if ((int) $replacementId === (int) $product->id) {
+                throw ValidationException::withMessages([
+                    'replacement_product_id' => 'Нельзя привязать товар к самому себе',
+                ]);
+            }
+
+            $target = Product::query()->findOrFail((int) $replacementId);
+            if (! $target->isAvailableAsReplacement()) {
+                throw ValidationException::withMessages([
+                    'replacement_product_id' => 'Можно привязать только товар с вариантами в наличии',
+                ]);
+            }
+        }
+
+        $product->update([
+            'replacement_product_id' => $replacementId,
+        ]);
+
+        $fresh = $product->fresh()->load([
+            'replacementProduct.brand',
+            'replacementProduct.images' => static function ($q): void {
+                $q->orderByDesc('is_main')->orderBy('sort_order')->limit(1);
+            },
+        ]);
+
+        $replacement = $fresh->replacementProduct;
+
+        return response()->json([
+            'message' => $replacementId === null
+                ? 'Дополнительный продукт отвязан'
+                : 'Дополнительный продукт привязан',
+            'data' => [
+                'id' => (int) $fresh->id,
+                'replacement_product_id' => $fresh->replacement_product_id,
+                'replacement' => $this->serializeReplacementProduct($replacement),
+                'replacement_unavailable' => $replacement instanceof Product
+                    && ! $replacement->isAvailableAsReplacement(),
+            ],
+        ]);
+    }
+
+    /**
+     * @return array{
+     *     product_id: int,
+     *     product_name: string,
+     *     product_slug: string,
+     *     brand_name: string|null,
+     *     display_name: string,
+     *     image: string|null
+     * }|null
+     */
+    private function serializeReplacementProduct(?Product $replacement): ?array
+    {
+        if (! $replacement instanceof Product) {
+            return null;
+        }
+
+        $brandName = $replacement->brand?->name;
+        $image = null;
+        $firstImage = $replacement->relationLoaded('images')
+            ? $replacement->images->first()
+            : null;
+        if ($firstImage instanceof ProductImage) {
+            $image = ProductImagePathResolver::resolve($firstImage, 'card');
+        }
+
+        return [
+            'product_id' => (int) $replacement->id,
+            'product_name' => (string) $replacement->name,
+            'product_slug' => (string) $replacement->slug,
+            'brand_name' => $brandName,
+            'display_name' => ProductDisplayName::format($brandName, (string) $replacement->name),
+            'image' => $image,
+        ];
     }
 
     public function variantSuppliers(Request $request, int $id, StockLotService $stockLotService): JsonResponse

@@ -449,6 +449,8 @@ export default function AdminProductEditPage() {
                             productName={productData.name}
                             productBrandName={productData.brand?.name}
                             items={productData.variants || []}
+                            replacement={productData.replacement ?? null}
+                            replacementUnavailable={Boolean(productData.replacement_unavailable)}
                             onReloadAction={loadData}
                         />
                     )}

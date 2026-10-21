@@ -12,6 +12,7 @@ import AdminEmptyState from "@/components/admin/ui/admin-empty-state";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
 import AdminPagination from "@/components/admin/ui/admin-pagination";
 import AdminConfirmDialog from "@/components/admin/ui/admin-confirm-dialog";
+import AdminModalShell from "@/components/admin/ui/admin-modal-shell";
 import AdminTableShell from "@/components/admin/ui/admin-table-shell";
 import ProductsTable from "@/components/admin/products/products-table";
 import ProductVariantSuppliersModal from "@/components/admin/products/product-variant-suppliers-modal";
@@ -27,6 +28,7 @@ import {
     deleteProduct,
     fetchProductVariantSuppliers,
     fetchProducts,
+    updateProductReplacement,
     type ProductAdminItem,
     type ProductVariantSupplierItem,
     type ProductsAdminResponse,
@@ -59,6 +61,8 @@ export default function AdminProductsPage() {
     const [variantPriceSavingId, setVariantPriceSavingId] = useState<number | null>(null);
     const [variantOldPriceDrafts, setVariantOldPriceDrafts] = useState<Record<number, string>>({});
     const [variantOldPriceSavingId, setVariantOldPriceSavingId] = useState<number | null>(null);
+    const [replacementTarget, setReplacementTarget] = useState<ProductAdminItem | null>(null);
+    const [unlinkingReplacement, setUnlinkingReplacement] = useState(false);
 
     const debouncedSearch = useDebouncedValue(searchInput, 400);
 
@@ -98,6 +102,30 @@ export default function AdminProductsPage() {
 
     const requestDelete = (item: ProductAdminItem) => {
         setDeleteTarget(item);
+    };
+
+    const unlinkReplacement = async () => {
+        if (!replacementTarget) {
+            return;
+        }
+        setUnlinkingReplacement(true);
+        setError("");
+        try {
+            await updateProductReplacement(replacementTarget.id, null);
+            setItems((prev) =>
+                prev.map((row) =>
+                    row.id === replacementTarget.id
+                        ? { ...row, replacement: null, replacement_product_id: null }
+                        : row,
+                ),
+            );
+            setSuccess("Дополнительный продукт отвязан");
+            setReplacementTarget(null);
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : "Не удалось отвязать продукт");
+        } finally {
+            setUnlinkingReplacement(false);
+        }
     };
 
     const openVariantsModal = async (item: ProductAdminItem) => {
@@ -422,6 +450,7 @@ export default function AdminProductsPage() {
                         searchQuery={searchInput}
                         onDeleteAction={requestDelete}
                         onVariantsAction={(item) => void openVariantsModal(item)}
+                        onReplacementAction={setReplacementTarget}
                     />
                 )}
             </AdminTableShell>
@@ -435,6 +464,79 @@ export default function AdminProductsPage() {
                 onCloseAction={() => setDeleteTarget(null)}
                 onConfirmAction={confirmDelete}
             />
+
+            <AdminModalShell
+                open={Boolean(replacementTarget)}
+                onCloseAction={() => setReplacementTarget(null)}
+                title="Дополнительный продукт"
+                maxWidthClass="sm:max-w-md"
+                footer={
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <button
+                            type="button"
+                            disabled={unlinkingReplacement}
+                            onClick={() => void unlinkReplacement()}
+                            className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        >
+                            {unlinkingReplacement ? "Отвязка…" : "Отвязать"}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setReplacementTarget(null)}
+                            className="rounded-lg border px-3 py-1.5 text-sm"
+                        >
+                            Закрыть
+                        </button>
+                    </div>
+                }
+            >
+                {replacementTarget?.replacement ? (
+                    <div className="space-y-3">
+                        <p className="text-sm text-admin-text-secondary">
+                            У «{replacementTarget.name}» привязан дополнительный продукт:
+                        </p>
+                        {replacementTarget.replacement_unavailable ? (
+                            <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                                Замена больше не в наличии — на витрине блок замены скрыт, товар
+                                показывается как «нет в наличии».
+                            </div>
+                        ) : null}
+                        <div
+                            className={`rounded-xl border px-3 py-3 ${
+                                replacementTarget.replacement_unavailable
+                                    ? "border-amber-300 bg-amber-50/70"
+                                    : "border-violet-200 bg-violet-50/60"
+                            }`}
+                        >
+                            <div className="text-sm font-semibold text-admin-text">
+                                {[
+                                    replacementTarget.replacement.brand_name,
+                                    replacementTarget.replacement.product_name,
+                                ]
+                                    .filter(Boolean)
+                                    .join(" · ") ||
+                                    replacementTarget.replacement.display_name}
+                            </div>
+                            <div className="mt-1 text-xs text-admin-text-secondary">
+                                #{replacementTarget.replacement.product_id}
+                                {replacementTarget.replacement.product_slug
+                                    ? ` · /${replacementTarget.replacement.product_slug}`
+                                    : ""}
+                            </div>
+                            {replacementTarget.replacement.product_slug ? (
+                                <Link
+                                    href={`/${replacementTarget.replacement.product_slug}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="mt-2 inline-block text-xs font-medium text-admin-primary hover:underline"
+                                >
+                                    Открыть на сайте
+                                </Link>
+                            ) : null}
+                        </div>
+                    </div>
+                ) : null}
+            </AdminModalShell>
 
             {variantsTarget ? (
                 <ProductVariantSuppliersModal

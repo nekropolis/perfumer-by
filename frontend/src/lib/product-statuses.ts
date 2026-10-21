@@ -1,10 +1,11 @@
-export type ProductStatusCode = "new" | "hit" | "discount" | "out_of_stock";
+export type ProductStatusCode = "new" | "hit" | "discount" | "out_of_stock" | "has_replacement";
 
 type ProductStatusesInput = {
     isNew: boolean;
     isHit: boolean;
     hasPromotion: boolean;
     isOutOfStock?: boolean;
+    hasReplacement?: boolean;
 };
 
 type ProductStatusMeta = {
@@ -45,6 +46,14 @@ const STATUS_MAP: Record<ProductStatusCode, ProductStatusMeta> = {
         storefrontClassName:
             "border border-white/30 bg-[#14110F]/50 tracking-[0.08em] text-[#F4EEE4] shadow-[inset_0_1px_0_rgba(255,255,255,0.22)] backdrop-blur-md",
     },
+    has_replacement: {
+        code: "has_replacement",
+        shortLabel: "Есть замена",
+        label: "Есть замена",
+        adminClassName: "bg-violet-50 text-violet-800 border-violet-100",
+        storefrontClassName:
+            "border border-white/30 bg-[#5B4A8A]/75 tracking-[0.06em] text-[#F4EEE4] shadow-[inset_0_1px_0_rgba(255,255,255,0.22)] backdrop-blur-md",
+    },
 };
 
 export const PRODUCT_STATUS_FILTER_OPTIONS = [
@@ -58,6 +67,10 @@ export function resolveProductStatuses(input: ProductStatusesInput): ProductStat
     if (input.isNew) statuses.push(STATUS_MAP.new);
     if (input.isHit) statuses.push(STATUS_MAP.hit);
     if (input.hasPromotion) statuses.push(STATUS_MAP.discount);
-    if (input.isOutOfStock) statuses.push(STATUS_MAP.out_of_stock);
+    if (input.hasReplacement) {
+        statuses.push(STATUS_MAP.has_replacement);
+    } else if (input.isOutOfStock) {
+        statuses.push(STATUS_MAP.out_of_stock);
+    }
     return statuses;
 }

@@ -143,6 +143,7 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/products')->group
     Route::post('/{id}/generate-seo', [ProductSeoGenerationAdminController::class, 'store']);
     Route::get('/{id}/generate-seo/{generation}', [ProductSeoGenerationAdminController::class, 'show']);
     Route::put('/{id}', [ProductAdminController::class, 'update']);
+    Route::put('/{id}/replacement', [ProductAdminController::class, 'updateReplacement'])->whereNumber('id');
     Route::delete('/{id}', [ProductAdminController::class, 'destroy']);
     Route::post('/{id}/images', [ProductImageAdminController::class, 'upload']);
     Route::put('/{id}/images/{imageId}/usage-type', [ProductImageAdminController::class, 'updateUsageType']);

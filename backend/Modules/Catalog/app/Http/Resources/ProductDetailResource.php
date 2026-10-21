@@ -5,6 +5,8 @@ namespace Modules\Catalog\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Schema;
+use Modules\Catalog\Models\Product;
+use Modules\Catalog\Models\ProductImage;
 use Modules\Catalog\Models\ProductVariantLink;
 use Modules\Catalog\Support\CatalogListingStockContext;
 use Modules\Catalog\Support\ProductDisplayName;
@@ -171,6 +173,7 @@ class ProductDetailResource extends JsonResource
 
             'variants' => ProductVariantResource::collection($variants)->resolve(),
             'default_variant_id' => $defaultVariant?->id,
+            'replacement' => $this->serializeReplacement($request),
             'sets' => $this->whenLoaded('sets', function () {
                 return $this->sets->map(static function ($set) {
                     return [
@@ -188,6 +191,61 @@ class ProductDetailResource extends JsonResource
                     ];
                 })->values()->all();
             }, []),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     product_id: int,
+     *     product_name: string,
+     *     product_slug: string,
+     *     brand_name: string|null,
+     *     display_name: string,
+     *     image: string|null
+     * }|null
+     */
+    private function serializeReplacement(Request $request): ?array
+    {
+        if ($this->replacement_product_id === null) {
+            return null;
+        }
+
+        /** @var Product|null $replacement */
+        $replacement = $this->relationLoaded('replacementProduct')
+            ? $this->replacementProduct
+            : $this->replacementProduct()
+                ->with(['brand', 'images' => static function ($q): void {
+                    $q->orderByDesc('is_main')->orderBy('sort_order')->limit(1);
+                }])
+                ->first();
+
+        if (! $replacement instanceof Product) {
+            return null;
+        }
+
+        // На витрине скрываем замену, если она сама не в наличии. В админке показываем всегда.
+        $isAdmin = $request->is('api/admin/*');
+        if (! $isAdmin && ! $replacement->isAvailableAsReplacement()) {
+            return null;
+        }
+
+        $brandName = $replacement->brand?->name;
+        $image = null;
+        $images = $replacement->relationLoaded('images')
+            ? $replacement->images
+            : $replacement->images()->orderByDesc('is_main')->orderBy('sort_order')->limit(1)->get();
+        $firstImage = $images->first();
+        if ($firstImage instanceof ProductImage) {
+            $image = ProductImagePathResolver::resolve($firstImage, 'card');
+        }
+
+        return [
+            'product_id' => (int) $replacement->id,
+            'product_name' => (string) $replacement->name,
+            'product_slug' => (string) $replacement->slug,
+            'brand_name' => $brandName,
+            'display_name' => ProductDisplayName::format($brandName, (string) $replacement->name),
+            'image' => $image,
         ];
     }
 }

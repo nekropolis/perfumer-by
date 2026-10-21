@@ -3,12 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import type { ProductVariantReplacementData } from "@/types/catalog";
+import type { ProductReplacementData } from "@/types/catalog";
 import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
-import { siteBtnPrimary, siteCard } from "@/lib/site-ui-classes";
+import { siteCard } from "@/lib/site-ui-classes";
 
 type Props = {
-    replacement: ProductVariantReplacementData;
+    replacement: ProductReplacementData;
 };
 
 export default function ProductDiscontinuedReplacement({ replacement }: Props) {
@@ -29,14 +29,13 @@ export default function ProductDiscontinuedReplacement({ replacement }: Props) {
                     Есть замечательная замена
                 </h2>
                 <p className="text-sm leading-6 text-admin-text-secondary">
-                    Этот объём больше не выпускают, но мы подобрали близкий аромат — посмотрите карточку
-                    ниже.
+                    Этот аромат больше не выпускают, но мы подобрали близкий — посмотрите карточку ниже.
                 </p>
             </div>
 
             <Link
                 href={href}
-                className="group flex flex-col gap-4 rounded-2xl border border-admin-border bg-white/90 p-3 shadow-sm transition hover:border-admin-border-strong hover:shadow-md sm:flex-row sm:items-center sm:p-4"
+                className="group flex flex-col gap-3 rounded-2xl border border-admin-border bg-white/90 p-3 shadow-sm transition hover:border-admin-border-strong hover:shadow-md sm:flex-row sm:items-stretch sm:gap-4 sm:p-4"
             >
                 <div className="relative mx-auto h-28 w-28 shrink-0 overflow-hidden rounded-xl bg-admin-muted sm:mx-0 sm:h-24 sm:w-24">
                     {imageSrc ? (
@@ -55,24 +54,15 @@ export default function ProductDiscontinuedReplacement({ replacement }: Props) {
                     )}
                 </div>
 
-                <div className="min-w-0 flex-1 text-center sm:text-left">
-                    <div className="truncate text-base font-semibold text-admin-text group-hover:text-admin-primary">
+                <div className="flex min-w-0 flex-1 flex-col text-center sm:text-left">
+                    <div className="text-base font-semibold leading-snug text-admin-text group-hover:text-admin-primary">
                         {title}
                     </div>
-                    {replacement.variant_title ? (
-                        <div className="mt-0.5 text-sm text-admin-text-secondary">
-                            {replacement.variant_title}
-                        </div>
-                    ) : null}
-                    <div className="mt-3 inline-flex items-center justify-center gap-1.5 text-sm font-medium text-admin-primary sm:justify-start">
+                    <div className="mt-auto inline-flex items-center justify-end gap-1.5 self-end pt-3 text-sm font-medium text-admin-primary">
                         Смотреть замену
                         <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
                     </div>
                 </div>
-
-                <span className={`${siteBtnPrimary} hidden shrink-0 sm:inline-flex`}>
-                    Перейти
-                </span>
             </Link>
         </div>
     );

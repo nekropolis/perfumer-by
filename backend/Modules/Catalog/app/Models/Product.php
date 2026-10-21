@@ -31,6 +31,7 @@ class Product extends Model
         'is_hit',
         'is_set',
         'is_out_of_stock',
+        'replacement_product_id',
         'listing_min_price',
         'listing_max_price',
         'sort_order',
@@ -55,6 +56,17 @@ class Product extends Model
     public function brand(): BelongsTo
     {
         return $this->belongsTo(Brand::class);
+    }
+
+    public function replacementProduct(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'replacement_product_id');
+    }
+
+    /** Товар можно показывать как замену на витрине: активен и не «нет в наличии». */
+    public function isAvailableAsReplacement(): bool
+    {
+        return (bool) $this->is_active && ! (bool) $this->is_out_of_stock;
     }
 
     public function mainCategory(): BelongsTo

@@ -15,17 +15,23 @@ import {
 } from "@/lib/admin-product-variants-api";
 import ProductVariantSuppliersModal from "@/components/admin/products/product-variant-suppliers-modal";
 import VariantPromotionToggle from "@/components/admin/products/variant-promotion-toggle";
-import VariantReplacementPickerModal from "@/components/admin/products/variant-replacement-picker-modal";
+import ProductReplacementPickerModal from "@/components/admin/products/product-replacement-picker-modal";
 import { VariantAvailabilityChannelBadge } from "@/components/admin/products/variant-availability-channel";
 import { adminCheckbox } from "@/lib/admin-ui-classes";
 import { formatSetDisplayTitle } from "@/lib/variant-definition-display";
-import { Layers, Replace } from "lucide-react";
+import {
+    updateProductReplacement,
+    type ProductReplacementSummary,
+} from "@/lib/admin-products-api";
+import { Layers } from "lucide-react";
 
 type Props = {
     productId: number;
     productName: string;
     productBrandName?: string | null;
     items: AdminProductVariantItem[];
+    replacement?: ProductReplacementSummary | null;
+    replacementUnavailable?: boolean;
     onReloadAction: () => Promise<void>;
 };
 
@@ -39,7 +45,6 @@ type VariantFormState = {
     is_preorder: boolean;
     is_active: boolean;
     is_promotion: boolean;
-    is_discontinued: boolean;
     sort_order: string;
 };
 
@@ -52,7 +57,6 @@ const emptyForm: VariantFormState = {
     is_preorder: false,
     is_active: true,
     is_promotion: false,
-    is_discontinued: false,
     sort_order: "0",
 };
 
@@ -67,7 +71,6 @@ function toFormState(item: AdminProductVariantItem): VariantFormState {
         is_preorder: !!item.is_preorder,
         is_active: item.is_active ?? true,
         is_promotion: !!item.is_promotion,
-        is_discontinued: !!item.is_discontinued,
         sort_order: item.sort_order != null ? String(item.sort_order) : "0",
     };
 }
@@ -176,14 +179,6 @@ function VariantBadges({ item }: { item: AdminProductVariantItem }) {
             >
                 {primary.label}
             </span>
-            {Boolean(item.is_discontinued) ? (
-                <span
-                    className="whitespace-nowrap rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-800"
-                    title="Вариант отмечен как снятый с производства"
-                >
-                    Снят
-                </span>
-            ) : null}
         </div>
     );
 }
@@ -293,17 +288,6 @@ function VariantFormFields({
                     <span>Акция</span>
                 </label>
 
-                <label className="inline-flex items-center gap-2 text-sm text-admin-text">
-                    <input
-                        type="checkbox"
-                        checked={form.is_discontinued}
-                        onChange={(e) =>
-                            setForm((prev) => ({ ...prev, is_discontinued: e.target.checked }))
-                        }
-                        className={adminCheckbox}
-                    />
-                    <span>Снят с производства</span>
-                </label>
             </div>
         </div>
     );
@@ -314,6 +298,8 @@ export default function ProductVariantsEditor({
     productName,
     productBrandName,
     items,
+    replacement = null,
+    replacementUnavailable = false,
     onReloadAction,
 }: Props) {
     const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -334,7 +320,11 @@ export default function ProductVariantsEditor({
     const [success, setSuccess] = useState("");
     const [suppliersModalOpen, setSuppliersModalOpen] = useState(false);
     const [suppliersModalFocusId, setSuppliersModalFocusId] = useState<number | null>(null);
-    const [replacementTarget, setReplacementTarget] = useState<AdminProductVariantItem | null>(null);
+    const [replacementPickerOpen, setReplacementPickerOpen] = useState(false);
+    const [linkedReplacement, setLinkedReplacement] = useState<ProductReplacementSummary | null>(
+        replacement ?? null,
+    );
+    const [unlinking, setUnlinking] = useState(false);
     const [runtimeItems, setRuntimeItems] = useState<AdminProductVariantItem[]>(items);
     const [priceDrafts, setPriceDrafts] = useState<Record<number, string>>({});
     const [priceSavingId, setPriceSavingId] = useState<number | null>(null);
@@ -349,6 +339,10 @@ export default function ProductVariantsEditor({
     useEffect(() => {
         setRuntimeItems(items);
     }, [items]);
+
+    useEffect(() => {
+        setLinkedReplacement(replacement ?? null);
+    }, [replacement]);
 
     useEffect(() => {
         void loadVariants();
@@ -366,6 +360,13 @@ export default function ProductVariantsEditor({
             return a.id - b.id;
         });
     }, [runtimeItems]);
+
+    const hasAnyVariantInStock = useMemo(
+        () => sortedItems.some((item) => Boolean(item.is_available)),
+        [sortedItems],
+    );
+    const showReplacementMode = Boolean(linkedReplacement);
+    const canAddReplacement = !showReplacementMode && !hasAnyVariantInStock;
 
     const editModalVariantTitle = useMemo(() => {
         if (!editForm?.id) {
@@ -609,7 +610,6 @@ export default function ProductVariantsEditor({
                 is_preorder: createForm.is_preorder,
                 is_active: createForm.is_active,
                 is_promotion: createForm.is_promotion,
-                is_discontinued: createForm.is_discontinued,
                 sort_order: Number(createForm.sort_order || 0),
             });
 
@@ -645,10 +645,6 @@ export default function ProductVariantsEditor({
                 is_preorder: editForm.is_preorder,
                 is_active: editForm.is_active,
                 is_promotion: editForm.is_promotion,
-                is_discontinued: editForm.is_discontinued,
-                ...(editForm.is_discontinued
-                    ? {}
-                    : { replacement_variant_id: null }),
                 sort_order: Number(editForm.sort_order || 0),
             });
 
@@ -708,19 +704,99 @@ export default function ProductVariantsEditor({
             ) : null}
 
             <div className="rounded-2xl border bg-white p-5">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                    <div className="text-base font-semibold">Варианты товара</div>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <div className="text-base font-semibold">
+                        {showReplacementMode ? "Дополнительный продукт" : "Варианты товара"}
+                    </div>
 
-                    <button
-                        type="button"
-                        onClick={openCreate}
-                        className="rounded-lg border px-3 py-1.5 text-sm"
-                    >
-                        Добавить вариант
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        {canAddReplacement ? (
+                            <button
+                                type="button"
+                                onClick={() => setReplacementPickerOpen(true)}
+                                className="rounded-lg border border-violet-200 px-3 py-1.5 text-sm text-violet-800 hover:bg-violet-50"
+                            >
+                                Добавить дополнительный продукт
+                            </button>
+                        ) : null}
+                        {!showReplacementMode ? (
+                            <button
+                                type="button"
+                                onClick={openCreate}
+                                className="rounded-lg border px-3 py-1.5 text-sm"
+                            >
+                                Добавить вариант
+                            </button>
+                        ) : null}
+                    </div>
                 </div>
 
-                {sortedItems.length === 0 ? (
+                {showReplacementMode && linkedReplacement ? (
+                    <div
+                        className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
+                            replacementUnavailable
+                                ? "border-amber-300 bg-amber-50/70"
+                                : "border-violet-200 bg-violet-50/50"
+                        }`}
+                    >
+                        <div className="min-w-0">
+                            <div
+                                className={`text-xs font-medium uppercase tracking-wide ${
+                                    replacementUnavailable ? "text-amber-800" : "text-violet-700"
+                                }`}
+                            >
+                                {replacementUnavailable
+                                    ? "Привязанный продукт (не в наличии)"
+                                    : "Привязанный продукт"}
+                            </div>
+                            <div className="mt-1 truncate text-sm font-semibold text-admin-text">
+                                {[linkedReplacement.brand_name, linkedReplacement.product_name]
+                                    .filter(Boolean)
+                                    .join(" · ") || linkedReplacement.display_name}
+                            </div>
+                            <div className="mt-0.5 text-xs text-admin-text-secondary">
+                                #{linkedReplacement.product_id}
+                                {linkedReplacement.product_slug
+                                    ? ` · /${linkedReplacement.product_slug}`
+                                    : ""}
+                            </div>
+                            {replacementUnavailable ? (
+                                <p className="mt-2 text-xs text-amber-900">
+                                    На витрине блок замены скрыт — товар показывается как «нет в
+                                    наличии».
+                                </p>
+                            ) : null}
+                        </div>
+                        <button
+                            type="button"
+                            disabled={unlinking}
+                            onClick={() => {
+                                void (async () => {
+                                    setUnlinking(true);
+                                    setError("");
+                                    try {
+                                        await updateProductReplacement(productId, null);
+                                        setLinkedReplacement(null);
+                                        setSuccess("Дополнительный продукт отвязан");
+                                        await onReloadAction();
+                                        await loadVariants();
+                                    } catch (e: unknown) {
+                                        setError(
+                                            e instanceof Error
+                                                ? e.message
+                                                : "Не удалось отвязать продукт",
+                                        );
+                                    } finally {
+                                        setUnlinking(false);
+                                    }
+                                })();
+                            }}
+                            className="shrink-0 rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        >
+                            {unlinking ? "Отвязка…" : "Отвязать"}
+                        </button>
+                    </div>
+                ) : sortedItems.length === 0 ? (
                     <div className="text-sm text-admin-text-secondary">
                         У товара пока нет вариантов
                     </div>
@@ -824,31 +900,6 @@ export default function ProductVariantsEditor({
                                         </td>
                                         <td className="whitespace-nowrap px-2 py-1.5 align-middle">
                                             <div className="flex items-center justify-end gap-1">
-                                                {Boolean(item.is_discontinued) ? (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setReplacementTarget(item)}
-                                                        className={`inline-flex h-7 w-7 items-center justify-center rounded-lg border transition ${
-                                                            item.replacement_variant_id || item.replacement
-                                                                ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                                                                : "border-violet-200 text-violet-700 hover:bg-violet-50"
-                                                        }`}
-                                                        title={
-                                                            item.replacement
-                                                                ? `Замена: ${[
-                                                                      item.replacement.brand_name,
-                                                                      item.replacement.product_name,
-                                                                      item.replacement.variant_title,
-                                                                  ]
-                                                                      .filter(Boolean)
-                                                                      .join(" · ")}`
-                                                                : "Выбрать замену"
-                                                        }
-                                                        aria-label="Выбрать замену"
-                                                    >
-                                                        <Replace className="h-3.5 w-3.5" />
-                                                    </button>
-                                                ) : null}
                                                 <button
                                                     type="button"
                                                     onClick={() => openInfo(item)}
@@ -1000,17 +1051,15 @@ export default function ProductVariantsEditor({
                 singleVariantId={suppliersModalFocusId}
             />
 
-            <VariantReplacementPickerModal
-                open={Boolean(replacementTarget)}
+            <ProductReplacementPickerModal
+                open={replacementPickerOpen}
                 productId={productId}
-                variant={replacementTarget}
-                onCloseAction={() => setReplacementTarget(null)}
+                excludeProductId={productId}
+                onCloseAction={() => setReplacementPickerOpen(false)}
                 onErrorAction={setError}
                 onSavedAction={(next) => {
-                    setRuntimeItems((prev) =>
-                        prev.map((row) => (row.id === next.id ? { ...row, ...next } : row)),
-                    );
-                    void loadVariants();
+                    setLinkedReplacement(next);
+                    setSuccess("Дополнительный продукт привязан");
                     void onReloadAction();
                 }}
             />

@@ -56,7 +56,7 @@ class CatalogStorefrontBrandVisibilityTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_storefront_brands_exclude_brands_without_active_variants(): void
+    public function test_storefront_brands_include_brands_with_active_products_even_without_variants(): void
     {
         $now = now();
 
@@ -111,12 +111,11 @@ class CatalogStorefrontBrandVisibilityTest extends TestCase
         CatalogProductQueryFilters::applyStorefrontBrandVisibilityFilter($query);
         $ids = $query->orderBy('id')->pluck('id')->map(static fn ($id): int => (int) $id)->all();
 
-        $this->assertSame([$withVariantId], $ids);
-        $this->assertNotContains($withoutVariantId, $ids);
+        $this->assertSame([$withVariantId, $withoutVariantId], $ids);
         $this->assertNotContains($emptyBrandId, $ids);
     }
 
-    public function test_catalog_listing_excludes_products_without_active_variants(): void
+    public function test_catalog_listing_includes_products_without_active_variants(): void
     {
         $now = now();
 
@@ -136,7 +135,7 @@ class CatalogStorefrontBrandVisibilityTest extends TestCase
             'created_at' => $now,
             'updated_at' => $now,
         ]);
-        DB::table('products')->insert([
+        $withoutVariantId = DB::table('products')->insertGetId([
             'brand_id' => $brandId,
             'name' => 'Without',
             'slug' => 'without',
@@ -157,6 +156,6 @@ class CatalogStorefrontBrandVisibilityTest extends TestCase
         CatalogProductQueryFilters::applyCatalogListingProductFilter($query);
         $ids = $query->orderBy('id')->pluck('id')->map(static fn ($id): int => (int) $id)->all();
 
-        $this->assertSame([$withVariantId], $ids);
+        $this->assertSame([$withVariantId, $withoutVariantId], $ids);
     }
 }

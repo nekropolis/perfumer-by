@@ -71,6 +71,7 @@ class CatalogProductsListingService
                 'products.is_hit',
                 'products.is_set',
                 'products.is_out_of_stock',
+                'products.replacement_product_id',
                 'products.listing_min_price',
             ]);
 
@@ -81,6 +82,7 @@ class CatalogProductsListingService
             'mainCategory:id,name,slug',
             'images' => ProductListResource::imagesForListingEagerLoad(),
             ...ProductListResource::cardAttributesEagerLoad(),
+            'replacementProduct:id,is_active,is_out_of_stock',
             'variants' => static function ($q): void {
                 $q->where('is_active', true)
                     ->select(self::VARIANT_LINK_COLUMNS)
@@ -164,6 +166,7 @@ class CatalogProductsListingService
                 'is_hit',
                 'is_set',
                 'is_out_of_stock',
+                'replacement_product_id',
                 'is_active',
                 'listing_min_price',
             ])
@@ -172,6 +175,7 @@ class CatalogProductsListingService
                 'mainCategory:id,name,slug',
                 'images' => ProductListResource::imagesForListingEagerLoad(),
                 ...ProductListResource::cardAttributesEagerLoad(),
+                'replacementProduct:id,is_active,is_out_of_stock',
                 'activeVariants' => function ($q): void {
                     $q->select(self::VARIANT_LINK_COLUMNS)
                         ->with([
@@ -210,6 +214,7 @@ class CatalogProductsListingService
                 'products.is_hit',
                 'products.is_set',
                 'products.is_out_of_stock',
+                'products.replacement_product_id',
                 'products.listing_min_price',
             ]);
 
@@ -225,6 +230,7 @@ class CatalogProductsListingService
             'mainCategory:id,name,slug',
             'images' => ProductListResource::imagesForListingEagerLoad(),
             ...ProductListResource::cardAttributesEagerLoad(),
+            'replacementProduct:id,is_active,is_out_of_stock',
             'variants' => function ($variantQuery) use ($request): void {
                 $builder = $variantQuery->getQuery();
                 $this->constrainPromotionListingVariants($builder, $request);
