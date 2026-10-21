@@ -15,6 +15,8 @@ use Modules\Checkout\Models\OrderItem;
 use Modules\Checkout\Models\StockNotificationRequest;
 use Modules\Checkout\Services\Dashboard\DashboardSalesAggregateService;
 use Modules\Wishlist\Services\WishlistCollectService;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class AdminDashboardController extends Controller
 {
@@ -33,6 +35,44 @@ class AdminDashboardController extends Controller
         11 => 'ноя',
         12 => 'дек',
     ];
+    public function downloadDatabaseBackup(): BinaryFileResponse
+    {
+        $dir = (string) config('services.db_backup.dir', '/var/backups/perfumer');
+        $realDir = realpath($dir);
+
+        if ($realDir === false || ! is_dir($realDir)) {
+            throw new NotFoundHttpException('Каталог бэкапов не найден');
+        }
+
+        $latestPath = null;
+        $latestMtime = 0;
+
+        foreach (glob($realDir.DIRECTORY_SEPARATOR.'db-*.sql.gz') ?: [] as $path) {
+            if (! is_file($path) || ! preg_match('/\/db-\d{4}-\d{2}-\d{2}\.sql\.gz$/', $path)) {
+                continue;
+            }
+
+            $mtime = (int) filemtime($path);
+            if ($mtime >= $latestMtime) {
+                $latestMtime = $mtime;
+                $latestPath = $path;
+            }
+        }
+
+        if ($latestPath === null) {
+            throw new NotFoundHttpException('Бэкап базы не найден');
+        }
+
+        $realFile = realpath($latestPath);
+        if ($realFile === false || ! str_starts_with($realFile, $realDir.DIRECTORY_SEPARATOR)) {
+            throw new NotFoundHttpException('Бэкап базы не найден');
+        }
+
+        return response()->download($realFile, basename($realFile), [
+            'Content-Type' => 'application/gzip',
+        ]);
+    }
+
     public function stats(Request $request): JsonResponse
     {
         $period = $this->resolvePeriod((string) $request->query('period', 'month'));

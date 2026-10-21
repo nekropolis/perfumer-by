@@ -87,4 +87,8 @@ return [
         'feed_token' => env('ALLPARFUME_FEED_TOKEN'),
     ],
 
+    'db_backup' => [
+        'dir' => env('DB_BACKUP_DIR', '/var/backups/perfumer'),
+    ],
+
 ];

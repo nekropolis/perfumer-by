@@ -250,3 +250,43 @@ export async function fetchAdminDashboardNetProfit(params?: {
 
     return res.json();
 }
+
+/** Скачивает последний gzip-дамп БД из /var/backups/perfumer (или DB_BACKUP_DIR). */
+export async function downloadAdminDatabaseBackup(): Promise<void> {
+    const token = typeof window !== "undefined" ? getAuthToken() : "";
+    const res = await fetch(`${API_BASE}/admin/dashboard/database-backup`, {
+        headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        let message = `Database backup API error: ${res.status}`;
+        try {
+            const payload = (await res.json()) as { message?: string };
+            if (payload.message) {
+                message = payload.message;
+            }
+        } catch {
+            // ignore non-JSON error bodies
+        }
+        throw new Error(message);
+    }
+
+    const blob = await res.blob();
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const match = /filename\*?=(?:UTF-8''|")?([^\";]+)/i.exec(disposition);
+    const filename = match?.[1]
+        ? decodeURIComponent(match[1].replace(/"/g, "").trim())
+        : `db-backup-${new Date().toISOString().slice(0, 10)}.sql.gz`;
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}

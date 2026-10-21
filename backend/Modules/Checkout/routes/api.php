@@ -88,6 +88,7 @@ Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/dashboard')->grou
     Route::get('/wishlisted-products', [AdminDashboardController::class, 'wishlistedProducts']);
     Route::get('/top-sold-products', [AdminDashboardController::class, 'topSoldProducts']);
     Route::get('/net-profit', [AdminDashboardController::class, 'netProfit']);
+    Route::get('/database-backup', [AdminDashboardController::class, 'downloadDatabaseBackup']);
 });
 
 Route::middleware(['auth:sanctum', 'is_admin'])->prefix('admin/communications')->group(function () {

@@ -9,7 +9,12 @@ import AdminWishlistProductsCard from "@/components/admin/admin-wishlist-product
 import AdminTopSoldProductsCard from "@/components/admin/admin-top-sold-products-card";
 import AdminNetProfitCard from "@/components/admin/admin-net-profit-card";
 import { adminCard, adminCardPadding } from "@/lib/admin-ui-classes";
-import { fetchAdminDashboardStats, type AdminDashboardStatsResponse } from "@/lib/admin-dashboard-api";
+import {
+    downloadAdminDatabaseBackup,
+    fetchAdminDashboardStats,
+    type AdminDashboardStatsResponse,
+} from "@/lib/admin-dashboard-api";
+import { adminBtnSecondary } from "@/lib/admin-ui-classes";
 import { getOrderStatusLabel } from "@/constants/order-statuses";
 
 type DashboardStats = AdminDashboardStatsResponse["data"] | null;
@@ -106,6 +111,21 @@ export default function AdminPage() {
     const [loadingStats, setLoadingStats] = useState(true);
     const [period, setPeriod] = useState<StatsPeriod>("month");
     const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
+    const [downloadingBackup, setDownloadingBackup] = useState(false);
+    const [backupError, setBackupError] = useState<string | null>(null);
+
+    const handleDownloadBackup = useCallback(async () => {
+        setDownloadingBackup(true);
+        setBackupError(null);
+        try {
+            await downloadAdminDatabaseBackup();
+        } catch (error) {
+            console.error("Failed to download database backup", error);
+            setBackupError(error instanceof Error ? error.message : "Не удалось скачать базу");
+        } finally {
+            setDownloadingBackup(false);
+        }
+    }, []);
 
     const loadStats = useCallback(async (currentPeriod: StatsPeriod, signal?: AbortSignal) => {
         setLoadingStats(true);
@@ -323,6 +343,21 @@ export default function AdminPage() {
             <AdminPageHeader
                 title="Дашборд"
                 description="Обзор заказов, запросов и статистики магазина"
+                actions={
+                    <div className="flex flex-col items-stretch gap-1 sm:items-end">
+                        <button
+                            type="button"
+                            className={adminBtnSecondary}
+                            onClick={() => void handleDownloadBackup()}
+                            disabled={downloadingBackup}
+                        >
+                            {downloadingBackup ? "Скачивание…" : "Скачать базу"}
+                        </button>
+                        {backupError ? (
+                            <span className="max-w-xs text-right text-xs text-red-600">{backupError}</span>
+                        ) : null}
+                    </div>
+                }
             />
 
             <AdminPageCard>
