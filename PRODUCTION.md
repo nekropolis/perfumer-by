@@ -828,9 +828,10 @@ maintenance-флаг также останется включённым, что�
 ### 11.1. Бэкап базы и медиа
 
 Скрипт `scripts/backup-db.sh` делает gzip-дамп БД, по желанию архивирует
-`backend/storage/app/public`, хранит локальные копии 14 дней и шлёт Telegram-алерт
-при ошибке. Пароль MySQL передаётся через временный файл с правами `600`, а не
-через аргументы процесса.
+`backend/storage/app/public`, хранит последние 3 локальные версии и шлёт Telegram-алерт
+при ошибке. Файлы дампа доступны группе `www-data` (чтение) для кнопки
+«Скачать базу» в админ-дашборде. Пароль MySQL передаётся через временный файл
+с правами `600`, а не через аргументы процесса.
 
 ```bash
 sudo mkdir -p /var/backups/perfumer
@@ -847,18 +848,27 @@ sudo chown deploy:deploy /var/backups/perfumer
 Опциональные переменные cron/environment:
 
 ```dotenv
-KEEP_DAYS=14
-BACKUP_MEDIA=true
-MEDIA_PATH=/var/www/perfumer-by/backend/storage/app/public
-BACKUP_REMOTE=backup@example.net:/srv/backups/perfumer
+KEEP_COUNT=3
+BACKUP_MEDIA=false
+BACKUP_REMOTE=backup@31.220.42.4:/data
+BACKUP_REMOTE_PORT=22
+BACKUP_REMOTE_KEEP=1
+BACKUP_TRANSPORT=sftp
+BACKUP_SSH_KEY=/home/deploy/.ssh/perfumer-backup-ed25519
 BACKUP_TIMEOUT=60
-BACKUP_GPG_RECIPIENT=backups@example.net
+BACKUP_GROUP=www-data
 ```
 
-Если `BACKUP_REMOTE` задан, новые архивы копируются через `rsync` по SSH. При
-`BACKUP_GPG_RECIPIENT` для offsite создаются зашифрованные `.gpg`-копии. Заранее
-установите публичный GPG-ключ получателя и отдельный SSH-ключ без пароля с
-минимальными правами на каталог назначения.
+В `.env` бэкенда (для скачивания из админки):
+
+```dotenv
+DB_BACKUP_DIR=/var/backups/perfumer
+```
+
+Если `BACKUP_REMOTE` задан, на удалённый VPS уходит **только последний** дамп БД
+(`db-*.sql.gz`) по **SFTP** (аккаунт без shell), старые на remote удаляются
+(`BACKUP_REMOTE_KEEP=1`). Ключ — `BACKUP_SSH_KEY` (ed25519 без пароля).
+Приватный ключ класть только на прод у пользователя cron (`deploy`), не в git.
 
 Проверить вручную:
 
