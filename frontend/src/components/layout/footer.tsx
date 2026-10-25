@@ -38,6 +38,24 @@ export default function Footer({ siteContent: site }: Props) {
 
     return (
         <footer className="mt-auto border-t border-admin-border bg-admin-surface">
+            <div className="px-4 py-4 md:hidden">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                    <a href={telHref(site.contact_phone_mts)} className="font-medium text-admin-text">
+                        {formatBelarusDisplay(site.contact_phone_mts)}
+                    </a>
+                    <Link href="/contacts" className={siteNavLink}>
+                        Контакты
+                    </Link>
+                    <Link href={LEGAL_FOOTER_LINKS[0]?.href ?? "/contacts"} className={siteNavLink}>
+                        Оферта
+                    </Link>
+                </div>
+                <div className="mt-2 text-xs text-admin-text-secondary">
+                    © <span suppressHydrationWarning>{new Date().getFullYear()}</span> Perfumer
+                </div>
+            </div>
+
+            <div className="hidden md:block">
             <div className="border-b border-admin-border bg-admin-muted/60">
                 <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 py-3 text-center text-sm text-admin-text sm:flex-row sm:px-6 sm:text-left">
                     <span className="font-medium text-admin-text">
@@ -142,6 +160,7 @@ export default function Footer({ siteContent: site }: Props) {
                         </Link>
                     </div>
                 </div>
+            </div>
             </div>
         </footer>
     );

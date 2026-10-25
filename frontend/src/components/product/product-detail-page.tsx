@@ -42,7 +42,7 @@ export default async function ProductDetailPage({
     }
 
     return (
-        <main className="mx-auto max-w-7xl px-4 py-8 pb-28 sm:px-6 xl:pb-8">
+        <main className="mx-auto max-w-7xl px-4 py-4 pb-28 sm:px-6 md:py-8 xl:pb-8">
             <Breadcrumbs className="mb-4" items={getProductBreadcrumbItems(product)} />
             <ProductDetailInteractive
                 product={product}

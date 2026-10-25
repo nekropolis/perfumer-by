@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/components/auth/auth-provider";
 import AccountGuestView from "@/components/account/account-guest-view";
+import AccountMoreLinks from "@/components/account/account-more-links";
 import UserAccount from "@/components/account/user-account";
 import OrdersAccount from "@/components/account/orders-account";
 import {useRouter} from "next/navigation";
@@ -91,6 +92,10 @@ export default function AccountPage() {
                         Личный кабинет
                     </div>
                     <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Профиль и заказы</h1>
+                </div>
+
+                <div className="mb-6 md:hidden">
+                    <AccountMoreLinks />
                 </div>
 
                 <div className="grid gap-6 lg:grid-cols-[340px_1fr]">

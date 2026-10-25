@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { CreditCard, Package, UserRound } from "lucide-react";
 import { siteBtnPrimary, siteBtnSecondary, siteCard } from "@/lib/site-ui-classes";
+import AccountMoreLinks from "@/components/account/account-more-links";
 
 const benefits = [
     {
@@ -30,6 +31,10 @@ export default function AccountGuestView() {
                     <div className="text-sm font-medium uppercase tracking-[0.12em] text-admin-text-secondary">
                         Личный кабинет
                     </div>
+                </div>
+
+                <div className="mb-6 md:hidden">
+                    <AccountMoreLinks />
                 </div>
 
                 <div className="grid gap-6 lg:grid-cols-[340px_1fr]">

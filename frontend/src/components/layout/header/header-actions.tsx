@@ -2,14 +2,11 @@
 
 import type { RefObject } from "react";
 import { Suspense } from "react";
-import { Search } from "lucide-react";
 import HeaderAccountMenu from "@/components/layout/header/account-menu";
 import HeaderBurgerMenu, { HeaderBurgerMenuFallback } from "@/components/layout/header/header-burger-menu";
 import HeaderCartButton from "@/components/layout/header/header-cart-button";
-import HeaderMobileToggle from "@/components/layout/header/header-mobile-toggle";
 import HeaderWishlistButton from "@/components/layout/header/header-wishlist-button";
 import type { HeaderNavLink } from "@/components/layout/header/types";
-import { headerBtnIcon } from "@/lib/site-ui-classes";
 
 type HeaderActionsProps = {
     wishlistQty: number;
@@ -18,7 +15,6 @@ type HeaderActionsProps = {
     isAccountOpen: boolean;
     userName: string;
     userPhone: string;
-    isMobileOpen: boolean;
     isBurgerOpen: boolean;
     burgerLinks: ReadonlyArray<HeaderNavLink>;
     tabletBurgerLinks: ReadonlyArray<HeaderNavLink>;
@@ -27,8 +23,6 @@ type HeaderActionsProps = {
     onToggleAccountAction: () => void;
     onCloseAccountAction: () => void;
     onLogoutAction: () => void;
-    onOpenMobileSearchAction: () => void;
-    onToggleMobileMenuAction: () => void;
     onToggleBurgerMenuAction: () => void;
     onCloseBurgerMenuAction: () => void;
 };
@@ -40,7 +34,6 @@ export default function HeaderActions({
     isAccountOpen,
     userName,
     userPhone,
-    isMobileOpen,
     isBurgerOpen,
     burgerLinks,
     tabletBurgerLinks,
@@ -49,8 +42,6 @@ export default function HeaderActions({
     onToggleAccountAction,
     onCloseAccountAction,
     onLogoutAction,
-    onOpenMobileSearchAction,
-    onToggleMobileMenuAction,
     onToggleBurgerMenuAction,
     onCloseBurgerMenuAction,
 }: HeaderActionsProps) {
@@ -67,18 +58,12 @@ export default function HeaderActions({
                 onLogoutAction={onLogoutAction}
             />
 
-            <HeaderWishlistButton qty={wishlistQty} className="hidden md:inline-flex" />
+            <HeaderWishlistButton
+                qty={wishlistQty}
+                className={wishlistQty > 0 ? "inline-flex" : "hidden md:inline-flex"}
+            />
 
-            <button
-                type="button"
-                className={`${headerBtnIcon} md:hidden`}
-                onClick={onOpenMobileSearchAction}
-                aria-label="Открыть поиск"
-            >
-                <Search className="h-5 w-5 md:h-4 md:w-4" />
-            </button>
-
-            <HeaderCartButton qty={cartQty} />
+            <HeaderCartButton qty={cartQty} className="hidden md:inline-flex" />
 
             <Suspense fallback={<HeaderBurgerMenuFallback />}>
                 <HeaderBurgerMenu
@@ -90,11 +75,6 @@ export default function HeaderActions({
                     onCloseAction={onCloseBurgerMenuAction}
                 />
             </Suspense>
-
-            <HeaderMobileToggle
-                isOpen={isMobileOpen}
-                onClickAction={onToggleMobileMenuAction}
-            />
         </div>
     );
 }

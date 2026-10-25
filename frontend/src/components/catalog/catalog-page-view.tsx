@@ -73,15 +73,23 @@ export default function CatalogPageView({
     const showResetFilters = showBrand;
 
     return (
-        <main className="mx-auto max-w-7xl px-4 py-8 pb-12 sm:px-6 lg:px-8 max-lg:landscape:py-4 max-lg:landscape:pb-8">
-            <Breadcrumbs className="mb-4 max-lg:landscape:mb-2" items={breadcrumbs} />
+        <main className="mx-auto max-w-7xl px-4 py-2 pb-8 sm:px-6 md:py-8 md:pb-12 lg:px-8 max-lg:landscape:py-4 max-lg:landscape:pb-8">
+            <Breadcrumbs className="mb-1 md:mb-4 max-lg:landscape:mb-2" items={breadcrumbs} />
 
-            <div className="mb-6 max-lg:landscape:mb-3">
-                <h1 className="text-3xl font-semibold leading-tight sm:text-4xl max-lg:landscape:text-2xl">{title}</h1>
+            <div className="mb-2 md:mb-6 max-lg:landscape:mb-3">
+                <h1 className="text-2xl font-semibold leading-tight sm:text-3xl lg:text-4xl max-lg:landscape:text-2xl">{title}</h1>
                 {intro?.trim() ? (
-                    <p className="mt-3 max-w-3xl text-sm leading-6 text-admin-text-secondary sm:text-base">
-                        {intro}
-                    </p>
+                    <>
+                        <p className="mt-3 hidden max-w-3xl text-sm leading-6 text-admin-text-secondary md:block sm:text-base">
+                            {intro}
+                        </p>
+                        <details className="mt-1 md:hidden">
+                            <summary className="cursor-pointer text-sm font-medium text-admin-text-secondary">
+                                {basePath === "/catalog" ? "О каталоге" : "Подробнее"}
+                            </summary>
+                            <p className="mt-2 max-w-3xl text-sm leading-6 text-admin-text-secondary">{intro}</p>
+                        </details>
+                    </>
                 ) : null}
             </div>
 
