@@ -1,9 +1,8 @@
 "use client";
 
-import { Heart } from "lucide-react";
+import { Heart, Share2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
-import { createPortal } from "react-dom";
+import { useMemo, useState, useTransition } from "react";
 import type { ProductDetailData, ProductVariantData } from "@/types/catalog";
 import type { ReviewItem } from "@/types/reviews";
 import { addToCart, updateCartItem } from "@/lib/cart-api";
@@ -11,7 +10,6 @@ import { useCart } from "@/components/cart/cart-provider";
 import { useWishlist } from "@/components/wishlist/wishlist-provider";
 import { useAuth } from "@/components/auth/auth-provider";
 import CopyText from "@/components/ui/copy-text";
-import { HEADER_STICKY_EXTENSION_ID } from "@/components/layout/header/constants";
 import ProductBuyBox from "@/components/product/product-buy-box";
 import ProductDiscontinuedReplacement from "@/components/product/product-discontinued-replacement";
 import ProductServiceInfo, {
@@ -38,10 +36,6 @@ import {
     getVariantAvailabilityState,
     normalizeProductVariants,
 } from "@/lib/product-detail-utils";
-
-const emptySubscribe = () => () => {};
-const getClientSnapshot = () => true;
-const getServerSnapshot = () => false;
 
 type Props = {
     product: ProductDetailData;
@@ -90,13 +84,7 @@ export default function ProductDetailInteractive({
 
     const [selectedVariantId, setSelectedVariantId] = useState<number | null>(initialVariantId);
     const [waitingDiscountByVariant, setWaitingDiscountByVariant] = useState<Record<number, boolean>>({});
-    const [isTitlePinned, setIsTitlePinned] = useState(false);
-    const [titleBarEntered, setTitleBarEntered] = useState(false);
-    if (!isTitlePinned && titleBarEntered) {
-        setTitleBarEntered(false);
-    }
-    const titleRef = useRef<HTMLHeadingElement | null>(null);
-    const isClient = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
+    const [shareCopied, setShareCopied] = useState(false);
 
     const selectedVariant = useMemo<ProductVariantData | null>(() => {
         return variants.find((variant) => variant.id === selectedVariantId) || null;
@@ -145,81 +133,6 @@ export default function ProductDetailInteractive({
     const reviewsMetaLabel = formatReviewsCountLabel(reviewsTabCount);
 
     const productTitle = product.h1 || productDisplayName(product);
-
-    useEffect(() => {
-        const titleEl = titleRef.current;
-        if (!titleEl || typeof window === "undefined") {
-            return;
-        }
-
-        let observer: IntersectionObserver | null = null;
-
-        const readStickyTop = () => {
-            const stickyTopRaw = getComputedStyle(document.documentElement)
-                .getPropertyValue("--catalog-toolbar-sticky-top")
-                .trim();
-            return Number.parseFloat(stickyTopRaw) || 130;
-        };
-
-        const updatePinned = () => {
-            if (window.matchMedia("(min-width: 1280px)").matches) {
-                setIsTitlePinned(false);
-                return;
-            }
-
-            // Only pin after the in-flow title has scrolled up past the header.
-            // (Title still below the fold must not show the bar.)
-            setIsTitlePinned(titleEl.getBoundingClientRect().bottom <= readStickyTop());
-        };
-
-        const disconnect = () => {
-            observer?.disconnect();
-            observer = null;
-        };
-
-        const setup = () => {
-            disconnect();
-            updatePinned();
-
-            if (window.matchMedia("(min-width: 1280px)").matches) {
-                return;
-            }
-
-            const stickyTop = readStickyTop();
-            observer = new IntersectionObserver(
-                () => {
-                    updatePinned();
-                },
-                {
-                    root: null,
-                    rootMargin: `-${stickyTop}px 0px 0px 0px`,
-                    threshold: [0, 1],
-                },
-            );
-            observer.observe(titleEl);
-        };
-
-        setup();
-        window.addEventListener("scroll", updatePinned, { passive: true });
-        window.addEventListener("resize", setup);
-
-        return () => {
-            window.removeEventListener("scroll", updatePinned);
-            window.removeEventListener("resize", setup);
-            disconnect();
-        };
-    }, []);
-
-    useEffect(() => {
-        if (!isTitlePinned) {
-            return;
-        }
-
-        const frame = window.requestAnimationFrame(() => {
-            setTitleBarEntered(true);
-        });
-        return () => window.cancelAnimationFrame(frame);
-    }, [isTitlePinned]);
 
     const openReviewsTab = () => {
         setActiveTab("reviews");
@@ -278,32 +191,45 @@ export default function ProductDetailInteractive({
         });
     };
 
-    const headerTitleSlot =
-        isClient && typeof document !== "undefined"
-            ? document.getElementById(HEADER_STICKY_EXTENSION_ID)
-            : null;
+    const shareProduct = () => {
+        const url = window.location.href;
+        const payload = { title: productTitle, url };
+        if (typeof navigator.share === "function") {
+            void navigator.share(payload).catch(() => undefined);
+            return;
+        }
+        void navigator.clipboard?.writeText(url).then(() => {
+            setShareCopied(true);
+            window.setTimeout(() => setShareCopied(false), 1600);
+        });
+    };
+
+    const stickyHeaderActions = (
+        <>
+            <button
+                type="button"
+                onClick={() => void toggleWishlist(product.id)}
+                aria-pressed={inWishlist}
+                aria-label={inWishlist ? "Убрать из избранного" : "Добавить в избранное"}
+                className={`inline-flex h-10 w-10 items-center justify-center rounded-full ${
+                    inWishlist ? "text-admin-primary" : "text-admin-text-secondary"
+                }`}
+            >
+                <Heart className={`h-5 w-5 ${inWishlist ? "fill-current" : ""}`} aria-hidden />
+            </button>
+            <button
+                type="button"
+                onClick={shareProduct}
+                aria-label={shareCopied ? "Ссылка скопирована" : "Поделиться"}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full text-admin-text-secondary"
+            >
+                <Share2 className="h-5 w-5" aria-hidden />
+            </button>
+        </>
+    );
 
     return (
         <>
-            {isTitlePinned && headerTitleSlot
-                ? createPortal(
-                      <div
-                          className={[
-                              "border-t border-admin-border bg-admin-surface px-4 py-2 transition-[opacity,transform] duration-300 ease-out xl:hidden landscape:py-1.5",
-                              titleBarEntered
-                                  ? "translate-y-0 opacity-100"
-                                  : "-translate-y-2 opacity-0",
-                          ].join(" ")}
-                          aria-hidden
-                      >
-                          <div className="mx-auto max-w-7xl truncate font-display text-base font-semibold leading-tight text-admin-text sm:px-2 sm:text-lg">
-                              {productTitle}
-                          </div>
-                      </div>,
-                      headerTitleSlot,
-                  )
-                : null}
-
             <div className="grid grid-cols-1 gap-5 md:grid-cols-[320px_minmax(0,1fr)] md:items-start md:gap-8 xl:grid-cols-[320px_minmax(0,1fr)_340px] xl:items-stretch xl:[grid-template-areas:'gallery_variants_buybox'_'service_service_buybox'_'tabs_tabs_buybox']">
                 <div className="xl:[grid-area:gallery]">
                     <ProductDetailGallery product={product} selectedVariantHasPromotion={selectedVariantHasPromotion} />
@@ -344,12 +270,36 @@ export default function ProductDetailInteractive({
                         </button>
                     </div>
 
-                    <h1
-                        ref={titleRef}
-                        className="mb-2.5 font-display text-3xl font-semibold leading-tight sm:text-4xl"
-                    >
+                    <h1 className="mb-2 font-display text-2xl font-semibold leading-tight sm:text-4xl">
                         {productTitle}
                     </h1>
+
+                    <ProductBuyBox
+                        selectedVariant={selectedVariant}
+                        isSelectedVariantInCart={isSelectedVariantInCart}
+                        isPending={isPending}
+                        onAddToCartAction={handleAddToCart}
+                        formatPriceAction={formatProductDetailPrice}
+                        productId={product.id}
+                        productName={productDisplayName(product)}
+                        isProductOutOfStock={product.is_out_of_stock}
+                        displayPrice={displayPrice}
+                        loyaltyCardNumber={
+                            isAuthenticated && selectedVariantEligibleForLoyalty
+                                ? (loyaltyCard?.number ?? null)
+                                : null
+                        }
+                        loyaltyPercent={loyaltyPercent}
+                        waitingDiscountActive={waitingDiscountActive}
+                        waitingDiscountForced={waitingDiscountForced}
+                        waitingDiscountPercent={WAITING_DISCOUNT_PERCENT}
+                        onWaitingDiscountChangeAction={handleWaitingDiscountChange}
+                        waitingDiscountApplicable={selectedVariantEligibleForWaiting}
+                        deliveryDate={deliveryDate}
+                        replacement={product.replacement ?? null}
+                        surface="mobile"
+                        headerActions={stickyHeaderActions}
+                    />
 
                     <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm">
                         {genderLabel ? (
@@ -595,31 +545,6 @@ export default function ProductDetailInteractive({
                 </section>
             </div>
 
-            <ProductBuyBox
-                selectedVariant={selectedVariant}
-                isSelectedVariantInCart={isSelectedVariantInCart}
-                isPending={isPending}
-                onAddToCartAction={handleAddToCart}
-                formatPriceAction={formatProductDetailPrice}
-                productId={product.id}
-                productName={productDisplayName(product)}
-                isProductOutOfStock={product.is_out_of_stock}
-                displayPrice={displayPrice}
-                loyaltyCardNumber={
-                    isAuthenticated && selectedVariantEligibleForLoyalty
-                        ? (loyaltyCard?.number ?? null)
-                        : null
-                }
-                loyaltyPercent={loyaltyPercent}
-                waitingDiscountActive={waitingDiscountActive}
-                waitingDiscountForced={waitingDiscountForced}
-                waitingDiscountPercent={WAITING_DISCOUNT_PERCENT}
-                onWaitingDiscountChangeAction={handleWaitingDiscountChange}
-                waitingDiscountApplicable={selectedVariantEligibleForWaiting}
-                deliveryDate={deliveryDate}
-                replacement={product.replacement ?? null}
-                surface="mobile"
-            />
         </>
     );
 }

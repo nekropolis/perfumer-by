@@ -106,7 +106,7 @@ export default function ProductDetailGallery({ product, selectedVariantHasPromot
     return (
         <>
             <section>
-                <div className="relative aspect-square overflow-hidden rounded-3xl border border-admin-border bg-white p-2 shadow-sm sm:p-3">
+                <div className="relative aspect-[4/3] overflow-hidden rounded-3xl border border-admin-border bg-white p-2 shadow-sm sm:p-3 md:aspect-square">
                     <ProductStatusLabels
                         isNew={Boolean(product.is_new)}
                         isHit={Boolean(product.is_hit)}

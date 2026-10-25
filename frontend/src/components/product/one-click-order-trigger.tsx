@@ -12,6 +12,7 @@ type Props = {
     label?: string;
     className?: string;
     disabled?: boolean;
+    appearance?: "link" | "button";
 };
 
 const defaultLinkClass =
@@ -25,6 +26,7 @@ export default function OneClickOrderTrigger({
     label = "Купить в один клик",
     className = defaultLinkClass,
     disabled = false,
+    appearance = "link",
 }: Props) {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -38,8 +40,14 @@ export default function OneClickOrderTrigger({
                 disabled={disabled || variantId === null}
                 className={className}
             >
-                <MousePointerClick className="h-5 w-5 shrink-0" strokeWidth={1.75} aria-hidden />
-                <span className="underline underline-offset-4 decoration-admin-border-strong">{label}</span>
+                {appearance === "button" ? (
+                    <span>{label}</span>
+                ) : (
+                    <>
+                        <MousePointerClick className="h-5 w-5 shrink-0" strokeWidth={1.75} aria-hidden />
+                        <span className="underline underline-offset-4 decoration-admin-border-strong">{label}</span>
+                    </>
+                )}
             </button>
 
             <OneClickOrderModal

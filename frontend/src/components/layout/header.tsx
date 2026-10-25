@@ -1,13 +1,16 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { Suspense, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useCart } from "@/components/cart/cart-provider";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useWishlist } from "@/components/wishlist/wishlist-provider";
+import MobileTabBar from "@/components/layout/mobile-tab-bar";
 import HeaderMainRow from "@/components/layout/header/header-main-row";
 import HeaderNav, { HeaderNavFallback } from "@/components/layout/header/header-nav";
 import HeaderServiceBar from "@/components/layout/header/header-service-bar";
+import MobileSearchSheet from "@/components/layout/header/mobile-search-sheet";
+import MobileProfileSheet from "@/components/layout/header/mobile-profile-sheet";
 import { useHeaderSearch } from "@/components/layout/header/use-header-search";
 import {
     HEADER_BURGER_LINKS,
@@ -18,17 +21,10 @@ import { useSiteContent } from "@/components/layout/site-content-context";
 import { HEADER_STICKY_EXTENSION_ID } from "@/components/layout/header/constants";
 import { withBynSignText } from "@/lib/byn-sign";
 import {
-    buildContactLinks,
     buildHeaderPhoneDropdown,
     buildMessengerLinks,
-    buildPhoneLinks,
     phoneNationalShortSuffix,
 } from "@/lib/site-contact";
-
-const HeaderMobileMenu = dynamic(() => import("@/components/layout/header/mobile-menu"), {
-    ssr: false,
-    loading: () => null,
-});
 
 function formatMinskFreeDeliveryPromo(threshold: number): string {
     const n = Number.isFinite(threshold) ? threshold : 50;
@@ -36,25 +32,23 @@ function formatMinskFreeDeliveryPromo(threshold: number): string {
 }
 
 export default function Header() {
+    const pathname = usePathname();
+    const showMobileCategoryPills = pathname === "/" || pathname === "/catalog";
     const siteContent = useSiteContent();
     const promoText = formatMinskFreeDeliveryPromo(siteContent.delivery_minsk_free_threshold);
     const phoneShortLabel = phoneNationalShortSuffix(siteContent.contact_phone_mts) || "640-88-33";
     const phoneDropdownLinks = buildHeaderPhoneDropdown(siteContent);
     const messengerLinks = buildMessengerLinks(siteContent);
-    const phoneLinks = buildPhoneLinks(siteContent);
-    const contactLinks = buildContactLinks(siteContent);
-    const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [isBurgerOpen, setIsBurgerOpen] = useState(false);
+    const [profileMenuPath, setProfileMenuPath] = useState<string | null>(null);
+    const profileMenuOpen = profileMenuPath === pathname;
     const [isAccountOpen, setIsAccountOpen] = useState(false);
     const [isPhoneDropdownOpen, setIsPhoneDropdownOpen] = useState(false);
     const [isMainRowPinned, setIsMainRowPinned] = useState(false);
     const [mainRowHeight, setMainRowHeight] = useState(78);
-    const [menuTopOffset, setMenuTopOffset] = useState(64);
-    const [menuAnchorBottom, setMenuAnchorBottom] = useState(0);
 
     const mainRowRef = useRef<HTMLDivElement | null>(null);
     const mainRowSentinelRef = useRef<HTMLDivElement | null>(null);
-    const mobileMenuRootRef = useRef<HTMLDivElement | null>(null);
     const { cartQty } = useCart();
     const { wishlistQty } = useWishlist();
     const { user, isAuthenticated, logout } = useAuth();
@@ -81,7 +75,9 @@ export default function Header() {
         handleSelectBrand,
         selectSuggestion,
     } = useHeaderSearch({
-        onAfterNavigateAction: () => setIsMobileOpen(false),
+        onAfterNavigateAction: () => {
+            setProfileMenuPath(null);
+        },
     });
 
     useEffect(() => {
@@ -111,8 +107,7 @@ export default function Header() {
             if (
                 isDesktop &&
                 searchRef.current &&
-                !searchRef.current.contains(event.target as Node) &&
-                !mobileMenuRootRef.current?.contains(event.target as Node)
+                !searchRef.current.contains(event.target as Node)
             ) {
                 setSearchOpen(false);
             }
@@ -234,7 +229,6 @@ export default function Header() {
                 64,
                 mainRowHeight + (desktop && !isMainRowPinned ? SERVICE_BAR_PX : 0),
             );
-            setMenuTopOffset(catalogToolbarStickyTop);
             document.documentElement.style.setProperty(
                 "--catalog-toolbar-sticky-top",
                 `${catalogToolbarStickyTop}px`,
@@ -252,100 +246,7 @@ export default function Header() {
             document.documentElement.style.removeProperty("--catalog-toolbar-sticky-top");
             document.documentElement.style.removeProperty("--page-sidebar-sticky-top");
         };
-    }, [mainRowHeight, isMainRowPinned, isPhoneDropdownOpen, isMobileOpen, searchOpen]);
-
-    useEffect(() => {
-        if (!isMobileOpen) {
-            return;
-        }
-
-        const measureAnchor = () => {
-            const bottom = mainRowRef.current?.getBoundingClientRect().bottom ?? menuTopOffset;
-            setMenuAnchorBottom(bottom);
-        };
-
-        measureAnchor();
-        window.addEventListener("resize", measureAnchor);
-        const row = mainRowRef.current;
-        const ro = row ? new ResizeObserver(measureAnchor) : null;
-        if (row && ro) {
-            ro.observe(row);
-        }
-
-        return () => {
-            window.removeEventListener("resize", measureAnchor);
-            ro?.disconnect();
-        };
-    }, [isMobileOpen, menuTopOffset, mainRowHeight, searchOpen, isMainRowPinned]);
-
-    useEffect(() => {
-        if (!isMobileOpen) {
-            return;
-        }
-
-        const body = document.body;
-        const html = document.documentElement;
-        const scrollY = window.scrollY;
-        const bodyStyle = body.style;
-        const htmlStyle = html.style;
-        const previous = {
-            bodyOverflow: bodyStyle.overflow,
-            bodyPosition: bodyStyle.position,
-            bodyTop: bodyStyle.top,
-            bodyLeft: bodyStyle.left,
-            bodyRight: bodyStyle.right,
-            bodyWidth: bodyStyle.width,
-            bodyMaxWidth: bodyStyle.maxWidth,
-            bodyOverscrollBehavior: bodyStyle.overscrollBehavior,
-            htmlOverflow: htmlStyle.overflow,
-            htmlOverflowX: htmlStyle.overflowX,
-            bodyOverflowX: bodyStyle.overflowX,
-        };
-
-        // left+right+width вместе раздувают layout за край при scrollbar-gutter: stable.
-        htmlStyle.overflow = "hidden";
-        htmlStyle.overflowX = "hidden";
-        bodyStyle.overflow = "hidden";
-        bodyStyle.overflowX = "hidden";
-        bodyStyle.position = "fixed";
-        bodyStyle.top = `-${scrollY}px`;
-        bodyStyle.left = "0";
-        bodyStyle.right = "";
-        bodyStyle.width = "100%";
-        bodyStyle.maxWidth = "100%";
-        bodyStyle.overscrollBehavior = "none";
-
-        return () => {
-            bodyStyle.overflow = previous.bodyOverflow;
-            bodyStyle.position = previous.bodyPosition;
-            bodyStyle.top = previous.bodyTop;
-            bodyStyle.left = previous.bodyLeft;
-            bodyStyle.right = previous.bodyRight;
-            bodyStyle.width = previous.bodyWidth;
-            bodyStyle.maxWidth = previous.bodyMaxWidth;
-            bodyStyle.overscrollBehavior = previous.bodyOverscrollBehavior;
-            htmlStyle.overflow = previous.htmlOverflow;
-            htmlStyle.overflowX = previous.htmlOverflowX;
-            bodyStyle.overflowX = previous.bodyOverflowX;
-            window.scrollTo({ top: scrollY, behavior: "auto" });
-        };
-    }, [isMobileOpen]);
-
-    useEffect(() => {
-        if (!isMobileOpen) {
-            return;
-        }
-
-        const handleResize = () => {
-            if (window.innerWidth >= 768) {
-                setIsMobileOpen(false);
-                resetSearch();
-            }
-        };
-
-        window.addEventListener("resize", handleResize);
-        return () => window.removeEventListener("resize", handleResize);
-    }, [isMobileOpen, resetSearch]);
+    }, [mainRowHeight, isMainRowPinned, isPhoneDropdownOpen, searchOpen]);
 
     const openMessengerApp = (appHref: string, webHref: string) => {
         if (typeof window === "undefined") {
@@ -361,26 +262,21 @@ export default function Header() {
         }, 450);
     };
 
-    const toggleMobileMenu = () => {
-        setIsBurgerOpen(false);
-
-        if (isMobileOpen) {
-            resetSearch();
-        } else {
-            setSearchOpen(false);
-        }
-
-        setIsMobileOpen((prev) => !prev);
+    const toggleMobileSearch = () => {
+        setProfileMenuPath(null);
+        setSearchOpen((current) => !current);
     };
 
-    const openMobileSearch = () => {
-        setIsMobileOpen(false);
-        if (searchOpen) {
-            resetSearch();
-            return;
-        }
-        setSearchOpen(true);
+    const closeMobileSearch = () => {
+        setSearchOpen(false);
     };
+
+    const toggleProfileMenu = () => {
+        setSearchOpen(false);
+        setProfileMenuPath((current) => (current === pathname ? null : pathname));
+    };
+
+    const popularSearches = siteContent.search_popular_brands.map((brand) => brand.name);
 
     return (
         <>
@@ -414,7 +310,7 @@ export default function Header() {
                 className={[
                     "z-[140] bg-admin-surface top-0",
                     "fixed inset-x-0 md:sticky md:inset-x-auto",
-                    isMobileOpen ? "shadow-none" : "border-b border-admin-border",
+                    "border-b border-admin-border",
                     isMainRowPinned ? "shadow-admin-header" : "",
                 ].join(" ")}
             >
@@ -432,14 +328,13 @@ export default function Header() {
                     searchBrandResults={searchBrandResults}
                     suggestedQuery={suggestedQuery}
                     recentSearches={recentSearches}
-                    popularSearches={siteContent.search_popular_brands.map((b) => b.name)}
+                    popularSearches={popularSearches}
                     wishlistQty={wishlistQty}
                     cartQty={cartQty}
                     isAuthenticated={isAuthenticated}
                     isAccountOpen={isAccountOpen}
                     userName={user?.name || "Пользователь"}
                     userPhone={user?.phone || ""}
-                    isMobileOpen={isMobileOpen}
                     isBurgerOpen={isBurgerOpen}
                     onSearchFocusAction={() => setSearchOpen(true)}
                     onSearchChangeAction={handleSearchChange}
@@ -457,8 +352,6 @@ export default function Header() {
                         logout();
                         setIsAccountOpen(false);
                     }}
-                    onOpenMobileSearchAction={openMobileSearch}
-                    onToggleMobileMenuAction={toggleMobileMenu}
                     onToggleBurgerMenuAction={() => setIsBurgerOpen((prev) => !prev)}
                     onCloseBurgerMenuAction={() => setIsBurgerOpen(false)}
                 />
@@ -466,33 +359,62 @@ export default function Header() {
                 <div id={HEADER_STICKY_EXTENSION_ID} />
             </header>
 
-            <Suspense fallback={<HeaderNavFallback isCompact={false} links={HEADER_CATEGORY_PILLS} />}>
-                <HeaderNav isCompact={false} links={HEADER_CATEGORY_PILLS} />
-            </Suspense>
-
-            <Suspense fallback={null}>
-                <HeaderMobileMenu
-                    isOpen={isMobileOpen}
-                    menuRootRef={mobileMenuRootRef}
-                    anchorBottom={menuAnchorBottom}
-                    wishlistQty={wishlistQty}
-                    burgerLinks={HEADER_BURGER_LINKS}
-                    phoneLinks={phoneLinks}
-                    contactLinks={contactLinks}
-                    isAuthenticated={isAuthenticated}
-                    userName={user?.name || "Пользователь"}
-                    userPhone={user?.phone || ""}
-                    onCloseAction={() => {
-                        resetSearch();
-                        setIsMobileOpen(false);
-                    }}
-                    onLogoutAction={() => {
-                        logout();
-                        resetSearch();
-                        setIsMobileOpen(false);
-                    }}
+            <Suspense
+                fallback={
+                    <HeaderNavFallback
+                        isCompact={false}
+                        hideBelowMd={!showMobileCategoryPills}
+                        links={HEADER_CATEGORY_PILLS}
+                    />
+                }
+            >
+                <HeaderNav
+                    isCompact={false}
+                    hideBelowMd={!showMobileCategoryPills}
+                    links={HEADER_CATEGORY_PILLS}
                 />
             </Suspense>
+
+            <MobileSearchSheet
+                open={searchOpen}
+                searchLoading={searchLoading}
+                searchQuery={searchQuery}
+                searchResults={searchResults}
+                searchBrandResults={searchBrandResults}
+                suggestedQuery={suggestedQuery}
+                recentSearches={recentSearches}
+                popularSearches={popularSearches}
+                onChangeAction={handleSearchChange}
+                onSubmitAction={submitSearchPage}
+                onCloseAction={closeMobileSearch}
+                onClearRecentAction={clearRecentSearches}
+                onRecentSelectAction={selectSuggestion}
+                onPopularSelectAction={selectSuggestion}
+                onBrandSelectAction={handleSelectBrand}
+                onProductSelectAction={handleSelectProduct}
+                onSuggestedQueryAction={selectSuggestion}
+            />
+            <MobileProfileSheet
+                open={profileMenuOpen}
+                isAuthenticated={isAuthenticated}
+                userName={user?.name || "Пользователь"}
+                onCloseAction={() => setProfileMenuPath(null)}
+                onLogoutAction={() => {
+                    logout();
+                    setProfileMenuPath(null);
+                }}
+            />
+            <MobileTabBar
+                cartQty={cartQty}
+                searchOpen={searchOpen}
+                menuOpen={profileMenuOpen}
+                onOpenSearchAction={toggleMobileSearch}
+                onToggleMenuAction={toggleProfileMenu}
+                onDismissMenuAction={() => {
+                    setProfileMenuPath(null);
+                    setSearchOpen(false);
+                }}
+            />
         </>
     );
 }
