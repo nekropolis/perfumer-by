@@ -92,7 +92,7 @@ export default function ProductCardBody({
                 <div
                     className={
                         isCatalog
-                            ? "absolute right-0 top-0 z-10 origin-top-right scale-[0.88] sm:right-0.5 sm:top-0.5 sm:scale-100 [&_button]:static"
+                            ? "absolute right-1.5 top-1.5 z-10 sm:right-2 sm:top-2 [&_button]:static"
                             : undefined
                     }
                 >

@@ -6,6 +6,7 @@ import HeaderAccountMenu from "@/components/layout/header/account-menu";
 import HeaderBurgerMenu, { HeaderBurgerMenuFallback } from "@/components/layout/header/header-burger-menu";
 import HeaderCartButton from "@/components/layout/header/header-cart-button";
 import HeaderWishlistButton from "@/components/layout/header/header-wishlist-button";
+import SitePhoneDropdown from "@/components/ui/site-phone-dropdown";
 import type { HeaderNavLink } from "@/components/layout/header/types";
 
 type HeaderActionsProps = {
@@ -47,6 +48,7 @@ export default function HeaderActions({
 }: HeaderActionsProps) {
     return (
         <div className="ml-auto flex shrink-0 items-center justify-end gap-0.5 sm:gap-2">
+            <SitePhoneDropdown size="header" />
             <HeaderAccountMenu
                 accountRef={accountRef}
                 isAuthenticated={isAuthenticated}

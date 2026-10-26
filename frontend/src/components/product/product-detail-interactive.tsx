@@ -368,12 +368,19 @@ export default function ProductDetailInteractive({
                             <button
                                 type="button"
                                 onClick={openReviewsTab}
-                                className="text-admin-text-secondary transition hover:text-admin-text"
+                                className="hidden text-admin-text-secondary transition hover:text-admin-text md:inline"
                             >
                                 {reviewsMetaLabel}
                             </button>
                         </div>
                         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 md:hidden">
+                            <button
+                                type="button"
+                                onClick={openReviewsTab}
+                                className="text-admin-text-secondary transition hover:text-admin-text"
+                            >
+                                {reviewsMetaLabel}
+                            </button>
                             <button
                                 type="button"
                                 onClick={() => void toggleWishlist(product.id)}

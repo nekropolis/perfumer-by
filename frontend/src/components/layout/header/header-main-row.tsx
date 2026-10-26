@@ -85,7 +85,7 @@ export default function HeaderMainRow({
     onCloseBurgerMenuAction,
 }: HeaderMainRowProps) {
     return (
-        <div className="relative z-10 overflow-x-clip bg-admin-surface">
+        <div className="relative z-10 bg-admin-surface md:overflow-x-clip">
             <div className="mx-auto max-w-7xl min-w-0 px-3 sm:px-6 lg:px-8">
                 <div className="flex h-[52px] min-h-0 min-w-0 items-center gap-2 sm:gap-3 md:h-[64px] portrait:md:h-[78px] lg:h-[78px] lg:gap-4">
                     <HeaderLogo />
