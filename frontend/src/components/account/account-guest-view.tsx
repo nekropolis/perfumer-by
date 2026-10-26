@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { CreditCard, Heart, Package, UserRound } from "lucide-react";
+import { useWishlist } from "@/components/wishlist/wishlist-provider";
 import { siteBtnPrimary, siteBtnSecondary, siteCard } from "@/lib/site-ui-classes";
 
 const benefits = [
@@ -23,6 +24,8 @@ const benefits = [
 ] as const;
 
 export default function AccountGuestView() {
+    const { wishlistQty, loading: wishlistLoading } = useWishlist();
+
     return (
         <main className="bg-admin-bg text-admin-text md:min-h-screen">
             <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
@@ -33,6 +36,9 @@ export default function AccountGuestView() {
                     >
                         <Heart className="h-5 w-5 shrink-0" aria-hidden />
                         Избранное
+                        <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-admin-muted px-2 py-0.5 text-xs font-semibold tabular-nums text-admin-text">
+                            {wishlistLoading ? "…" : wishlistQty}
+                        </span>
                     </Link>
 
                     <section className={`${siteCard} p-5`}>

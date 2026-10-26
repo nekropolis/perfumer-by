@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } f
 import { usePathname } from "next/navigation";
 import { useCart } from "@/components/cart/cart-provider";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useWishlist } from "@/components/wishlist/wishlist-provider";
 import MobileTabBar from "@/components/layout/mobile-tab-bar";
 import HeaderMainRow from "@/components/layout/header/header-main-row";
 import HeaderNav, { HeaderNavFallback } from "@/components/layout/header/header-nav";
@@ -64,6 +65,7 @@ export default function Header() {
     const mainRowRef = useRef<HTMLDivElement | null>(null);
     const mainRowSentinelRef = useRef<HTMLDivElement | null>(null);
     const { cartQty } = useCart();
+    const { wishlistQty } = useWishlist();
     const { user, isAuthenticated, logout } = useAuth();
 
     const accountRef = useRef<HTMLDivElement | null>(null);
@@ -347,6 +349,7 @@ export default function Header() {
                     suggestedQuery={suggestedQuery}
                     recentSearches={recentSearches}
                     popularSearches={popularSearches}
+                    wishlistQty={wishlistQty ?? 0}
                     cartQty={cartQty}
                     isAuthenticated={isAuthenticated}
                     isAccountOpen={isAccountOpen}

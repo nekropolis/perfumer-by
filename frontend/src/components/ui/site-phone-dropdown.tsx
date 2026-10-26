@@ -12,7 +12,7 @@ type SitePhoneDropdownProps = {
      * lg — крупный номер текстом
      * plain — как список в блоке «Помощь» на карточке товара
      */
-    size?: "sm" | "lg" | "plain";
+    size?: "sm" | "lg" | "plain" | "line";
 };
 
 export default function SitePhoneDropdown({ className = "", size = "sm" }: SitePhoneDropdownProps) {
@@ -49,9 +49,11 @@ export default function SitePhoneDropdown({ className = "", size = "sm" }: SiteP
     const dropdown = open ? (
         <div
             className={`absolute z-50 min-w-[16rem] rounded-2xl border border-admin-border bg-admin-surface p-1.5 shadow-xl ${
-                size === "plain" || size === "lg"
-                    ? "left-0 top-full mt-2"
-                    : "left-0 top-[calc(100%+0.375rem)] sm:left-auto sm:right-0"
+                size === "line"
+                    ? "bottom-full left-0 mb-2"
+                    : size === "plain" || size === "lg"
+                        ? "left-0 top-full mt-2"
+                        : "left-0 top-[calc(100%+0.375rem)] sm:left-auto sm:right-0"
             }`}
             role="menu"
         >
@@ -68,6 +70,23 @@ export default function SitePhoneDropdown({ className = "", size = "sm" }: SiteP
             ))}
         </div>
     ) : null;
+
+    if (size === "line") {
+        return (
+            <div className={`relative ${className}`.trim()} ref={rootRef}>
+                <button
+                    type="button"
+                    onClick={() => setOpen((prev) => !prev)}
+                    aria-expanded={open}
+                    aria-haspopup="menu"
+                    className="whitespace-nowrap text-left text-sm font-medium text-admin-text"
+                >
+                    МТС / A1 / life - {phoneShortLabel}
+                </button>
+                {dropdown}
+            </div>
+        );
+    }
 
     if (size === "plain") {
         return (

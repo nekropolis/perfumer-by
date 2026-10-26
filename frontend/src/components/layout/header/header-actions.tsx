@@ -5,9 +5,11 @@ import { Suspense } from "react";
 import HeaderAccountMenu from "@/components/layout/header/account-menu";
 import HeaderBurgerMenu, { HeaderBurgerMenuFallback } from "@/components/layout/header/header-burger-menu";
 import HeaderCartButton from "@/components/layout/header/header-cart-button";
+import HeaderWishlistButton from "@/components/layout/header/header-wishlist-button";
 import type { HeaderNavLink } from "@/components/layout/header/types";
 
 type HeaderActionsProps = {
+    wishlistQty: number;
     cartQty: number;
     isAuthenticated: boolean;
     isAccountOpen: boolean;
@@ -26,6 +28,7 @@ type HeaderActionsProps = {
 };
 
 export default function HeaderActions({
+    wishlistQty,
     cartQty,
     isAuthenticated,
     isAccountOpen,
@@ -54,6 +57,8 @@ export default function HeaderActions({
                 onCloseAction={onCloseAccountAction}
                 onLogoutAction={onLogoutAction}
             />
+
+            <HeaderWishlistButton qty={wishlistQty ?? 0} className="hidden md:inline-flex" />
 
             <HeaderCartButton qty={cartQty} className="hidden md:inline-flex" />
 

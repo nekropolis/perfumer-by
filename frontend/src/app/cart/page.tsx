@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import { lineItemProductTitle } from "@/lib/product-display-name";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
     addGiftCertificateTemplateToCart,
     applyDiscountCard,
@@ -360,11 +360,42 @@ export default function CartPage() {
         requestDeleteGift(itemId, title);
     };
 
+    const mobileCheckoutBarRef = useRef<HTMLDivElement | null>(null);
+    const hasMobileCheckoutBar = Boolean(
+        cart && (cart.items.length > 0 || (cart.gift_certificate_items?.length ?? 0) > 0),
+    );
+
     useEffect(() => {
         void fetchGiftCertificateTemplates()
             .then((res) => setTemplates(res.data))
             .catch(() => setTemplates([]));
     }, []);
+
+    useEffect(() => {
+        const root = document.documentElement;
+        const bar = mobileCheckoutBarRef.current;
+        if (!hasMobileCheckoutBar || !bar) {
+            root.style.removeProperty("--storefront-bottom-bar-height");
+            return;
+        }
+
+        const publishHeight = () => {
+            const height = Math.ceil(bar.getBoundingClientRect().height);
+            if (height > 0) {
+                root.style.setProperty("--storefront-bottom-bar-height", `${height}px`);
+                return;
+            }
+            root.style.removeProperty("--storefront-bottom-bar-height");
+        };
+
+        publishHeight();
+        const observer = new ResizeObserver(publishHeight);
+        observer.observe(bar);
+        return () => {
+            observer.disconnect();
+            root.style.removeProperty("--storefront-bottom-bar-height");
+        };
+    }, [hasMobileCheckoutBar]);
 
     if (loading) {
         return (
@@ -934,6 +965,7 @@ export default function CartPage() {
             </div>
 
             <div
+                ref={mobileCheckoutBarRef}
                 className="fixed inset-x-0 z-[130] border-t border-admin-border bg-admin-surface/95 backdrop-blur md:hidden"
                 style={{ bottom: "calc(var(--storefront-tab-bar-height, 0px) + var(--storefront-keyboard-inset, 0px))" }}
             >

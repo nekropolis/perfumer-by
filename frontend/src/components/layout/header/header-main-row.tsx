@@ -22,6 +22,7 @@ type HeaderMainRowProps = {
     suggestedQuery: string | null;
     recentSearches: string[];
     popularSearches: readonly string[];
+    wishlistQty: number;
     cartQty: number;
     isAuthenticated: boolean;
     isAccountOpen: boolean;
@@ -60,6 +61,7 @@ export default function HeaderMainRow({
     suggestedQuery,
     recentSearches,
     popularSearches,
+    wishlistQty,
     cartQty,
     isAuthenticated,
     isAccountOpen,
@@ -116,6 +118,7 @@ export default function HeaderMainRow({
                     </Suspense>
 
                     <HeaderActions
+                        wishlistQty={wishlistQty}
                         cartQty={cartQty}
                         isAuthenticated={isAuthenticated}
                         isAccountOpen={isAccountOpen}
