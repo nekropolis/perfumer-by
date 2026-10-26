@@ -1,5 +1,6 @@
 import type { CheckoutLineSelectionStored, CheckoutQuote } from "@/lib/checkout-api";
 import { formatMoneyMinorUnits, parseMoneyMinorUnits } from "@/lib/format-byn";
+import { resolveDiscountedPrice } from "@/lib/loyalty-pricing";
 import type { CartData } from "@/types/cart";
 
 /** Сумма в рублях для проверок знака. Арифметика сумм идёт через копейки. */
@@ -107,9 +108,54 @@ export function waitingDiscountAmountForLines(items: CartData["items"]): string 
     return formatMoneyMinorUnits(cents);
 }
 
+/** Цена единицы как на карточке: ожидание от каталожной цены, затем скидка карты. */
+export function cartItemCustomerUnitPrice(
+    item: CartData["items"][number],
+    loyaltyPercent: number,
+): string {
+    if (item.is_promotion) {
+        return item.price;
+    }
+
+    const catalogPrice = item.waiting_discount && item.base_price ? item.base_price : item.price;
+    return (
+        resolveDiscountedPrice(catalogPrice, {
+            loyaltyPercent,
+            waitingActive: item.waiting_discount,
+            oldPrice: item.old_price,
+        }) ?? item.price
+    );
+}
+
+export function cartItemCustomerLineTotal(
+    item: CartData["items"][number],
+    loyaltyPercent: number,
+): string {
+    const unit = cartItemCustomerUnitPrice(item, loyaltyPercent);
+    return formatMoneyMinorUnits(parseMoneyMinorUnits(unit) * item.qty);
+}
+
+/** Зачёркнутая цена строки: база ожидания, иначе old_price, иначе цена до карты. */
+export function cartItemStrikeUnitPrice(
+    item: CartData["items"][number],
+    loyaltyPercent: number,
+): string | null {
+    const unitMinor = parseMoneyMinorUnits(cartItemCustomerUnitPrice(item, loyaltyPercent));
+    if (item.waiting_discount && item.base_price) {
+        return parseMoneyMinorUnits(item.base_price) > unitMinor ? item.base_price : null;
+    }
+    if (item.old_price && parseMoneyMinorUnits(item.old_price) > unitMinor) {
+        return item.old_price;
+    }
+    if (parseMoneyMinorUnits(item.price) > unitMinor) {
+        return item.price;
+    }
+    return null;
+}
+
 /**
  * Полная (зачёркнутая) цена единицы: base_price при ожидании, иначе old_price при акции, иначе price.
- * Совпадает с логикой отображения в строке корзины.
+ * Совпадает с суммой «Сумма товаров» в корзине.
  */
 export function cartItemListUnitPrice(item: CartData["items"][number]): string {
     if (item.waiting_discount && item.base_price) {

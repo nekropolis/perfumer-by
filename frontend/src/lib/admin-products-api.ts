@@ -1,4 +1,5 @@
 import { getAuthToken } from "@/lib/auth-token";
+import { readAdminJsonResponse } from "@/lib/admin-fetch-error";
 import { formatMoneyRubText } from "@/lib/format-money-display";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
@@ -26,6 +27,15 @@ function getStorefrontRevalidateHeaders(): Record<string, string> {
     };
 }
 
+export type ProductReplacementSummary = {
+    product_id: number;
+    product_name: string;
+    product_slug: string;
+    brand_name?: string | null;
+    display_name?: string;
+    image?: string | null;
+};
+
 export type ProductAdminItem = {
     id: number;
     name: string;
@@ -41,6 +51,10 @@ export type ProductAdminItem = {
     views_count?: number | string | null;
     /** Варианты с остатком на «наших» полках или предзаказом (см. ProductAdminController). */
     variants_with_stock_count?: number;
+    replacement_product_id?: number | null;
+    replacement?: ProductReplacementSummary | null;
+    /** Привязка есть, но замена не в наличии / неактивна. */
+    replacement_unavailable?: boolean;
     brand: {
         id: number;
         name: string;
@@ -167,6 +181,9 @@ export type ProductAdminDetail = {
     is_hit: boolean;
     is_set?: boolean;
     is_out_of_stock?: boolean;
+    replacement_product_id?: number | null;
+    replacement?: ProductReplacementSummary | null;
+    replacement_unavailable?: boolean;
     h1?: string | null;
     short_description?: string | null;
     description?: string | null;
@@ -366,6 +383,8 @@ export async function fetchProductLinkSearch(params: {
     q: string;
     brand_id?: number;
     limit?: number;
+    /** Только товары с вариантами в наличии (для привязки замены). */
+    in_stock?: boolean;
 }): Promise<ProductLinkSearchResponse> {
     const searchParams = new URLSearchParams();
     searchParams.set("q", params.q.trim());
@@ -374,6 +393,9 @@ export async function fetchProductLinkSearch(params: {
     }
     if (params.limit != null) {
         searchParams.set("limit", String(params.limit));
+    }
+    if (params.in_stock) {
+        searchParams.set("in_stock", "1");
     }
     const query = searchParams.toString();
     const res = await fetch(`${API_BASE}/admin/products/link-search?${query}`, {
@@ -670,6 +692,30 @@ export async function createProduct(payload: {
     }
 
     return res.json();
+}
+
+export async function updateProductReplacement(
+    id: number | string,
+    replacementProductId: number | null,
+): Promise<{
+    message?: string;
+    data: {
+        id: number;
+        replacement_product_id: number | null;
+        replacement: ProductReplacementSummary | null;
+    };
+}> {
+    const res = await fetch(`${API_BASE}/admin/products/${id}/replacement`, {
+        method: "PUT",
+        headers: getAdminHeaders(),
+        body: JSON.stringify({ replacement_product_id: replacementProductId }),
+        cache: "no-store",
+    });
+
+    return readAdminJsonResponse(
+        res,
+        "Не удалось сохранить дополнительный продукт",
+    );
 }
 
 export async function updateProduct(

@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { BellRing } from "lucide-react";
+import { BellRing, ChevronRight } from "lucide-react";
 import StockNotificationModal from "@/components/product/stock-notification-modal";
 import OneClickOrderTrigger from "@/components/product/one-click-order-trigger";
-import type { ProductVariantData } from "@/types/catalog";
+import type { ProductReplacementData, ProductVariantData } from "@/types/catalog";
 import {
     formatSetComponentLines,
     formatVariantConcentrationLabel,
@@ -15,6 +16,9 @@ import {
     formatVariantVolumeLine,
     getVariantAvailabilityState,
 } from "@/lib/product-detail-utils";
+import { HEADER_STICKY_EXTENSION_ID } from "@/components/layout/header/constants";
+import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
+import { formatDiscountPercentSnapshot } from "@/lib/loyalty-pricing";
 import { siteBtnPrimary, siteBtnSecondary, siteCard } from "@/lib/site-ui-classes";
 
 const emptySubscribe = () => () => { };
@@ -63,7 +67,10 @@ type Props = {
     waitingDiscountApplicable?: boolean;
     onWaitingDiscountChangeAction?: (active: boolean) => void;
     deliveryDate?: string | null;
+    replacement?: ProductReplacementData | null;
     surface?: "desktop" | "mobile" | "all";
+    /** Иконки справа в закреплённой строке под шапкой. */
+    headerActions?: ReactNode;
 };
 
 export default function ProductBuyBox({
@@ -84,19 +91,34 @@ export default function ProductBuyBox({
     waitingDiscountApplicable = false,
     onWaitingDiscountChangeAction,
     deliveryDate,
+    replacement = null,
     surface = "all",
+    headerActions,
 }: Props) {
     const showDesktop = surface === "all" || surface === "desktop";
     const showMobile = surface === "all" || surface === "mobile";
     const [notifyOpen, setNotifyOpen] = useState(false);
-    const [mobileBarBottomOffset, setMobileBarBottomOffset] = useState(0);
+    const [pricePinned, setPricePinned] = useState(false);
+    const [priceBarEntered, setPriceBarEntered] = useState(false);
+    if (!pricePinned && priceBarEntered) {
+        setPriceBarEntered(false);
+    }
     const mobileBarRef = useRef<HTMLDivElement | null>(null);
+    const priceDetailsRef = useRef<HTMLDivElement | null>(null);
     const mobileBarPortalReady = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
 
     const hasVariant = selectedVariant !== null;
     const canAddToCart = hasVariant && selectedVariant.is_available;
     const selectedVariantId = selectedVariant?.id ?? null;
     const selectedVariantTitle = selectedVariant?.display_name ?? null;
+    const replacementTitle = replacement
+        ? (replacement.display_name || replacement.product_name).trim()
+        : "";
+    const replacementHref = replacement ? `/${replacement.product_slug}` : null;
+    const replacementImageSrc = replacement?.image
+        ? normalizeProductImageUrl(replacement.image)
+        : null;
+    const showReplacementCta = !hasVariant && Boolean(replacementHref && replacementTitle);
 
     const hasLoyaltyDiscount = Boolean(
         loyaltyCardNumber &&
@@ -156,41 +178,6 @@ export default function ProductBuyBox({
     const hasAnyDiscount = hasLoyaltyDiscount || hasWaitingDiscount || selectedVariant?.discount_percent;
 
     useEffect(() => {
-        if (!showMobile) {
-            return;
-        }
-
-        if (typeof window === "undefined") {
-            return;
-        }
-
-        // Lift only for the virtual keyboard — visualViewport scroll during iOS
-        // overscroll otherwise pulls the bar off the bottom edge.
-        const updateViewportOffsets = () => {
-            const vv = window.visualViewport;
-            if (!vv) {
-                setMobileBarBottomOffset(0);
-                return;
-            }
-            const shrunkBy = window.innerHeight - vv.height;
-            if (shrunkBy <= 120) {
-                setMobileBarBottomOffset(0);
-                return;
-            }
-            setMobileBarBottomOffset(Math.max(0, window.innerHeight - (vv.height + vv.offsetTop)));
-        };
-
-        updateViewportOffsets();
-        window.visualViewport?.addEventListener("resize", updateViewportOffsets);
-        window.addEventListener("resize", updateViewportOffsets);
-
-        return () => {
-            window.visualViewport?.removeEventListener("resize", updateViewportOffsets);
-            window.removeEventListener("resize", updateViewportOffsets);
-        };
-    }, [showMobile]);
-
-    useEffect(() => {
         if (!showMobile || !mobileBarPortalReady) {
             return;
         }
@@ -204,10 +191,7 @@ export default function ProductBuyBox({
         const publishHeight = () => {
             const height = Math.ceil(bar.getBoundingClientRect().height);
             if (height > 0) {
-                root.style.setProperty(
-                    STOREFRONT_BOTTOM_BAR_HEIGHT,
-                    `${height + mobileBarBottomOffset}px`,
-                );
+                root.style.setProperty(STOREFRONT_BOTTOM_BAR_HEIGHT, `${height}px`);
                 return;
             }
             root.style.removeProperty(STOREFRONT_BOTTOM_BAR_HEIGHT);
@@ -221,7 +205,78 @@ export default function ProductBuyBox({
             observer.disconnect();
             root.style.removeProperty(STOREFRONT_BOTTOM_BAR_HEIGHT);
         };
-    }, [showMobile, mobileBarPortalReady, mobileBarBottomOffset]);
+    }, [showMobile, mobileBarPortalReady]);
+
+    useEffect(() => {
+        if (!showMobile) {
+            return;
+        }
+
+        const priceEl = priceDetailsRef.current;
+        if (!priceEl) {
+            return;
+        }
+
+        let observer: IntersectionObserver | null = null;
+
+        const readStickyTop = () => {
+            const stickyTopRaw = getComputedStyle(document.documentElement)
+                .getPropertyValue("--catalog-toolbar-sticky-top")
+                .trim();
+            return Number.parseFloat(stickyTopRaw) || 64;
+        };
+
+        const updatePinned = () => {
+            if (window.matchMedia("(min-width: 1280px)").matches) {
+                setPricePinned(false);
+                return;
+            }
+
+            setPricePinned(priceEl.getBoundingClientRect().bottom <= readStickyTop());
+        };
+
+        const disconnect = () => {
+            observer?.disconnect();
+            observer = null;
+        };
+
+        const setup = () => {
+            disconnect();
+            updatePinned();
+            if (window.matchMedia("(min-width: 1280px)").matches) {
+                return;
+            }
+
+            const stickyTop = readStickyTop();
+            observer = new IntersectionObserver(() => updatePinned(), {
+                root: null,
+                rootMargin: `-${stickyTop}px 0px 0px 0px`,
+                threshold: [0, 1],
+            });
+            observer.observe(priceEl);
+        };
+
+        setup();
+        window.addEventListener("scroll", updatePinned, { passive: true });
+        window.addEventListener("resize", setup);
+
+        return () => {
+            window.removeEventListener("scroll", updatePinned);
+            window.removeEventListener("resize", setup);
+            disconnect();
+        };
+    }, [showMobile, selectedVariantId, effectivePrice]);
+
+    useEffect(() => {
+        if (!pricePinned) {
+            return;
+        }
+
+        const frame = window.requestAnimationFrame(() => {
+            setPriceBarEntered(true);
+        });
+        return () => window.cancelAnimationFrame(frame);
+    }, [pricePinned]);
 
     const oneClickTriggerNode = (
         <OneClickOrderTrigger
@@ -239,6 +294,73 @@ export default function ProductBuyBox({
             <span>Сообщить о появлении</span>
         </button>
     );
+
+    const renderReplacementThumb = (sizeClassName: string) => (
+        <div
+            className={`relative shrink-0 overflow-hidden rounded-xl bg-admin-muted ${sizeClassName}`}
+        >
+            {replacementImageSrc ? (
+                <Image
+                    src={replacementImageSrc}
+                    alt={replacementTitle}
+                    fill
+                    sizes="72px"
+                    loader={productImageLoader}
+                    className="object-contain p-1"
+                />
+            ) : (
+                <div className="flex h-full w-full items-center justify-center text-[10px] text-admin-text-secondary">
+                    Нет фото
+                </div>
+            )}
+        </div>
+    );
+
+    const renderReplacementPanel = () => {
+        if (!replacementHref || !replacementTitle) {
+            return null;
+        }
+
+        return (
+            <div className="flex flex-col gap-4">
+                <div className="flex items-stretch gap-3">
+                    {renderReplacementThumb("h-[4.5rem] w-[4.5rem]")}
+                    <div className="w-px shrink-0 self-stretch bg-admin-border" aria-hidden />
+                    <div className="min-w-0 flex-1 self-center">
+                        <div className="text-sm leading-5 text-admin-text-secondary">
+                            Предлагаем замену –
+                        </div>
+                        <div className="mt-0.5 text-base font-semibold leading-snug text-admin-text">
+                            {replacementTitle}
+                        </div>
+                    </div>
+                </div>
+                <Link
+                    href={replacementHref}
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-admin-primary px-5 py-3.5 text-base font-semibold text-white shadow-sm transition hover:bg-admin-primary-hover active:scale-[0.98]"
+                >
+                    Посмотреть замену
+                    <ChevronRight className="h-5 w-5 shrink-0" aria-hidden />
+                </Link>
+            </div>
+        );
+    };
+
+    const renderReplacementMobileAction = () => {
+        if (!replacementHref) {
+            return null;
+        }
+
+        return (
+            <Link
+                href={replacementHref}
+                className={`${siteBtnPrimary} inline-flex h-12 w-full items-center justify-center gap-1 px-4 text-base`}
+            >
+                Посмотреть замену
+                <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
+            </Link>
+        );
+    };
 
     const renderWaitingDiscountRow = (compact = false) => {
         if (!showWaitingCheckbox) {
@@ -303,11 +425,15 @@ export default function ProductBuyBox({
 
     const renderCartAction = (compact: boolean) => {
         if (!hasVariant) {
+            if (showReplacementCta) {
+                return renderReplacementMobileAction();
+            }
+
             return (
                 <button
                     type="button"
                     onClick={() => setNotifyOpen(true)}
-                    className={`${siteBtnPrimary} shrink-0 ${compact ? "h-11 px-4 text-sm" : "flex-1 px-5 py-3.5 text-base"}`}
+                    className={`${siteBtnPrimary} shrink-0 ${compact ? "h-12 w-full px-3 text-base" : "flex-1 px-5 py-3.5 text-base"}`}
                 >
                     Сообщить
                 </button>
@@ -319,7 +445,7 @@ export default function ProductBuyBox({
                 return (
                     <Link
                         href="/cart"
-                        className={`${siteBtnSecondary} shrink-0 ${compact ? "inline-flex h-11 items-center justify-center px-4 text-sm" : "flex-1 cursor-pointer"}`}
+                        className={`${siteBtnSecondary} shrink-0 ${compact ? "inline-flex h-12 w-full items-center justify-center px-3 text-base" : "flex-1 cursor-pointer"}`}
                     >
                         {compact ? (
                             "В корзине"
@@ -357,7 +483,10 @@ export default function ProductBuyBox({
                             />
                         </svg>
                     )}
-                    <span>&nbsp;{isPending ? (compact ? "..." : "Добавление...") : compact ? "В корзину" : "Добавить в корзину"}</span>
+                    <span>
+                        {compact ? "" : "\u00A0"}
+                        {isPending ? (compact ? "..." : "Добавление...") : compact ? "В корзину" : "Добавить в корзину"}
+                    </span>
                 </button>
             );
         }
@@ -366,111 +495,167 @@ export default function ProductBuyBox({
             <button
                 type="button"
                 onClick={() => setNotifyOpen(true)}
-                className={`${siteBtnSecondary} shrink-0 ${compact ? "inline-flex h-11 items-center justify-center px-3 text-sm" : "flex-1 px-5 py-3.5 text-base"}`}
+                className={`${siteBtnSecondary} shrink-0 ${compact ? "inline-flex h-12 w-full items-center justify-center px-3 text-base" : "flex-1 px-5 py-3.5 text-base"}`}
             >
                 {compact ? "Уведомить" : "Сообщить о появлении"}
             </button>
         );
     };
 
-    const mobileBar = (
-        <div
-            ref={mobileBarRef}
-            className="fixed inset-x-0 bottom-0 z-[130] border-t border-admin-border bg-admin-surface/95 px-3 pt-2.5 backdrop-blur xl:hidden"
-            style={{
-                bottom: `${mobileBarBottomOffset}px`,
-                paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
-            }}
-        >
-            <div className="mx-auto w-full max-w-7xl">
-                <div className="flex items-center gap-3">
-                    <div className="min-w-0 flex-1">
-                        {hasVariant ? (
-                            <>
-                                <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
-                                    <span className="min-w-0 truncate text-sm font-medium leading-5 text-admin-text">
-                                        {selectedVariant.is_set
-                                            ? "Набор"
-                                            : formatVariantVolumeLine(selectedVariant)}
-                                        {!selectedVariant.is_set ? (
-                                            <span className="font-normal text-admin-text-secondary">
-                                                {" · "}
-                                                {formatVariantConcentrationLabel(selectedVariant)}
-                                            </span>
-                                        ) : null}
-                                    </span>
-                                    {designLabel ? (
-                                        <span className="inline-flex shrink-0 items-center rounded-full bg-admin-muted px-1.5 py-px text-[10px] font-medium leading-4 text-admin-text">
-                                            {designLabel}
-                                        </span>
-                                    ) : null}
-                                    {availability ? (
-                                        <span className={`truncate text-xs font-medium leading-5 ${availability.className}`}>
-                                            · {availability.status}
-                                        </span>
-                                    ) : null}
-                                </div>
-                                {selectedVariant.is_set ? (
-                                    <div className="space-y-0.5 text-xs leading-4 text-admin-text-secondary">
-                                        {formatSetComponentLines(selectedVariant).map((line) => (
-                                            <div key={line} className="truncate">
-                                                {line}
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : null}
-                                <div className="mt-0.5 flex flex-wrap items-end gap-x-1.5 gap-y-0.5">
-                                    <span className="text-2xl font-semibold leading-none tabular-nums text-admin-text">
-                                        {effectivePrice
-                                            ? formatPriceAction(effectivePrice)
-                                            : selectedVariant.is_preorder
-                                                ? "Предзаказ"
-                                                : "Цена уточняется"}
-                                    </span>
-                                    {(selectedVariant.old_price || hasAnyDiscount) ? (
-                                        <span className="self-start mt-0.5 text-base font-medium leading-none text-admin-text-secondary">
-                                            <DiagonalStrike>
-                                                {formatPriceAction(selectedVariant.old_price || selectedVariant.price)}
-                                            </DiagonalStrike>
-                                        </span>
-                                    ) : null}
-                                </div>
-                                {hasLoyaltyDiscount ? (
-                                    <div className="mt-0.5 text-xs leading-4 text-green-700">
-                                        Скидка {loyaltyPercent.toFixed(2)}% по карте {loyaltyCardNumber}
-                                    </div>
-                                ) : null}
-                                {hasWaitingDiscount && !showWaitingCheckbox ? (
-                                    <div className="mt-0.5 text-xs leading-4 text-green-700">
-                                        Скидка {waitingDiscountPercent}% за ожидание доставки
-                                    </div>
-                                ) : null}
-                            </>
-                        ) : (
-                            <div className="text-sm font-medium leading-5 text-admin-text">Ожидается поступление</div>
-                        )}
-                    </div>
-                    <div className="flex shrink-0 flex-col items-center justify-center gap-1">
-                        {renderCartAction(true)}
-                        {availability?.shipping ? (
-                            <div className="max-w-[6.75rem] text-center text-[10px] leading-tight text-amber-600">
-                                {availability.shipping}
+    const priceLabel = !hasVariant
+        ? "Ожидается поступление"
+        : effectivePrice
+            ? null
+            : selectedVariant.is_preorder
+                ? "Предзаказ"
+                : "Цена уточняется";
+
+    const selectedVariantLine = !selectedVariant
+        ? null
+        : selectedVariant.is_set
+            ? "Набор"
+            : [formatVariantVolumeLine(selectedVariant), formatVariantConcentrationLabel(selectedVariant)]
+                .filter((part) => part.trim().length > 0)
+                .join(" · ");
+
+    const loyaltyPercentLabel = formatDiscountPercentSnapshot(String(loyaltyPercent)) ?? String(loyaltyPercent);
+    const loyaltyDiscountLabel = hasLoyaltyDiscount ? `Скидка ${loyaltyPercentLabel}% по карте` : null;
+    const waitingDiscountLabel = hasWaitingDiscount
+        ? `Скидка ${waitingDiscountPercent}% за ожидание доставки`
+        : null;
+    const pinnedConditionText = !loyaltyDiscountLabel && !waitingDiscountLabel && availability
+        ? [availability.status, availability.shipping].filter(Boolean).join(" · ")
+        : null;
+
+    const mobilePriceDetails = showMobile ? (
+        <div ref={priceDetailsRef} className="mb-3 xl:hidden">
+            {hasVariant ? (
+                <>
+                    <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
+                        <div className="text-2xl font-semibold leading-none tabular-nums text-admin-text">
+                            {effectivePrice ? formatPriceAction(effectivePrice) : priceLabel}
+                        </div>
+                        {(selectedVariant.old_price || hasAnyDiscount) ? (
+                            <div className="text-base font-medium leading-none text-admin-text-secondary">
+                                <DiagonalStrike>
+                                    {formatPriceAction(selectedVariant.old_price || selectedVariant.price)}
+                                </DiagonalStrike>
+                            </div>
+                        ) : null}
+                        {selectedVariant.discount_percent ? (
+                            <div className="inline-flex rounded-full bg-admin-muted px-2 py-0.5 text-xs font-medium text-admin-text">
+                                - {selectedVariant.discount_percent}%
                             </div>
                         ) : null}
                     </div>
-                </div>
-
-                {showWaitingCheckbox ? (
-                    <div className="mt-2 border-t border-admin-border/80 pt-2">
-                        {renderWaitingDiscountRow(true)}
+                    {loyaltyDiscountLabel ? (
+                        <div className="mt-1.5 text-sm text-green-700">{loyaltyDiscountLabel}</div>
+                    ) : null}
+                    {waitingDiscountLabel && !showWaitingCheckbox ? (
+                        <div className="mt-1.5 text-sm text-green-700">{waitingDiscountLabel}</div>
+                    ) : null}
+                    {selectedVariantLine ? (
+                        <div className="mt-1.5 text-sm font-medium text-admin-text">{selectedVariantLine}</div>
+                    ) : null}
+                    {availability ? (
+                        <div className={`mt-1 text-sm font-medium ${availability.className}`}>
+                            {[availability.status, availability.shipping].filter(Boolean).join(" · ")}
+                        </div>
+                    ) : null}
+                </>
+            ) : showReplacementCta ? (
+                <div className="flex min-w-0 items-center gap-2.5">
+                    {renderReplacementThumb("h-12 w-12")}
+                    <div className="min-w-0">
+                        <div className="text-xs text-admin-text-secondary">Предлагаем замену</div>
+                        <div className="truncate text-sm font-semibold text-admin-text">{replacementTitle}</div>
                     </div>
+                </div>
+            ) : (
+                <div className="text-sm font-medium text-admin-text">Ожидается поступление</div>
+            )}
+        </div>
+    ) : null;
+
+    const mobileBar = (
+        <div
+            ref={mobileBarRef}
+            className="fixed inset-x-0 z-[130] border-t border-admin-border bg-admin-surface/95 px-3 py-2 backdrop-blur xl:hidden"
+            style={{
+                bottom: "calc(var(--storefront-tab-bar-height, env(safe-area-inset-bottom)) + var(--storefront-keyboard-inset, 0px))",
+            }}
+        >
+            <div className="mx-auto w-full max-w-7xl">
+                {showWaitingCheckbox ? <div className="mb-2">{renderWaitingDiscountRow(true)}</div> : null}
+                <div className={`grid gap-2 ${canAddToCart ? "grid-cols-2" : "grid-cols-1"}`}>
+                {canAddToCart ? (
+                    <OneClickOrderTrigger
+                        productId={productId}
+                        productName={productName}
+                        variantId={selectedVariantId}
+                        variantTitle={selectedVariantTitle}
+                        label="Купить сейчас"
+                        appearance="button"
+                        className={`${siteBtnSecondary} h-12 w-full px-3 text-base`}
+                    />
                 ) : null}
+                {renderCartAction(true)}
+                </div>
             </div>
         </div>
     );
 
+    const headerSlot = mobileBarPortalReady ? document.getElementById(HEADER_STICKY_EXTENSION_ID) : null;
+    const pinnedPriceBar = pricePinned && headerSlot ? (
+        <div
+            className={[
+                "flex items-center gap-2 border-t border-admin-border bg-admin-surface px-3 py-2 transition-[opacity,transform] duration-300 ease-out xl:hidden",
+                priceBarEntered ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0",
+            ].join(" ")}
+        >
+            <div className="min-w-0 flex-1">
+                {showReplacementCta && !hasVariant ? (
+                    <div className="truncate text-xs text-admin-text-secondary">Предлагаем замену</div>
+                ) : selectedVariantLine ? (
+                    <div className="truncate text-xs font-medium text-admin-text">{selectedVariantLine}</div>
+                ) : null}
+                <div className="mt-0.5 flex min-w-0 items-baseline gap-2">
+                    <span className="truncate text-lg font-semibold leading-none tabular-nums text-admin-text">
+                        {showReplacementCta && !hasVariant
+                            ? replacementTitle
+                            : hasVariant && effectivePrice
+                                ? formatPriceAction(effectivePrice)
+                                : priceLabel}
+                    </span>
+                    {hasVariant && (selectedVariant.old_price || hasAnyDiscount) ? (
+                        <span className="text-sm font-medium leading-none text-admin-text-secondary">
+                            <DiagonalStrike>
+                                {formatPriceAction(selectedVariant.old_price || selectedVariant.price)}
+                            </DiagonalStrike>
+                        </span>
+                    ) : null}
+                </div>
+                {loyaltyDiscountLabel ? (
+                    <div className="mt-1 truncate text-xs text-green-700">{loyaltyDiscountLabel}</div>
+                ) : null}
+                {waitingDiscountLabel ? (
+                    <div className={`${loyaltyDiscountLabel ? "mt-0.5" : "mt-1"} truncate text-xs text-green-700`}>
+                        {waitingDiscountLabel}
+                    </div>
+                ) : null}
+                {pinnedConditionText ? (
+                    <div className={`mt-1 truncate text-xs ${availability?.className ?? "text-admin-text-secondary"}`}>
+                        {pinnedConditionText}
+                    </div>
+                ) : null}
+            </div>
+            {headerActions ? <div className="flex shrink-0 items-center gap-1">{headerActions}</div> : null}
+        </div>
+    ) : null;
+
     return (
         <>
+            {mobilePriceDetails}
             {showDesktop ? (
                 <div className={`hidden xl:block ${siteCard} p-5 sm:p-6`}>
                     {hasVariant ? (
@@ -522,16 +707,12 @@ export default function ProductBuyBox({
                                 ) : null}
                             </div>
 
-                            {hasLoyaltyDiscount && (
-                                <div className="mb-2 text-sm text-green-700">
-                                    Скидка {loyaltyPercent.toFixed(2)}% по карте {loyaltyCardNumber}
-                                </div>
-                            )}
+                            {loyaltyDiscountLabel ? (
+                                <div className="mb-2 text-sm text-green-700">{loyaltyDiscountLabel}</div>
+                            ) : null}
 
-                            {hasWaitingDiscount && !showWaitingCheckbox ? (
-                                <div className="mb-2 text-sm text-green-700">
-                                    Скидка {waitingDiscountPercent}% за ожидание доставки
-                                </div>
+                            {waitingDiscountLabel && !showWaitingCheckbox ? (
+                                <div className="mb-2 text-sm text-green-700">{waitingDiscountLabel}</div>
                             ) : null}
 
                             <div className="mb-4">
@@ -563,6 +744,8 @@ export default function ProductBuyBox({
                                 </div>
                             )}
                         </>
+                    ) : showReplacementCta ? (
+                        renderReplacementPanel()
                     ) : (
                         <>
                             <div className="mb-4 text-xl font-semibold leading-tight text-admin-text">
@@ -583,6 +766,7 @@ export default function ProductBuyBox({
             ) : null}
 
             {showMobile && mobileBarPortalReady ? createPortal(mobileBar, document.body) : null}
+            {pinnedPriceBar && headerSlot ? createPortal(pinnedPriceBar, headerSlot) : null}
 
             <StockNotificationModal
                 open={notifyOpen}

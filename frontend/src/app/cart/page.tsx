@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Trash2 } from "lucide-react";
 import { lineItemProductTitle } from "@/lib/product-display-name";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
@@ -24,6 +25,9 @@ import {
     buildPartialCheckoutSelection,
     discountCardForBreakdownFromQuote,
     giftForBreakdownFromQuote,
+    cartItemCustomerLineTotal,
+    cartItemCustomerUnitPrice,
+    cartItemStrikeUnitPrice,
     listSubtotalForLines,
     merchandisePayFromQuote,
     waitingDiscountAmountForLines,
@@ -452,7 +456,7 @@ export default function CartPage() {
                                     </div>
                                     <div className="mt-3 text-sm font-medium text-[var(--foreground)]">{formatMoneyRub(item.amount)}</div>
                                 </div>
-                                <div className="flex shrink-0 items-center justify-between gap-4 sm:flex-col sm:items-end">
+                                <div className="flex w-full items-center gap-2 sm:w-auto">
                                     <div className="flex items-center rounded-2xl border border-[var(--line)] bg-[var(--background)]">
                                         <button
                                             type="button"
@@ -480,16 +484,17 @@ export default function CartPage() {
                                             +
                                         </button>
                                     </div>
-                                    <div className="text-right">
-                                        <div className="text-base font-semibold text-[var(--foreground)]">{formatMoneyRub(item.total)}</div>
-                                        <button
-                                            type="button"
-                                            onClick={() => deleteGiftTemplateItem(item.id, item.title)}
-                                            disabled={isPending}
-                                            className="mt-2 text-sm text-[var(--text-secondary)] disabled:opacity-40"
-                                        >
-                                            Удалить
-                                        </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => deleteGiftTemplateItem(item.id, item.title)}
+                                        disabled={isPending}
+                                        aria-label="Удалить"
+                                        className="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-[var(--text-secondary)] transition hover:text-[var(--foreground)] disabled:opacity-40"
+                                    >
+                                        <Trash2 className="h-5 w-5" aria-hidden />
+                                    </button>
+                                    <div className="ml-auto text-right text-xl font-semibold text-[var(--foreground)] sm:ml-4">
+                                        {formatMoneyRub(item.total)}
                                     </div>
                                 </div>
                             </div>
@@ -498,7 +503,11 @@ export default function CartPage() {
                         </article>
                     ))}
 
-                    {cart.items.map((item) => (
+                    {cart.items.map((item) => {
+                        const loyaltyPercent = Number(cart.discount_card?.discount_percent ?? 0) || 0;
+                        const unitPrice = cartItemCustomerUnitPrice(item, loyaltyPercent);
+                        const strikePrice = cartItemStrikeUnitPrice(item, loyaltyPercent);
+                        return (
                         <article
                             key={item.id}
                             className={`${siteCard} p-4 sm:p-5`}
@@ -531,12 +540,12 @@ export default function CartPage() {
 
                                     <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
                                         <div className="font-medium text-[var(--foreground)]">
-                                            {formatMoneyRub(item.price)}
-                                            {(item.waiting_discount ? item.base_price : item.old_price) && (
+                                            {formatMoneyRub(unitPrice)}
+                                            {strikePrice ? (
                                                 <span className="ml-2 font-normal text-[var(--text-secondary)] line-through">
-                                                    {formatMoneyRub(item.waiting_discount ? item.base_price : item.old_price)}
+                                                    {formatMoneyRub(strikePrice)}
                                                 </span>
-                                            )}
+                                            ) : null}
                                         </div>
 
                                         {item.waiting_discount && item.waiting_discount_percent !== null && (
@@ -560,7 +569,7 @@ export default function CartPage() {
                                     </div>
                                 </div>
 
-                                <div className="flex shrink-0 items-center justify-between gap-4 sm:flex-col sm:items-end">
+                                <div className="flex w-full items-center gap-2 sm:w-auto">
                                     <div className="flex items-center rounded-2xl border border-[var(--line)] bg-[var(--background)]">
                                         <button
                                             type="button"
@@ -591,26 +600,26 @@ export default function CartPage() {
                                         </button>
                                     </div>
 
-                                    <div className="text-right">
-                                        <div className="text-base font-semibold text-[var(--foreground)]">
-                                            {formatMoneyRub(item.total)}
-                                        </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => requestDeleteProduct(item.id, lineItemProductTitle(item))}
+                                        disabled={isPending}
+                                        aria-label="Удалить"
+                                        className="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-[var(--text-secondary)] transition hover:text-[var(--foreground)] disabled:opacity-40"
+                                    >
+                                        <Trash2 className="h-5 w-5" aria-hidden />
+                                    </button>
 
-                                        <button
-                                            type="button"
-                                            onClick={() => requestDeleteProduct(item.id, lineItemProductTitle(item))}
-                                            disabled={isPending}
-                                            className="mt-2 text-sm text-[var(--text-secondary)] transition hover:text-[var(--foreground)] disabled:opacity-40"
-                                        >
-                                            Удалить
-                                        </button>
+                                    <div className="ml-auto text-right text-xl font-semibold text-[var(--foreground)] sm:ml-4">
+                                        {formatMoneyRub(cartItemCustomerLineTotal(item, loyaltyPercent))}
                                     </div>
                                 </div>
                             </div>
                                 </div>
                             </div>
                         </article>
-                    ))}
+                        );
+                    })}
 
                     <button
                         type="button"
@@ -924,8 +933,11 @@ export default function CartPage() {
                 </aside>
             </div>
 
-            <div className="fixed inset-x-0 bottom-0 z-40 border-t border-admin-border bg-admin-surface/95 backdrop-blur md:hidden">
-                <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <div
+                className="fixed inset-x-0 z-[130] border-t border-admin-border bg-admin-surface/95 backdrop-blur md:hidden"
+                style={{ bottom: "calc(var(--storefront-tab-bar-height, 0px) + var(--storefront-keyboard-inset, 0px))" }}
+            >
+                <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3">
                     <div className="min-w-0 flex-1">
                         <div className="text-xs text-admin-text-secondary">
                             {partialLineSelection ? "К оформлению" : "Итого"}

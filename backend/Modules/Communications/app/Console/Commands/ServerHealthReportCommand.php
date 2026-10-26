@@ -25,6 +25,12 @@ class ServerHealthReportCommand extends Command
         $weekly = (bool) $this->option('weekly');
         $dryRun = (bool) $this->option('dry-run');
 
+        if (app()->environment('local') && ! $dryRun) {
+            $this->info('Local environment — отчёт в Telegram не отправляем.');
+
+            return self::SUCCESS;
+        }
+
         $report = $monitor->collect($weekly);
         $message = $monitor->formatTelegramMessage($report);
 

@@ -214,6 +214,7 @@ class ProductListResource extends JsonResource
             'is_hit' => $this->is_hit,
             'is_set' => (bool) $this->is_set,
             'is_out_of_stock' => $isOutOfStock,
+            'has_replacement' => $this->hasAvailableReplacement(),
 
             'price_range' => [
                 'min' => $minPrice,
@@ -314,6 +315,9 @@ class ProductListResource extends JsonResource
             'is_hit' => $product->is_hit,
             'is_set' => (bool) $product->is_set,
             'is_out_of_stock' => empty($presented['is_available']),
+            'has_replacement' => $product->replacement_product_id !== null
+                && $product->replacementProduct instanceof Product
+                && $product->replacementProduct->isAvailableAsReplacement(),
 
             'price_range' => [
                 'min' => $price,
@@ -453,6 +457,20 @@ class ProductListResource extends JsonResource
         $custom = trim((string) ($value->custom_value ?? ''));
 
         return $custom !== '' ? $custom : null;
+    }
+
+    private function hasAvailableReplacement(): bool
+    {
+        if ($this->replacement_product_id === null) {
+            return false;
+        }
+
+        /** @var Product|null $replacement */
+        $replacement = $this->relationLoaded('replacementProduct')
+            ? $this->replacementProduct
+            : $this->replacementProduct()->select(['id', 'is_active', 'is_out_of_stock'])->first();
+
+        return $replacement instanceof Product && $replacement->isAvailableAsReplacement();
     }
 
     /**

@@ -1,6 +1,6 @@
 # Claude instructions
 
-Read `AGENTS.md` first.
+Read `AGENTS.md` first (включая **Infrastructure** перед SSH/продом).
 
 This project is a monorepo:
 

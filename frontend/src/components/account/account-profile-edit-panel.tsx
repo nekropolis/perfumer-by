@@ -74,7 +74,9 @@ export default function AccountProfileEditPanel({
                 Редактирование
             </div>
 
-            <h2 className="mt-2 text-xl font-semibold tracking-tight">Профиль</h2>
+            <h2 id="account-profile-edit-title" className="mt-2 text-xl font-semibold tracking-tight">
+                Профиль
+            </h2>
 
             <p className="mt-2 text-sm text-admin-text-secondary">
                 Имя, фамилия и отчество можно менять в любое время. Телефон изменить здесь нельзя.

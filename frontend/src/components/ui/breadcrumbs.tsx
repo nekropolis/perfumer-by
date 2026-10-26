@@ -24,7 +24,7 @@ export default function Breadcrumbs({ items, className = "", alwaysShow = false 
             {!alwaysShow && parentItem?.href ? (
                 <Link
                     href={parentItem.href}
-                    className="mb-3 inline-flex items-center gap-1 text-admin-text-secondary transition hover:text-admin-text md:hidden"
+                    className="mb-1 inline-flex items-center gap-1 text-admin-text-secondary transition hover:text-admin-text md:hidden"
                 >
                     <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden />
                     <span>{parentItem.label}</span>

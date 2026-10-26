@@ -6,6 +6,7 @@ import { headerBtnIcon, productsCountWord } from "@/lib/site-ui-classes";
 
 type HeaderCartButtonProps = {
     qty: number;
+    className?: string;
 };
 
 function cartLinkAriaLabel(qty: number): string {
@@ -15,9 +16,9 @@ function cartLinkAriaLabel(qty: number): string {
     return `Корзина, ${qty} ${productsCountWord(qty)}`;
 }
 
-export default function HeaderCartButton({ qty }: HeaderCartButtonProps) {
+export default function HeaderCartButton({ qty, className = "" }: HeaderCartButtonProps) {
     return (
-        <Link href="/cart" className={`${headerBtnIcon} relative`} aria-label={cartLinkAriaLabel(qty)}>
+        <Link href="/cart" className={`${headerBtnIcon} relative ${className}`} aria-label={cartLinkAriaLabel(qty)}>
             <ShoppingBag className="h-5 w-5 shrink-0" aria-hidden />
             {qty > 0 ? (
                 <span

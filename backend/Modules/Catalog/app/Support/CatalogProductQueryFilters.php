@@ -107,35 +107,42 @@ final class CatalogProductQueryFilters
     }
 
     /**
-     * Active products with at least one active variant (in-stock, preorder, or temporarily OOS).
+     * Active catalog products (including without active variants).
      *
      * @param  QueryBuilder  $query
      */
     public static function applyCatalogVisibleToQuery(QueryBuilder $query, string $tableAlias = 'products'): void
     {
-        $query->where("{$tableAlias}.is_active", true)
-            ->whereExists(function (QueryBuilder $variantExists) use ($tableAlias): void {
-                $variantExists->selectRaw('1')
-                    ->from('product_variant_links as catalog_visible_pvl')
-                    ->whereColumn('catalog_visible_pvl.product_id', "{$tableAlias}.id")
-                    ->where('catalog_visible_pvl.is_active', true);
-            });
+        $query->where("{$tableAlias}.is_active", true);
     }
 
     /**
+     * EXISTS subquery: product has at least one active variant link.
+     */
+    private static function productHasActiveVariantExistsSql(string $alias = 'listing_has_pvl'): string
+    {
+        return 'EXISTS (
+            SELECT 1
+            FROM product_variant_links AS '.$alias.'
+            WHERE '.$alias.'.product_id = products.id
+                AND '.$alias.'.is_active = 1
+        )';
+    }
+
+    /**
+     * Catalog/brand listing: active products only (including without active variants).
+     * Products without active variants are sorted to the end via availability sort.
+     *
      * @param  Builder<Product>  $query
      */
     public static function applyCatalogListingProductFilter(Builder $query): void
     {
-        $query->where('products.is_active', true)
-            ->whereHas('variants', function (Builder $variantQuery): void {
-                $variantQuery->where('is_active', true);
-            });
+        $query->where('products.is_active', true);
     }
 
     /**
-     * Storefront brands: only brands that have at least one catalog-listable product
-     * (active product with at least one active variant). Does not apply to search.
+     * Storefront brands: only brands that have at least one active product.
+     * Does not apply to search.
      *
      * @param  Builder<\Modules\Catalog\Models\Brand>  $query
      */
@@ -147,7 +154,8 @@ final class CatalogProductQueryFilters
     }
 
     /**
-     * In stock first, then preorder-only, then temporarily out of stock.
+     * In stock first, then preorder-only, then temporarily out of stock,
+     * then products without any active variants.
      *
      * @param  Builder<Product>  $query
      */
@@ -156,6 +164,7 @@ final class CatalogProductQueryFilters
         $warehouseIds = self::listingWarehouseIds();
         $bindings = [];
         $inStockChecks = [];
+        $hasActiveVariantSql = self::productHasActiveVariantExistsSql();
 
         if ($warehouseIds !== []) {
             $warehousePlaceholders = implode(',', array_fill(0, count($warehouseIds), '?'));
@@ -194,6 +203,7 @@ final class CatalogProductQueryFilters
 
         $query->orderByRaw(
             'CASE
+                WHEN NOT ('.$hasActiveVariantSql.') THEN 3
                 WHEN products.is_out_of_stock = 1 THEN 2
                 WHEN '.$inStockCondition.' THEN 0
                 ELSE 1
@@ -203,7 +213,8 @@ final class CatalogProductQueryFilters
     }
 
     /**
-     * Popular sort: main warehouse → supplier offer/warehouse → preorder → out of stock.
+     * Popular sort: main warehouse → supplier offer/warehouse → preorder → out of stock
+     * → products without any active variants.
      *
      * @param  Builder<Product>  $query
      */
@@ -212,6 +223,7 @@ final class CatalogProductQueryFilters
         $bindings = [];
         $mainWarehouseId = self::warehouseIdByCode(Warehouse::CODE_MAIN);
         $supplierWarehouseId = self::warehouseIdByCode(Warehouse::CODE_SUPPLIER);
+        $hasActiveVariantSql = self::productHasActiveVariantExistsSql('pop_has_pvl');
 
         $mainWarehouseStockSql = '0 = 1';
         if ($mainWarehouseId > 0) {
@@ -258,6 +270,7 @@ final class CatalogProductQueryFilters
 
         $query->orderByRaw(
             'CASE
+                WHEN NOT ('.$hasActiveVariantSql.') THEN 4
                 WHEN products.is_out_of_stock = 1 THEN 3
                 WHEN '.$mainWarehouseStockSql.' THEN 0
                 WHEN '.$supplierInStockSql.' THEN 1

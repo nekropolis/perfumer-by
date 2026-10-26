@@ -30,12 +30,13 @@ class AdminProductLinkSearchController extends Controller
         $q = trim($request->string('q')->toString());
         $limit = max(1, min((int) $request->input('limit', self::DEFAULT_LIMIT), self::MAX_LIMIT));
         $brandId = $request->filled('brand_id') ? (int) $request->input('brand_id') : null;
+        $inStockOnly = $request->boolean('in_stock');
 
         if (mb_strlen($q, 'UTF-8') < 2) {
             return response()->json(['data' => []]);
         }
 
-        $rows = $this->linkSearchService->searchForAdminProductList($q, $brandId, $limit);
+        $rows = $this->linkSearchService->searchForAdminProductList($q, $brandId, $limit, $inStockOnly);
 
         return response()->json(['data' => $rows]);
     }

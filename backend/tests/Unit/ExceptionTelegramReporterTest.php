@@ -62,6 +62,24 @@ class ExceptionTelegramReporterTest extends TestCase
         Bus::assertNotDispatched(SendTelegramMessageJob::class);
     }
 
+    public function test_local_environment_does_not_report_backend_or_frontend_errors(): void
+    {
+        Bus::fake();
+        $this->app['env'] = 'local';
+        $reporter = new ExceptionTelegramReporter(allowInTesting: true);
+
+        $reporter->report(new RuntimeException('Application failure'));
+        $reporter->reportFrontend([
+            'name' => 'ReferenceError',
+            'message' => 'useRef is not defined',
+            'method' => 'GET',
+            'path' => '/',
+            'routePath' => '/',
+        ]);
+
+        Bus::assertNotDispatched(SendTelegramMessageJob::class);
+    }
+
     public function test_duplicate_is_suppressed_and_phone_like_digits_are_scrubbed(): void
     {
         Bus::fake();

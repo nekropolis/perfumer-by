@@ -43,7 +43,9 @@ export function formatProductCardPrice(product: ProductListItem): ReactNode {
         }
 
         if (product.is_out_of_stock) {
-            return "Ожидается поступление";
+            return product.has_replacement
+                ? "Посмотреть вариант замены"
+                : "Ожидается поступление";
         }
 
         return "Цена уточняется";
@@ -175,6 +177,7 @@ export function collapseDuplicateListingProducts(products: ProductListItem[]): P
             stock_total: existing.stock_total + product.stock_total,
             is_preorder_available: existing.is_preorder_available || product.is_preorder_available,
             is_out_of_stock: existing.is_out_of_stock && product.is_out_of_stock,
+            has_replacement: Boolean(existing.has_replacement || product.has_replacement),
         });
     }
 

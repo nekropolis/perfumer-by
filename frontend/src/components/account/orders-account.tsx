@@ -1,24 +1,22 @@
 "use client";
 
 import { getOrderStatusColor, getOrderStatusLabel, orderStatusPillStyle } from "@/constants/order-statuses";
+import { ChevronLeft, ChevronRight, Heart, Package } from "lucide-react";
 import { useEffect, useState, startTransition, useCallback } from "react";
+import { createPortal } from "react-dom";
+import WishlistPageView from "@/components/wishlist/wishlist-page-view";
+import { useWishlist } from "@/components/wishlist/wishlist-provider";
 import { fetchMyOrders } from "@/lib/my-orders-api";
 import type { OrderData } from "@/types/orders";
 import OrderModal from "@/components/account/order-modal";
-import AccountProfileEditPanel from "@/components/account/account-profile-edit-panel";
 import { formatMoneyDisplay } from "@/lib/format-money-display";
 import { withBynSign } from "@/lib/byn-sign";
-import { formatOrderLoyaltyCardDiscountReason } from "@/lib/loyalty-pricing";
-import type { AuthUserProfile } from "@/lib/auth-api";
+import { formatDiscountPercentSnapshot, formatOrderLoyaltyCardDiscountReason } from "@/lib/loyalty-pricing";
 import { siteBtnPrimary, siteCard } from "@/lib/site-ui-classes";
 
 type OrdersAccountProps = {
     isAuthenticated: boolean;
-    isProfileEditing?: boolean;
-    user?: AuthUserProfile | null;
     profileSaveNotice?: string;
-    onProfileSavedAction?: () => void;
-    onProfileCancelAction?: () => void;
 };
 
 function parseMoney(value: string | undefined | null): number {
@@ -30,16 +28,15 @@ function parseMoney(value: string | undefined | null): number {
 
 export default function OrdersAccount({
     isAuthenticated,
-    isProfileEditing = false,
-    user = null,
     profileSaveNotice = "",
-    onProfileSavedAction,
-    onProfileCancelAction,
 }: OrdersAccountProps) {
     const [orders, setOrders] = useState<OrderData[]>([]);
     const [ordersLoading, setOrdersLoading] = useState(isAuthenticated);
     const [errorMessage, setErrorMessage] = useState("");
     const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+    const [ordersOpen, setOrdersOpen] = useState(false);
+    const [wishlistOpen, setWishlistOpen] = useState(false);
+    const { wishlistQty, loading: wishlistLoading } = useWishlist();
 
     const loadOrders = useCallback(
         async (showLoader: boolean) => {
@@ -117,10 +114,15 @@ export default function OrdersAccount({
     }, [orders, selectedOrderId]);
 
     useEffect(() => {
-        if (isProfileEditing) {
-            setSelectedOrderId(null);
+        if (!ordersOpen && !wishlistOpen) {
+            return;
         }
-    }, [isProfileEditing]);
+        const previous = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        return () => {
+            document.body.style.overflow = previous;
+        };
+    }, [ordersOpen, wishlistOpen]);
 
     const totalOrders = orders.length;
     const totalSpent = orders
@@ -129,8 +131,9 @@ export default function OrdersAccount({
 
     return (
         <>
-            <section className="space-y-6">
-                {profileSaveNotice && !isProfileEditing ? (
+            <section className="order-3 flex flex-col gap-4 lg:col-start-2 lg:row-span-2 lg:grid lg:grid-rows-subgrid lg:gap-4">
+                <div className="flex h-full flex-col gap-4">
+                {profileSaveNotice ? (
                     <div
                         className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
                         role="status"
@@ -139,15 +142,37 @@ export default function OrdersAccount({
                     </div>
                 ) : null}
 
-                {isProfileEditing && user && onProfileSavedAction && onProfileCancelAction ? (
-                    <AccountProfileEditPanel
-                        user={user}
-                        onSavedAction={onProfileSavedAction}
-                        onCancelAction={onProfileCancelAction}
-                    />
-                ) : (
-                <>
-                <div className={`${siteCard} p-5 sm:p-6`}>
+                <div className="space-y-3 md:hidden">
+                <button
+                    type="button"
+                    onClick={() => setWishlistOpen(true)}
+                    className={`${siteCard} flex w-full items-center gap-2 px-4 py-3.5 text-left`}
+                >
+                    <Heart className="h-5 w-5 shrink-0 text-admin-text" aria-hidden />
+                    <span className="shrink-0 text-base font-semibold text-admin-text">Избранное</span>
+                    <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-admin-muted px-2 py-0.5 text-xs font-semibold tabular-nums text-admin-text">
+                        {wishlistLoading ? "…" : wishlistQty}
+                    </span>
+                    <ChevronRight className="ml-auto h-5 w-5 shrink-0 text-admin-text-muted" aria-hidden />
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setOrdersOpen(true)}
+                    className={`${siteCard} flex w-full items-center gap-2 px-4 py-3.5 text-left`}
+                >
+                    <Package className="h-5 w-5 shrink-0 text-admin-text" aria-hidden />
+                    <span className="shrink-0 text-base font-semibold text-admin-text">Мои заказы</span>
+                    <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-admin-muted px-2 py-0.5 text-xs font-semibold tabular-nums text-admin-text">
+                        {ordersLoading ? "…" : totalOrders}
+                    </span>
+                    <span className="inline-flex min-w-0 items-center rounded-full bg-admin-muted px-2 py-0.5 text-xs font-medium tabular-nums text-admin-text">
+                        {ordersLoading ? "…" : withBynSign(formatMoneyDisplay(totalSpent) ?? "0,00")}
+                    </span>
+                    <ChevronRight className="ml-auto h-5 w-5 shrink-0 text-admin-text-muted" aria-hidden />
+                </button>
+                </div>
+
+                <div className={`${siteCard} hidden h-full min-h-0 flex-1 flex-col p-5 sm:p-6 md:flex`}>
                     <div className="text-xs font-medium uppercase tracking-[0.12em] text-admin-text-secondary">
                         Информация
                     </div>
@@ -176,8 +201,9 @@ export default function OrdersAccount({
                         </div>
                     </div>
                 </div>
+                </div>
 
-                <div className={`${siteCard} p-4 sm:p-5`}>
+                <div className={`${siteCard} hidden self-start p-4 sm:p-5 md:block`}>
                     {ordersLoading && (
                         <div className="rounded-xl bg-admin-muted px-5 py-8 text-admin-text-secondary">
                             Загрузка заказов...
@@ -208,7 +234,7 @@ export default function OrdersAccount({
                                             <div>
                                                 <div className="flex flex-wrap items-center gap-3">
                                                     <h3 className="text-lg font-semibold text-admin-text">
-                                                        Заказ #{order.id}
+                                                        {order.id}
                                                     </h3>
 
                                                     <div
@@ -269,11 +295,136 @@ export default function OrdersAccount({
                         </div>
                     )}
                 </div>
-                </>
-                )}
             </section>
 
-            {!isProfileEditing ? (
+            {wishlistOpen
+                ? createPortal(
+                      <div
+                          className="fixed inset-x-0 z-[145] flex flex-col bg-admin-bg md:hidden"
+                          style={{
+                              top: "var(--storefront-header-row-height, 52px)",
+                              bottom: "calc(var(--storefront-tab-bar-height, 0px) + var(--storefront-keyboard-inset, 0px))",
+                          }}
+                      >
+                          <div className="flex h-12 shrink-0 items-center gap-1 border-b border-admin-border bg-admin-surface px-1">
+                              <button
+                                  type="button"
+                                  onClick={() => setWishlistOpen(false)}
+                                  aria-label="Назад"
+                                  className="inline-flex h-11 w-11 items-center justify-center text-admin-text"
+                              >
+                                  <ChevronLeft className="h-5 w-5" aria-hidden />
+                              </button>
+                              <div className="min-w-0 truncate text-base font-semibold text-admin-text">Избранное</div>
+                          </div>
+                          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+                              <WishlistPageView embedded />
+                          </div>
+                      </div>,
+                      document.body,
+                  )
+                : null}
+
+            {ordersOpen
+                ? createPortal(
+                      <div
+                          className="fixed inset-x-0 z-[145] flex flex-col bg-admin-bg md:hidden"
+                          style={{
+                              top: "var(--storefront-header-row-height, 52px)",
+                              bottom: "calc(var(--storefront-tab-bar-height, 0px) + var(--storefront-keyboard-inset, 0px))",
+                          }}
+                      >
+                          <div className="flex h-12 shrink-0 items-center gap-1 border-b border-admin-border bg-admin-surface px-1">
+                              <button
+                                  type="button"
+                                  onClick={() => (selectedOrderId ? setSelectedOrderId(null) : setOrdersOpen(false))}
+                                  aria-label="Назад"
+                                  className="inline-flex h-11 w-11 items-center justify-center text-admin-text"
+                              >
+                                  <ChevronLeft className="h-5 w-5" aria-hidden />
+                              </button>
+                              <div className="min-w-0 truncate text-base font-semibold text-admin-text">
+                                  {selectedOrderId ? String(selectedOrderId) : "Мои заказы"}
+                              </div>
+                          </div>
+                          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+                              {selectedOrderId ? (
+                                  <OrderModal
+                                      embedded
+                                      orderId={selectedOrderId}
+                                      onCloseOrderAction={() => setSelectedOrderId(null)}
+                                  />
+                              ) : (
+                                  <>
+                              {ordersLoading && (
+                                  <div className="rounded-xl bg-admin-muted px-5 py-8 text-admin-text-secondary">
+                                      Загрузка заказов...
+                                  </div>
+                              )}
+                              {!ordersLoading && errorMessage && (
+                                  <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+                                      {errorMessage}
+                                  </div>
+                              )}
+                              {!ordersLoading && orders.length === 0 && !errorMessage && (
+                                  <div className="rounded-xl border border-dashed border-admin-border bg-admin-muted/50 px-5 py-10 text-center text-admin-text-secondary">
+                                      У вас пока нет заказов.
+                                  </div>
+                              )}
+                              {!ordersLoading && orders.length > 0 && (
+                                  <div className="space-y-3">
+                                      {orders.map((order) => {
+                                          const cardDiscount = parseMoney(order.discount_amount);
+                                          const cardPercent = formatDiscountPercentSnapshot(order.discount_percent_snapshot);
+                                          const cardDiscountLabel =
+                                              cardDiscount > 0.004
+                                                  ? cardPercent
+                                                      ? `скидка ${cardPercent}%`
+                                                      : `скидка −${withBynSign(formatMoneyDisplay(order.discount_amount) ?? order.discount_amount)}`
+                                                  : null;
+
+                                          return (
+                                          <button
+                                              key={order.id}
+                                              type="button"
+                                              onClick={() => setSelectedOrderId(order.id)}
+                                              className={`${siteCard} flex w-full items-center gap-2 px-3 py-3 text-left`}
+                                          >
+                                              <span className="shrink-0 text-sm font-semibold text-admin-text">
+                                                  {order.id}
+                                              </span>
+                                              <span
+                                                  className="shrink-0 rounded-full px-2 py-0.5 text-[11px]"
+                                                  style={orderStatusPillStyle(
+                                                      getOrderStatusColor(order.status, order.status_color),
+                                                  )}
+                                              >
+                                                  {getOrderStatusLabel(order.status, order.status_label)}
+                                              </span>
+                                              <span className="min-w-0 flex-1 truncate text-xs text-admin-text-secondary">
+                                                  {order.items_qty} товаров ·{" "}
+                                                  {withBynSign(formatMoneyDisplay(order.total) ?? String(order.total))}
+                                              </span>
+                                              {cardDiscountLabel ? (
+                                                  <span className="shrink-0 text-[11px] font-medium text-emerald-700">
+                                                      {cardDiscountLabel}
+                                                  </span>
+                                              ) : null}
+                                              <ChevronRight className="h-4 w-4 shrink-0 text-admin-text-muted" aria-hidden />
+                                          </button>
+                                          );
+                                      })}
+                                  </div>
+                              )}
+                                  </>
+                              )}
+                          </div>
+                      </div>,
+                      document.body,
+                  )
+                : null}
+
+            {!ordersOpen ? (
             <OrderModal
                 orderId={selectedOrderId}
                 onCloseOrderAction={() => setSelectedOrderId(null)}

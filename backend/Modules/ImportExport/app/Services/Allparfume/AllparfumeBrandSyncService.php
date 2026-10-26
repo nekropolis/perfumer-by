@@ -128,7 +128,7 @@ class AllparfumeBrandSyncService
                     $seenVariantKeys[] = $variantKey;
                     $variantOffers = $offersByVariantKey[$variantKey] ?? [];
                     $minFromOffers = $this->minOfferPrice($variantOffers);
-                    $minPrice = $variantRow['min_price'] ?? $minFromOffers;
+                    $minPrice = $minFromOffers ?? ($variantRow['min_price'] ?? null);
 
                     $variant = AllparfumeVariant::query()->updateOrCreate(
                         [
@@ -468,7 +468,7 @@ class AllparfumeBrandSyncService
             foreach ($variantsByKey as $variantKey => $variantRow) {
                 $variantOffers = $offersByVariantKey[$variantKey] ?? [];
                 $minFromOffers = $this->minOfferPrice($variantOffers);
-                $minPrice = $variantRow['min_price'] ?? $minFromOffers;
+                $minPrice = $minFromOffers ?? ($variantRow['min_price'] ?? null);
 
                 $variant = AllparfumeVariant::query()->updateOrCreate(
                     [
@@ -683,6 +683,9 @@ class AllparfumeBrandSyncService
     {
         $min = null;
         foreach ($offers as $offer) {
+            if (AllparfumeOwnShopFilter::isOwnShop($offer)) {
+                continue;
+            }
             $price = $offer['price'] ?? null;
             if ($price === null || ! is_numeric((string) $price)) {
                 continue;

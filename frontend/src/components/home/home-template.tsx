@@ -104,37 +104,41 @@ export default function HomeTemplate({
     return (
         <>
             <main className="mx-auto w-full max-w-7xl px-4 py-6 pb-14 sm:px-6 lg:px-8 lg:py-8">
-                <section className={`${siteCard} relative overflow-hidden px-5 py-7 md:px-8 md:py-9`}>
+                <section className="relative -mx-4 overflow-hidden bg-[#f6efe4] px-4 py-6 sm:-mx-6 sm:px-6 md:mx-0 md:rounded-xl md:border md:border-admin-border md:bg-admin-surface md:px-8 md:py-9 md:shadow-sm">
                     <Image
                         src="/home/hero-perfume-v2.webp"
                         alt=""
                         fill
                         priority
                         unoptimized
-                        sizes="(max-width: 1280px) 100vw, 1280px"
-                        className="object-cover object-[75%_40%]"
+                        sizes="100vw"
+                        className="object-cover object-[72%_42%] md:object-[75%_40%]"
                         aria-hidden
                     />
                     <div
-                        className="absolute inset-0 bg-gradient-to-r from-admin-surface from-5% via-admin-surface/75 to-transparent"
+                        className="absolute inset-0 bg-[radial-gradient(130%_95%_at_50%_42%,rgba(255,255,255,0.58)_0%,rgba(246,239,228,0.34)_55%,rgba(201,164,92,0.12)_100%)] md:hidden"
+                        aria-hidden
+                    />
+                    <div
+                        className="absolute inset-0 hidden bg-gradient-to-r from-admin-surface from-5% via-admin-surface/75 to-transparent md:block"
                         aria-hidden
                     />
 
-                    <div className="relative z-[1] flex flex-col gap-6 md:flex-row md:items-stretch md:gap-8">
-                        <div className="order-1 md:min-w-0 md:flex-1">
-                            <div className="mb-4 inline-flex rounded-full border border-admin-border bg-admin-muted/90 px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] text-admin-text-secondary">
+                    <div className="relative z-[1] flex flex-col items-center gap-4 md:flex-row md:items-stretch md:gap-8">
+                        <div className="contents md:block md:min-w-0 md:flex-1">
+                            <div className="mb-4 hidden rounded-full border border-admin-border bg-admin-muted/90 px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] text-admin-text-secondary md:inline-flex">
                                 Оригинальная парфюмерия
                             </div>
 
-                            <h1 className="max-w-[20ch] text-3xl font-semibold leading-tight tracking-tight text-admin-text sm:text-4xl md:text-5xl">
+                            <h1 className="max-w-[20ch] text-3xl font-semibold leading-tight tracking-tight text-admin-text max-md:sr-only sm:text-4xl md:text-5xl">
                                 {heroTitle}
                             </h1>
 
-                            <p className="mt-4 max-w-[44ch] text-sm leading-7 text-admin-text-secondary sm:text-base">
+                            <p className="mt-4 max-w-[44ch] text-sm leading-7 text-admin-text-secondary max-md:sr-only sm:text-base">
                                 {heroDescription}
                             </p>
 
-                            <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-sm text-admin-text-secondary">
+                            <div className="mt-5 hidden flex-wrap gap-x-4 gap-y-2 text-sm text-admin-text-secondary md:flex">
                                 <span>100% оригинал</span>
                                 <span className="text-admin-border-strong">·</span>
                                 <span>Доставка по Беларуси</span>
@@ -142,7 +146,7 @@ export default function HomeTemplate({
                                 <span>Консультация эксперта</span>
                             </div>
 
-                            <div className="mt-7 flex flex-wrap gap-3">
+                            <div className="mt-7 hidden flex-wrap gap-3 md:flex">
                                 <Link href="/catalog" className={siteBtnPrimary}>
                                     Смотреть каталог
                                 </Link>
@@ -152,13 +156,13 @@ export default function HomeTemplate({
                             </div>
                         </div>
 
-                        <div className="order-2 w-full max-w-[280px] shrink-0 md:ml-auto md:w-[280px] md:max-w-none">
+                        <div className="w-full max-w-[280px] shrink-0 md:ml-auto md:w-[280px] md:max-w-none">
                             {heroProduct && heroProductHref ? (
                                 <Link
                                     href={heroProductHref}
                                     className={`group flex h-full min-h-[280px] flex-col overflow-hidden ${heroPickFrame} transition hover:bg-white/65 hover:ring-[#c9a45c]/70 md:min-h-0`}
                                 >
-                                    <div className="flex items-center gap-2 px-4 pt-3.5">
+                                    <div className="flex items-center justify-center gap-2 px-4 pt-3.5 md:justify-start">
                                         <span className="h-px w-3.5 bg-[#c9a45c]" aria-hidden />
                                         <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-admin-text-secondary">
                                             Выбор покупателей
@@ -175,7 +179,7 @@ export default function HomeTemplate({
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="shrink-0 px-4 pb-4 pt-1">
+                                    <div className="shrink-0 px-4 pb-4 pt-1 text-center md:text-left">
                                         {heroProduct.brand?.name ? (
                                             <div className="text-xs font-medium uppercase tracking-[0.08em] text-admin-text-secondary">
                                                 {heroProduct.brand.name}
@@ -200,6 +204,15 @@ export default function HomeTemplate({
                                     </div>
                                 </div>
                             )}
+                        </div>
+
+                        <div className="grid w-full grid-cols-2 gap-3 self-stretch md:hidden">
+                            <Link href="/catalog" className={`${siteBtnPrimary} w-full`}>
+                                Каталог
+                            </Link>
+                            <Link href="/brands" className={`${siteBtnSecondary} w-full`}>
+                                Бренды
+                            </Link>
                         </div>
                     </div>
                 </section>

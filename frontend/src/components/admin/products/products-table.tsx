@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Boxes, Eye, Pencil, Trash2 } from "lucide-react";
+import { Boxes, Eye, Pencil, Replace, Trash2 } from "lucide-react";
 import type { ProductAdminItem } from "@/lib/admin-products-api";
 import { highlightAdminSearchTerms } from "@/lib/admin-search-highlight";
 import { resolveProductStatuses } from "@/lib/product-statuses";
@@ -11,6 +11,7 @@ type Props = {
     searchQuery?: string;
     onDeleteAction: (item: ProductAdminItem) => void;
     onVariantsAction: (item: ProductAdminItem) => void;
+    onReplacementAction: (item: ProductAdminItem) => void;
 };
 
 function StatusBadge({ active }: { active: boolean }) {
@@ -61,6 +62,7 @@ export default function ProductsTable({
     searchQuery = "",
     onDeleteAction,
     onVariantsAction,
+    onReplacementAction,
 }: Props) {
     return (
         <div className="overflow-x-auto">
@@ -81,8 +83,22 @@ export default function ProductsTable({
                 {items.map((item) => {
                     const brandName = item.brand?.name ?? null;
 
+                    const replacementUnavailable = Boolean(item.replacement_unavailable);
+
                     return (
-                    <tr key={item.id} className="border-t border-admin-border align-center transition hover:bg-admin-muted/70">
+                    <tr
+                        key={item.id}
+                        className={`border-t border-admin-border align-center transition ${
+                            replacementUnavailable
+                                ? "bg-amber-50/80 hover:bg-amber-100/70"
+                                : "hover:bg-admin-muted/70"
+                        }`}
+                        title={
+                            replacementUnavailable
+                                ? "Привязанная замена больше не в наличии"
+                                : undefined
+                        }
+                    >
                         <td className="px-3 py-3 text-admin-text-secondary">
                             {highlightAdminSearchTerms(String(item.id), searchQuery, brandName)}
                         </td>
@@ -141,18 +157,51 @@ export default function ProductsTable({
                             />
                         </td>
                         <td className="px-3 py-3 text-admin-text">
-                            <button
-                                type="button"
-                                onClick={() => onVariantsAction(item)}
-                                disabled={item.variants_count <= 0}
-                                className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg border border-admin-border px-2 text-xs font-medium text-admin-text transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-40"
-                                aria-label={`Открыть варианты товара ${item.name}`}
-                                title="Открыть варианты"
-                            >
-                                <span className="sr-only">Варианты</span>
-                                <Boxes size={14} className="mr-1" />
-                                {item.variants_count}
-                            </button>
+                            {item.replacement ? (
+                                <button
+                                    type="button"
+                                    onClick={() => onReplacementAction(item)}
+                                    className={`inline-flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 text-xs font-medium transition ${
+                                        replacementUnavailable
+                                            ? "border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200"
+                                            : "border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100"
+                                    }`}
+                                    aria-label={`Дополнительный продукт для ${item.name}`}
+                                    title={
+                                        replacementUnavailable
+                                            ? `Замена недоступна: ${
+                                                  [
+                                                      item.replacement.brand_name,
+                                                      item.replacement.product_name,
+                                                  ]
+                                                      .filter(Boolean)
+                                                      .join(" · ") || "товар"
+                                              }`
+                                            : [
+                                                  item.replacement.brand_name,
+                                                  item.replacement.product_name,
+                                              ]
+                                                  .filter(Boolean)
+                                                  .join(" · ") || "Дополнительный продукт"
+                                    }
+                                >
+                                    <span className="sr-only">Дополнительный продукт</span>
+                                    <Replace size={14} />
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => onVariantsAction(item)}
+                                    disabled={item.variants_count <= 0}
+                                    className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg border border-admin-border px-2 text-xs font-medium text-admin-text transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-40"
+                                    aria-label={`Открыть варианты товара ${item.name}`}
+                                    title="Открыть варианты"
+                                >
+                                    <span className="sr-only">Варианты</span>
+                                    <Boxes size={14} className="mr-1" />
+                                    {item.variants_count}
+                                </button>
+                            )}
                         </td>
                         <td className="px-3 py-3">
                             <div className="flex justify-end gap-1.5">

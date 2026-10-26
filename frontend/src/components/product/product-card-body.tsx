@@ -81,6 +81,7 @@ export default function ProductCardBody({
                     isHit={Boolean(product.is_hit)}
                     hasPromotion={Boolean(product.has_promotion)}
                     isOutOfStock={showOutOfStock}
+                    hasReplacement={Boolean(product.has_replacement) && showOutOfStock}
                     className={
                         isCatalog
                             ? "left-1.5 top-1.5 gap-0.5 [&_span]:px-1.5 [&_span]:py-0.5 [&_span]:text-[9px] sm:left-2 sm:top-2 sm:[&_span]:text-[10px] [&_svg]:h-2 [&_svg]:w-2 sm:[&_svg]:h-2.5 sm:[&_svg]:w-2.5"
