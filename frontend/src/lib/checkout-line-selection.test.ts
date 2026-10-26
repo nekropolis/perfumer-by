@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { CheckoutQuote } from "@/lib/checkout-api";
 import type { CartItemData } from "@/types/cart";
 import {
+    cartItemCustomerLineTotal,
+    cartItemCustomerUnitPrice,
     listSubtotalForLines,
     merchandisePayFromQuote,
     parseCheckoutMoney,
@@ -69,6 +71,21 @@ describe("checkout money strings", () => {
                 [],
             ),
         ).toBe("0.30");
+    });
+
+    it("applies the card discount on top of the waiting price once", () => {
+        const item = cartItem({
+            id: 1,
+            price: "890.20",
+            base_price: "917.70",
+            qty: 1,
+            waiting_discount: true,
+            waiting_discount_percent: 3,
+        });
+
+        expect(cartItemCustomerUnitPrice(item, 3)).toBe("862.70");
+        expect(cartItemCustomerLineTotal(item, 3)).toBe("862.70");
+        expect(cartItemCustomerUnitPrice({ ...item, is_promotion: true }, 3)).toBe("890.20");
     });
 
     it("multiplies the waiting discount in minor units", () => {

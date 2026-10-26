@@ -16,7 +16,7 @@ export default function CookieConsentBanner() {
         <div
             className="fixed inset-x-0 z-[80] p-3 sm:p-4"
             style={{
-                bottom: "calc(var(--storefront-bottom-bar-height, 0px) + var(--storefront-tab-bar-height, 0px))",
+                bottom: "calc(var(--storefront-bottom-bar-height, 0px) + var(--storefront-tab-bar-height, 0px) + var(--storefront-keyboard-inset, 0px))",
             }}
             role="region"
             aria-labelledby="cookie-consent-title"

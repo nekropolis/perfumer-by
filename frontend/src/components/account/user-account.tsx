@@ -1,8 +1,10 @@
 "use client";
 
-import { Pencil } from "lucide-react";
+import { ChevronRight, LogOut, Pencil } from "lucide-react";
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useAuth } from "@/components/auth/auth-provider";
+import AccountMobileProfile from "@/components/account/account-mobile-profile";
 import AttachLoyaltyCardModal from "@/components/account/attach-loyalty-card-modal";
 import { resolveActiveLoyaltyCard } from "@/lib/loyalty-pricing";
 import { formatBelarusPhoneSpaced } from "@/lib/site-contact";
@@ -50,16 +52,41 @@ function formatDiscountPercent(value: string) {
 export default function UserAccount({ user, logoutAction, onEditAction }: UserAccountProps) {
     const { refreshUser } = useAuth();
     const [attachModalOpen, setAttachModalOpen] = useState(false);
+    const [mobileProfileOpen, setMobileProfileOpen] = useState(false);
 
     const activeCard = resolveActiveLoyaltyCard(user?.discount_cards);
     const displayName = formatProfileName(user);
     const userInitial = displayName.trim()?.[0]?.toUpperCase() || "U";
     const birthDateLabel = formatBirthDate(user?.birth_date);
+    const statusLabel = activeCard ? "Постоянный клиент" : "Новый клиент";
 
     return (
-        <aside className="space-y-4">
-            <section className={`${siteCard} p-5`}>
-                <div className="flex items-center gap-4">
+        <>
+        <aside className="contents lg:col-start-1 lg:row-span-2 lg:grid lg:grid-rows-subgrid">
+            <section className={`${siteCard} px-3 py-2.5 md:p-5 lg:h-full`}>
+                <button
+                    type="button"
+                    onClick={() => setMobileProfileOpen(true)}
+                    className="flex w-full items-center gap-2.5 text-left md:hidden"
+                >
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-admin-primary text-base font-semibold text-white">
+                        {userInitial}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <div className="truncate text-base font-semibold leading-tight text-admin-text">{displayName}</div>
+                        <div className="mt-0.5 truncate text-xs leading-tight text-admin-text-secondary">
+                            {user?.phone ? formatBelarusPhoneSpaced(user.phone) : "Телефон не указан"}
+                        </div>
+                        <div className="mt-1">
+                            <span className="inline-flex items-center rounded-full bg-admin-muted px-2 py-px text-[11px] font-medium leading-4 text-admin-text">
+                                {statusLabel}
+                            </span>
+                        </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-admin-text-muted" aria-hidden />
+                </button>
+
+                <div className="hidden items-center gap-4 md:flex">
                     <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-admin-primary text-lg font-semibold text-white">
                         {userInitial}
                     </div>
@@ -69,8 +96,13 @@ export default function UserAccount({ user, logoutAction, onEditAction }: UserAc
                             {displayName}
                         </div>
 
-                        <div className="mt-2 text-sm text-admin-text-secondary">
+                        <div className="mt-2 text-xs text-admin-text-secondary">
                             {user?.phone ? formatBelarusPhoneSpaced(user.phone) : "Телефон не указан"}
+                        </div>
+                        <div className="mt-1.5">
+                            <span className="inline-flex items-center rounded-full bg-admin-muted px-2 py-0.5 text-xs font-medium text-admin-text">
+                                {statusLabel}
+                            </span>
                         </div>
 
                         {user?.email ? (
@@ -96,79 +128,86 @@ export default function UserAccount({ user, logoutAction, onEditAction }: UserAc
                     </div>
                 </div>
 
-                <div className="mt-4 rounded-lg bg-admin-muted px-4 py-3">
-                    <div className="text-xs font-medium uppercase tracking-[0.12em] text-admin-text-secondary">
-                        Статус
-                    </div>
-                    <div className="mt-1 text-sm font-medium text-admin-text">
-                        {activeCard ? "Постоянный клиент" : "Новый клиент"}
-                    </div>
-                </div>
             </section>
 
-            <section className="overflow-hidden rounded-xl border border-admin-primary bg-admin-primary p-5 text-white shadow-sm">
-                <div className="flex items-start justify-between gap-4">
-                    <div>
-                        <div className="text-xs font-medium uppercase tracking-[0.12em] text-white/70">
+            <div className="contents lg:flex lg:flex-col lg:gap-4 lg:self-start">
+            <section className="rounded-2xl border border-admin-primary bg-admin-primary px-4 py-3 text-white">
+                <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                        <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-white/70">
                             Карта лояльности
                         </div>
-
                         {activeCard ? (
-                            <>
-                                <div className="mt-4 font-mono text-lg font-semibold tracking-wide">
-                                    {activeCard.number}
-                                </div>
-                                <div className="mt-1 text-sm text-white/75">Накопительная скидка</div>
-                            </>
+                            <div className="mt-1 truncate font-mono text-base font-semibold tracking-wide">
+                                {activeCard.number}
+                            </div>
                         ) : (
-                            <>
-                                <div className="mt-4 text-lg font-semibold">Карта не привязана</div>
-                                <div className="mt-1 text-sm text-white/75">Добавьте карту и получайте скидки.</div>
-                            </>
+                            <div className="mt-1 text-sm font-medium">Карта не привязана</div>
                         )}
                     </div>
 
                     {activeCard ? (
-                        <div className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-admin-primary">
+                        <div className="shrink-0 rounded-lg bg-white px-2.5 py-1 text-sm font-semibold text-admin-primary">
                             {formatDiscountPercent(String(activeCard.discountPercent))}%
                         </div>
-                    ) : null}
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => setAttachModalOpen(true)}
+                            className="shrink-0 rounded-xl bg-white px-3 py-2 text-sm font-medium text-admin-primary"
+                        >
+                            Добавить
+                        </button>
+                    )}
                 </div>
-
                 {activeCard ? (
-                    <div className="mt-4 rounded-2xl border border-white/15 bg-black/10 px-3 py-2.5 text-sm leading-snug text-white/90">
-                        Карта привязана к профилю. Отвязать или заменить её может только менеджер магазина.
-                    </div>
-                ) : null}
-
-                {!activeCard ? (
-                    <button
-                        type="button"
-                        onClick={() => setAttachModalOpen(true)}
-                        className={`${siteBtnSecondary} mt-4 w-full border-white/20 bg-white text-admin-primary hover:bg-admin-muted`}
-                    >
-                        Добавить карту
-                    </button>
+                    <p className="mt-2 text-xs leading-snug text-white/75">
+                        Заменить карту может только менеджер магазина.
+                    </p>
                 ) : null}
             </section>
 
-            <section className={`${siteCard} p-2`}>
+            <section className="order-last lg:order-none">
                 <button
                     type="button"
                     onClick={logoutAction}
-                    className={`${siteBtnSecondary} w-full justify-between`}
+                    className={`${siteCard} flex w-full items-center gap-2 px-4 py-3.5 text-left md:hidden`}
                 >
-                    Выйти
-                    <span aria-hidden>→</span>
+                    <LogOut className="h-5 w-5 shrink-0 text-admin-text" aria-hidden />
+                    <span className="min-w-0 flex-1 text-base font-semibold text-admin-text">Выйти</span>
+                    <ChevronRight className="h-5 w-5 shrink-0 text-admin-text-muted" aria-hidden />
                 </button>
+                <div className={`${siteCard} hidden p-2 md:block`}>
+                    <button
+                        type="button"
+                        onClick={logoutAction}
+                        className={`${siteBtnSecondary} w-full justify-between`}
+                    >
+                        Выйти
+                        <span aria-hidden>→</span>
+                    </button>
+                </div>
             </section>
-
-            {attachModalOpen ? (
-                <AttachLoyaltyCardModal
-                    onCloseAction={() => setAttachModalOpen(false)}
-                    onSuccessAction={() => void refreshUser()}
-                />
-            ) : null}
+            </div>
         </aside>
+
+        {attachModalOpen
+            ? createPortal(
+                  <AttachLoyaltyCardModal
+                      onCloseAction={() => setAttachModalOpen(false)}
+                      onSuccessAction={() => void refreshUser()}
+                  />,
+                  document.body,
+              )
+            : null}
+
+        {mobileProfileOpen && user ? (
+            <AccountMobileProfile
+                user={user}
+                onCloseAction={() => setMobileProfileOpen(false)}
+                onSavedAction={() => void refreshUser()}
+            />
+        ) : null}
+        </>
     );
 }

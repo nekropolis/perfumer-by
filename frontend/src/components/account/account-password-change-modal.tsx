@@ -41,12 +41,13 @@ export default function AccountPasswordChangeModal({
             }
         };
 
+        const previousOverflow = document.body.style.overflow;
         document.addEventListener("keydown", handleEsc);
         document.body.style.overflow = "hidden";
 
         return () => {
             document.removeEventListener("keydown", handleEsc);
-            document.body.style.overflow = "";
+            document.body.style.overflow = previousOverflow;
         };
     }, [onCloseAction, isPending]);
 
@@ -116,6 +117,7 @@ export default function AccountPasswordChangeModal({
     return createPortal(
         <div
             className="fixed inset-0 z-[200] flex items-end justify-center bg-admin-text/40 p-3 backdrop-blur-[2px] sm:items-center sm:p-6"
+            data-account-overlay="password"
             onClick={onCloseAction}
             role="presentation"
         >

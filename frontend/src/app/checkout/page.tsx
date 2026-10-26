@@ -44,6 +44,8 @@ import PhoneInput, {
 } from "@/components/ui/phone-input";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import {
+    cartItemCustomerUnitPrice,
+    cartItemStrikeUnitPrice,
     countCheckoutLinesQty,
     discountCardForBreakdownFromQuote,
     filterCartLinesForCheckout,
@@ -275,6 +277,11 @@ export default function CheckoutPage() {
         () => waitingDiscountAmountForLines(checkoutCartLines.items),
         [checkoutCartLines.items],
     );
+
+    const checkoutLineLoyaltyPercent =
+        paymentMethod === "card"
+            ? 0
+            : Number(quote?.loyalty_discount_percent ?? cart?.discount_card?.discount_percent ?? 0) || 0;
 
     const checkoutQuotePayload = useMemo(() => {
         const base = { payment_method: paymentMethod, delivery_method: deliveryMethod };
@@ -1172,7 +1179,10 @@ export default function CheckoutPage() {
                                 </div>
                             </div>
                         ))}
-                        {checkoutCartLines.items.map((item) => (
+                        {checkoutCartLines.items.map((item) => {
+                            const unitPrice = cartItemCustomerUnitPrice(item, checkoutLineLoyaltyPercent);
+                            const strikePrice = cartItemStrikeUnitPrice(item, checkoutLineLoyaltyPercent);
+                            return (
                             <div key={item.id} className="border-b border-[var(--line)] pb-4 last:border-b-0">
                                 <div className="font-medium">{lineItemProductTitle(item)}</div>
                                 <div className="text-sm text-[var(--text-secondary)]">
@@ -1180,12 +1190,12 @@ export default function CheckoutPage() {
                                 </div>
                                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--text-secondary)]">
                                     <span>
-                                        {item.qty} × {formatMoneyRub(item.price)}
-                                        {item.waiting_discount && item.base_price && (
+                                        {item.qty} × {formatMoneyRub(unitPrice)}
+                                        {strikePrice ? (
                                             <span className="ml-2 line-through">
-                                                {formatMoneyRub(item.base_price)}
+                                                {formatMoneyRub(strikePrice)}
                                             </span>
-                                        )}
+                                        ) : null}
                                     </span>
                                     {item.waiting_discount && item.waiting_discount_percent !== null && (
                                         <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
@@ -1194,7 +1204,8 @@ export default function CheckoutPage() {
                                     )}
                                 </div>
                             </div>
-                        ))}
+                            );
+                        })}
                     </div>
 
                     <div className="mt-6 border-t border-[var(--line)] pt-4">

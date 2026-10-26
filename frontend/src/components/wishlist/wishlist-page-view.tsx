@@ -5,8 +5,33 @@ import ProductCardClient from "@/components/product/product-card.client";
 import { useWishlist } from "@/components/wishlist/wishlist-provider";
 import { siteBtnSecondary, siteCard } from "@/lib/site-ui-classes";
 
-export default function WishlistPageView() {
+export default function WishlistPageView({ embedded = false }: { embedded?: boolean }) {
     const { products, loading, wishlistQty } = useWishlist();
+
+    const content = loading ? (
+        <div className={`${siteCard} p-6 text-sm text-admin-text-secondary`}>Загружаем избранное...</div>
+    ) : products.length === 0 ? (
+        <div className={`${siteCard} p-6 text-sm text-admin-text-secondary`}>
+            Добавляйте товары в избранное, чтобы быстро возвращаться к ним позже.
+        </div>
+    ) : (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+            {products.map((product) => (
+                <ProductCardClient key={product.id} product={product} />
+            ))}
+        </div>
+    );
+
+    if (embedded) {
+        return (
+            <div>
+                {wishlistQty > 0 ? (
+                    <p className="mb-4 text-sm text-admin-text-secondary">Товаров в избранном: {wishlistQty}</p>
+                ) : null}
+                {content}
+            </div>
+        );
+    }
 
     return (
         <main className="min-h-screen bg-admin-bg text-admin-text">
@@ -23,21 +48,7 @@ export default function WishlistPageView() {
                     </Link>
                 </div>
 
-                {loading ? (
-                    <div className={`${siteCard} p-6 text-sm text-admin-text-secondary`}>
-                        Загружаем избранное...
-                    </div>
-                ) : products.length === 0 ? (
-                    <div className={`${siteCard} p-6 text-sm text-admin-text-secondary`}>
-                        Добавляйте товары в избранное, чтобы быстро возвращаться к ним позже.
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-                        {products.map((product) => (
-                            <ProductCardClient key={product.id} product={product} />
-                        ))}
-                    </div>
-                )}
+                {content}
             </div>
         </main>
     );

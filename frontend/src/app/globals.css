@@ -37,9 +37,24 @@
   --font-display: Georgia, "Times New Roman", serif;
 }
 
+:root {
+  --storefront-keyboard-inset: 0px;
+}
+
 @media (max-width: 767px) {
   :root {
     --storefront-tab-bar-height: calc(3.5rem + env(safe-area-inset-bottom));
+  }
+
+  /* In-app browsers (Telegram) draw page content below bottom:0. Paint past the tab. */
+  .storefront-tab-bar::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    height: 6rem;
+    background: var(--admin-surface);
   }
 }
 

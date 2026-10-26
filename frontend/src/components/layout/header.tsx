@@ -1,10 +1,9 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useCart } from "@/components/cart/cart-provider";
 import { useAuth } from "@/components/auth/auth-provider";
-import { useWishlist } from "@/components/wishlist/wishlist-provider";
 import MobileTabBar from "@/components/layout/mobile-tab-bar";
 import HeaderMainRow from "@/components/layout/header/header-main-row";
 import HeaderNav, { HeaderNavFallback } from "@/components/layout/header/header-nav";
@@ -26,6 +25,10 @@ import {
     phoneNationalShortSuffix,
 } from "@/lib/site-contact";
 
+function readLocation(): string {
+    return window.location.pathname + window.location.search;
+}
+
 function formatMinskFreeDeliveryPromo(threshold: number): string {
     const n = Number.isFinite(threshold) ? threshold : 50;
     return `Бесплатная доставка по Минску от ${withBynSignText(String(n))}`;
@@ -41,7 +44,18 @@ export default function Header() {
     const messengerLinks = buildMessengerLinks(siteContent);
     const [isBurgerOpen, setIsBurgerOpen] = useState(false);
     const [profileMenuPath, setProfileMenuPath] = useState<string | null>(null);
-    const profileMenuOpen = profileMenuPath === pathname;
+    const profileMenuOpen = profileMenuPath !== null;
+    const closeProfileMenu = useCallback(() => setProfileMenuPath(null), []);
+    const syncMenuLocation = useCallback((location: string) => {
+        setProfileMenuPath((current) => (current && current !== location ? null : current));
+    }, []);
+
+    useLayoutEffect(() => {
+        const openedPath = profileMenuPath?.split("?")[0];
+        if (openedPath && openedPath !== pathname) {
+            setProfileMenuPath(null);
+        }
+    }, [pathname, profileMenuPath]);
     const [isAccountOpen, setIsAccountOpen] = useState(false);
     const [isPhoneDropdownOpen, setIsPhoneDropdownOpen] = useState(false);
     const [isMainRowPinned, setIsMainRowPinned] = useState(false);
@@ -50,7 +64,6 @@ export default function Header() {
     const mainRowRef = useRef<HTMLDivElement | null>(null);
     const mainRowSentinelRef = useRef<HTMLDivElement | null>(null);
     const { cartQty } = useCart();
-    const { wishlistQty } = useWishlist();
     const { user, isAuthenticated, logout } = useAuth();
 
     const accountRef = useRef<HTMLDivElement | null>(null);
@@ -184,7 +197,11 @@ export default function Header() {
         }
 
         const measure = () => {
-            setMainRowHeight(el.offsetHeight || 78);
+            const full = el.offsetHeight || 78;
+            setMainRowHeight(full);
+            const extension = document.getElementById(HEADER_STICKY_EXTENSION_ID);
+            const row = Math.max(52, full - (extension?.offsetHeight ?? 0));
+            document.documentElement.style.setProperty("--storefront-header-row-height", `${row}px`);
         };
 
         measure();
@@ -195,6 +212,7 @@ export default function Header() {
         return () => {
             ro.disconnect();
             window.removeEventListener("resize", measure);
+            document.documentElement.style.removeProperty("--storefront-header-row-height");
         };
     }, []);
 
@@ -226,7 +244,7 @@ export default function Header() {
         const measure = () => {
             const desktop = window.matchMedia("(min-width: 768px)").matches;
             const catalogToolbarStickyTop = Math.max(
-                64,
+                52,
                 mainRowHeight + (desktop && !isMainRowPinned ? SERVICE_BAR_PX : 0),
             );
             document.documentElement.style.setProperty(
@@ -273,7 +291,7 @@ export default function Header() {
 
     const toggleProfileMenu = () => {
         setSearchOpen(false);
-        setProfileMenuPath((current) => (current === pathname ? null : pathname));
+        setProfileMenuPath((current) => (current ? null : readLocation()));
     };
 
     const popularSearches = siteContent.search_popular_brands.map((brand) => brand.name);
@@ -329,7 +347,6 @@ export default function Header() {
                     suggestedQuery={suggestedQuery}
                     recentSearches={recentSearches}
                     popularSearches={popularSearches}
-                    wishlistQty={wishlistQty}
                     cartQty={cartQty}
                     isAuthenticated={isAuthenticated}
                     isAccountOpen={isAccountOpen}
@@ -372,6 +389,7 @@ export default function Header() {
                     isCompact={false}
                     hideBelowMd={!showMobileCategoryPills}
                     links={HEADER_CATEGORY_PILLS}
+                    onLocationAction={syncMenuLocation}
                 />
             </Suspense>
 
@@ -394,25 +412,18 @@ export default function Header() {
                 onProductSelectAction={handleSelectProduct}
                 onSuggestedQueryAction={selectSuggestion}
             />
-            <MobileProfileSheet
-                open={profileMenuOpen}
-                isAuthenticated={isAuthenticated}
-                userName={user?.name || "Пользователь"}
-                onCloseAction={() => setProfileMenuPath(null)}
-                onLogoutAction={() => {
-                    logout();
-                    setProfileMenuPath(null);
-                }}
-            />
+            <MobileProfileSheet open={profileMenuOpen} onCloseAction={closeProfileMenu} />
             <MobileTabBar
                 cartQty={cartQty}
                 searchOpen={searchOpen}
                 menuOpen={profileMenuOpen}
                 onOpenSearchAction={toggleMobileSearch}
                 onToggleMenuAction={toggleProfileMenu}
-                onDismissMenuAction={() => {
-                    setProfileMenuPath(null);
+                onDismissMenuAction={(href) => {
                     setSearchOpen(false);
+                    if (!href || href === readLocation()) {
+                        closeProfileMenu();
+                    }
                 }}
             />
         </>

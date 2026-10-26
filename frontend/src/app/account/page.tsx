@@ -2,12 +2,12 @@
 
 import { useAuth } from "@/components/auth/auth-provider";
 import AccountGuestView from "@/components/account/account-guest-view";
-import AccountMoreLinks from "@/components/account/account-more-links";
+import AccountProfileEditModal from "@/components/account/account-profile-edit-modal";
 import UserAccount from "@/components/account/user-account";
 import OrdersAccount from "@/components/account/orders-account";
-import {useRouter} from "next/navigation";
-import {useCallback, useEffect, useState} from "react";
-import {isPrivilegedRole} from "@/constants/admin-roles";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import { isPrivilegedRole } from "@/constants/admin-roles";
 
 export default function AccountPage() {
     const { user, isAuthenticated, loading, logout, refreshUser } = useAuth();
@@ -85,20 +85,16 @@ export default function AccountPage() {
     }
 
     return (
-        <main className="min-h-screen bg-admin-bg text-admin-text">
-            <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
-                <div className="mb-8">
-                    <div className="text-sm font-medium uppercase tracking-[0.12em] text-admin-text-secondary">
+        <main className="bg-admin-bg text-admin-text md:min-h-screen">
+            <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 md:py-8 lg:px-8 lg:py-12">
+                <div className="mb-6 hidden items-center gap-4 md:flex">
+                    <div className="shrink-0 text-sm font-medium uppercase tracking-[0.12em] text-admin-text-secondary">
                         Личный кабинет
                     </div>
-                    <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Профиль и заказы</h1>
+                    <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Профиль и заказы</h1>
                 </div>
 
-                <div className="mb-6 md:hidden">
-                    <AccountMoreLinks />
-                </div>
-
-                <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
+                <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[340px_minmax(0,1fr)] lg:items-start lg:gap-6">
                     <UserAccount
                         user={user}
                         logoutAction={logout}
@@ -106,13 +102,17 @@ export default function AccountPage() {
                     />
                     <OrdersAccount
                         isAuthenticated={isAuthenticated}
-                        isProfileEditing={isProfileEditing}
-                        user={user}
                         profileSaveNotice={profileSaveNotice}
-                        onProfileSavedAction={handleProfileSaved}
-                        onProfileCancelAction={handleProfileCancel}
                     />
                 </div>
+
+                {isProfileEditing && user ? (
+                    <AccountProfileEditModal
+                        user={user}
+                        onCloseAction={handleProfileCancel}
+                        onSavedAction={handleProfileSaved}
+                    />
+                ) : null}
             </div>
         </main>
     );

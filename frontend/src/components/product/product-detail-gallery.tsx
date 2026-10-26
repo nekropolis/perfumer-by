@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ProductDetailData } from "@/types/catalog";
@@ -106,11 +107,12 @@ export default function ProductDetailGallery({ product, selectedVariantHasPromot
     return (
         <>
             <section>
-                <div className="relative aspect-[4/3] overflow-hidden rounded-3xl border border-admin-border bg-white p-2 shadow-sm sm:p-3 md:aspect-square">
+                <div className="relative aspect-[3/2] overflow-hidden rounded-3xl border border-admin-border bg-white p-2 shadow-sm sm:aspect-[4/3] sm:p-3 md:aspect-square">
                     <ProductStatusLabels
                         isNew={Boolean(product.is_new)}
                         isHit={Boolean(product.is_hit)}
                         hasPromotion={selectedVariantHasPromotion}
+                        className={product.brand ? "max-md:top-12" : ""}
                     />
                     {mainImageUrl ? (
                         <div className="h-full w-full">
@@ -155,6 +157,14 @@ export default function ProductDetailGallery({ product, selectedVariantHasPromot
                             <div className="mt-2 text-sm text-admin-text-secondary">Изображение товара загружается</div>
                         </div>
                     )}
+                    {product.brand ? (
+                        <Link
+                            href={`/brands/${product.brand.slug}`}
+                            className="absolute left-2 top-2 z-30 max-w-[calc(100%-1rem)] truncate rounded-full border border-admin-text/20 bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-admin-text shadow-md md:hidden"
+                        >
+                            {product.brand.name}
+                        </Link>
+                    ) : null}
                 </div>
 
                 {images.length > 1 ? (
@@ -262,11 +272,10 @@ export default function ProductDetailGallery({ product, selectedVariantHasPromot
                                                     type="button"
                                                     onClick={() => setSelectedImageId(image.id)}
                                                     aria-current={isActive ? "true" : undefined}
-                                                    className={`relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border bg-white/95 p-0.5 transition ${
-                                                        isActive
+                                                    className={`relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border bg-white/95 p-0.5 transition ${isActive
                                                             ? "border-white ring-2 ring-white/90"
                                                             : "border-white/25 opacity-80 hover:opacity-100"
-                                                    }`}
+                                                        }`}
                                                     aria-label={`Фото ${index + 1}`}
                                                 >
                                                     <Image

@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { formatSearchPrice } from "@/components/layout/header/format-search-price";
 import { renderHighlightedText } from "@/components/layout/header/render-highlighted-text";
 import type { HeaderSearchBrandItem, HeaderSearchItem } from "@/components/layout/header/types";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import { headerSearchProductTitle } from "@/lib/product-display-name";
 import { siteBtnSecondary } from "@/lib/site-ui-classes";
 
@@ -29,20 +30,6 @@ type Props = {
     onSuggestedQueryAction: (value: string) => void;
 };
 
-type ViewportBox = {
-    top: number;
-    height: number;
-};
-
-function readPhoneViewport(): ViewportBox {
-    const vv = window.visualViewport;
-    if (!vv) {
-        return { top: 0, height: window.innerHeight };
-    }
-
-    return { top: vv.offsetTop, height: vv.height };
-}
-
 export default function MobileSearchSheet({
     open,
     searchLoading,
@@ -64,7 +51,6 @@ export default function MobileSearchSheet({
 }: Props) {
     const inputRef = useRef<HTMLInputElement | null>(null);
     const [isPhone, setIsPhone] = useState(false);
-    const [viewport, setViewport] = useState<ViewportBox>({ top: 0, height: 0 });
 
     useEffect(() => {
         const mq = window.matchMedia("(max-width: 767px)");
@@ -91,51 +77,24 @@ export default function MobileSearchSheet({
             return;
         }
 
-        const update = () => setViewport(readPhoneViewport());
-        update();
-        window.visualViewport?.addEventListener("resize", update);
-        window.visualViewport?.addEventListener("scroll", update);
-        window.addEventListener("resize", update);
+        const unlock = lockBodyScroll();
+        const blockBackgroundScroll = (event: TouchEvent) => {
+            const target = event.target;
+            if (!(target instanceof Node)) {
+                return;
+            }
+            const sheet = document.querySelector('[aria-label="Поиск"]');
+            const tabBar = document.querySelector('nav[aria-label="Разделы"]');
+            if (sheet?.contains(target) || tabBar?.contains(target)) {
+                return;
+            }
+            event.preventDefault();
+        };
+        document.addEventListener("touchmove", blockBackgroundScroll, { passive: false });
 
         return () => {
-            window.visualViewport?.removeEventListener("resize", update);
-            window.visualViewport?.removeEventListener("scroll", update);
-            window.removeEventListener("resize", update);
-        };
-    }, [open, isPhone]);
-
-    useEffect(() => {
-        if (!open || !isPhone) {
-            return;
-        }
-
-        const body = document.body;
-        const html = document.documentElement;
-        const scrollY = window.scrollY;
-        const previous = {
-            bodyOverflow: body.style.overflow,
-            bodyPosition: body.style.position,
-            bodyTop: body.style.top,
-            bodyLeft: body.style.left,
-            bodyWidth: body.style.width,
-            htmlOverflow: html.style.overflow,
-        };
-
-        html.style.overflow = "hidden";
-        body.style.overflow = "hidden";
-        body.style.position = "fixed";
-        body.style.top = `-${scrollY}px`;
-        body.style.left = "0";
-        body.style.width = "100%";
-
-        return () => {
-            body.style.overflow = previous.bodyOverflow;
-            body.style.position = previous.bodyPosition;
-            body.style.top = previous.bodyTop;
-            body.style.left = previous.bodyLeft;
-            body.style.width = previous.bodyWidth;
-            html.style.overflow = previous.htmlOverflow;
-            window.scrollTo({ top: scrollY, behavior: "auto" });
+            unlock();
+            document.removeEventListener("touchmove", blockBackgroundScroll);
         };
     }, [open, isPhone]);
 
@@ -144,20 +103,15 @@ export default function MobileSearchSheet({
     }
 
     const query = searchQuery.trim();
-    const keyboardInset = viewport.height > 0
-        ? Math.max(0, window.innerHeight - viewport.top - viewport.height)
-        : 0;
-    const liftedByKeyboard = keyboardInset > 80;
 
     return createPortal(
         <div
             role="dialog"
             aria-modal="true"
             aria-label="Поиск"
-            className="fixed inset-x-0 z-[145] flex flex-col bg-admin-surface md:hidden"
+            className="fixed inset-x-0 top-0 z-[145] flex flex-col bg-admin-surface md:hidden"
             style={{
-                top: viewport.top,
-                bottom: liftedByKeyboard ? keyboardInset : "var(--storefront-tab-bar-height, 0px)",
+                bottom: "calc(var(--storefront-tab-bar-height, 0px) + var(--storefront-keyboard-inset, 0px))",
             }}
         >
             <div className="shrink-0 border-b border-admin-border px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">

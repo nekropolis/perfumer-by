@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useLayoutEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { HeaderNavLink } from "@/components/layout/header/types";
 import { isHeaderNavLinkActive } from "@/lib/header-nav-active";
@@ -9,6 +10,7 @@ type HeaderNavProps = {
     isCompact: boolean;
     hideBelowMd?: boolean;
     links: ReadonlyArray<HeaderNavLink>;
+    onLocationAction?: (location: string) => void;
 };
 
 export function HeaderNavFallback({ isCompact, hideBelowMd = false, links }: HeaderNavProps) {
@@ -36,9 +38,15 @@ export function HeaderNavFallback({ isCompact, hideBelowMd = false, links }: Hea
     );
 }
 
-export default function HeaderNav({ isCompact, hideBelowMd = false, links }: HeaderNavProps) {
+export default function HeaderNav({ isCompact, hideBelowMd = false, links, onLocationAction }: HeaderNavProps) {
     const pathname = usePathname();
     const searchParams = useSearchParams();
+    const search = searchParams.toString();
+    const location = search ? `${pathname}?${search}` : pathname;
+
+    useLayoutEffect(() => {
+        onLocationAction?.(location);
+    }, [location, onLocationAction]);
 
     return (
         <nav

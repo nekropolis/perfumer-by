@@ -108,6 +108,7 @@ class CartItemResource extends JsonResource
             'reserved_stock' => $variant ? $displayReserved : 0,
             'available_stock' => $availableStock,
             'is_preorder' => (bool) ($variant?->is_preorder ?? false),
+            'is_promotion' => (bool) ($variant?->is_promotion ?? false),
             'is_available' => $variant ? $isAvailable : false,
             'waiting_discount' => $waitingDiscount,
             'waiting_discount_percent' => $waitingDiscount && !(bool) $variant?->is_promotion

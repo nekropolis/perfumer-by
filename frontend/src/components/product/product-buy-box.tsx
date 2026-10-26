@@ -18,6 +18,7 @@ import {
 } from "@/lib/product-detail-utils";
 import { HEADER_STICKY_EXTENSION_ID } from "@/components/layout/header/constants";
 import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
+import { formatDiscountPercentSnapshot } from "@/lib/loyalty-pricing";
 import { siteBtnPrimary, siteBtnSecondary, siteCard } from "@/lib/site-ui-classes";
 
 const emptySubscribe = () => () => { };
@@ -97,7 +98,6 @@ export default function ProductBuyBox({
     const showDesktop = surface === "all" || surface === "desktop";
     const showMobile = surface === "all" || surface === "mobile";
     const [notifyOpen, setNotifyOpen] = useState(false);
-    const [mobileBarBottomOffset, setMobileBarBottomOffset] = useState(0);
     const [pricePinned, setPricePinned] = useState(false);
     const [priceBarEntered, setPriceBarEntered] = useState(false);
     if (!pricePinned && priceBarEntered) {
@@ -178,41 +178,6 @@ export default function ProductBuyBox({
     const hasAnyDiscount = hasLoyaltyDiscount || hasWaitingDiscount || selectedVariant?.discount_percent;
 
     useEffect(() => {
-        if (!showMobile) {
-            return;
-        }
-
-        if (typeof window === "undefined") {
-            return;
-        }
-
-        // Lift only for the virtual keyboard — visualViewport scroll during iOS
-        // overscroll otherwise pulls the bar off the bottom edge.
-        const updateViewportOffsets = () => {
-            const vv = window.visualViewport;
-            if (!vv) {
-                setMobileBarBottomOffset(0);
-                return;
-            }
-            const shrunkBy = window.innerHeight - vv.height;
-            if (shrunkBy <= 120) {
-                setMobileBarBottomOffset(0);
-                return;
-            }
-            setMobileBarBottomOffset(Math.max(0, window.innerHeight - (vv.height + vv.offsetTop)));
-        };
-
-        updateViewportOffsets();
-        window.visualViewport?.addEventListener("resize", updateViewportOffsets);
-        window.addEventListener("resize", updateViewportOffsets);
-
-        return () => {
-            window.visualViewport?.removeEventListener("resize", updateViewportOffsets);
-            window.removeEventListener("resize", updateViewportOffsets);
-        };
-    }, [showMobile]);
-
-    useEffect(() => {
         if (!showMobile || !mobileBarPortalReady) {
             return;
         }
@@ -226,10 +191,7 @@ export default function ProductBuyBox({
         const publishHeight = () => {
             const height = Math.ceil(bar.getBoundingClientRect().height);
             if (height > 0) {
-                root.style.setProperty(
-                    STOREFRONT_BOTTOM_BAR_HEIGHT,
-                    `${height + mobileBarBottomOffset}px`,
-                );
+                root.style.setProperty(STOREFRONT_BOTTOM_BAR_HEIGHT, `${height}px`);
                 return;
             }
             root.style.removeProperty(STOREFRONT_BOTTOM_BAR_HEIGHT);
@@ -243,7 +205,7 @@ export default function ProductBuyBox({
             observer.disconnect();
             root.style.removeProperty(STOREFRONT_BOTTOM_BAR_HEIGHT);
         };
-    }, [showMobile, mobileBarPortalReady, mobileBarBottomOffset]);
+    }, [showMobile, mobileBarPortalReady]);
 
     useEffect(() => {
         if (!showMobile) {
@@ -556,13 +518,14 @@ export default function ProductBuyBox({
                 .filter((part) => part.trim().length > 0)
                 .join(" · ");
 
-    const conditionText = hasWaitingDiscount
+    const loyaltyPercentLabel = formatDiscountPercentSnapshot(String(loyaltyPercent)) ?? String(loyaltyPercent);
+    const loyaltyDiscountLabel = hasLoyaltyDiscount ? `Скидка ${loyaltyPercentLabel}% по карте` : null;
+    const waitingDiscountLabel = hasWaitingDiscount
         ? `Скидка ${waitingDiscountPercent}% за ожидание доставки`
-        : hasLoyaltyDiscount
-            ? `Скидка ${loyaltyPercent.toFixed(2)}% по карте ${loyaltyCardNumber}`
-            : availability
-                ? [availability.status, availability.shipping].filter(Boolean).join(" · ")
-                : null;
+        : null;
+    const pinnedConditionText = !loyaltyDiscountLabel && !waitingDiscountLabel && availability
+        ? [availability.status, availability.shipping].filter(Boolean).join(" · ")
+        : null;
 
     const mobilePriceDetails = showMobile ? (
         <div ref={priceDetailsRef} className="mb-3 xl:hidden">
@@ -585,15 +548,11 @@ export default function ProductBuyBox({
                             </div>
                         ) : null}
                     </div>
-                    {hasLoyaltyDiscount ? (
-                        <div className="mt-1.5 text-sm text-green-700">
-                            Скидка {loyaltyPercent.toFixed(2)}% по карте {loyaltyCardNumber}
-                        </div>
+                    {loyaltyDiscountLabel ? (
+                        <div className="mt-1.5 text-sm text-green-700">{loyaltyDiscountLabel}</div>
                     ) : null}
-                    {hasWaitingDiscount && !showWaitingCheckbox ? (
-                        <div className="mt-1.5 text-sm text-green-700">
-                            Скидка {waitingDiscountPercent}% за ожидание доставки
-                        </div>
+                    {waitingDiscountLabel && !showWaitingCheckbox ? (
+                        <div className="mt-1.5 text-sm text-green-700">{waitingDiscountLabel}</div>
                     ) : null}
                     {selectedVariantLine ? (
                         <div className="mt-1.5 text-sm font-medium text-admin-text">{selectedVariantLine}</div>
@@ -623,10 +582,7 @@ export default function ProductBuyBox({
             ref={mobileBarRef}
             className="fixed inset-x-0 z-[130] border-t border-admin-border bg-admin-surface/95 px-3 py-2 backdrop-blur xl:hidden"
             style={{
-                bottom:
-                    mobileBarBottomOffset > 0
-                        ? `${mobileBarBottomOffset}px`
-                        : "var(--storefront-tab-bar-height, env(safe-area-inset-bottom))",
+                bottom: "calc(var(--storefront-tab-bar-height, env(safe-area-inset-bottom)) + var(--storefront-keyboard-inset, 0px))",
             }}
         >
             <div className="mx-auto w-full max-w-7xl">
@@ -679,15 +635,17 @@ export default function ProductBuyBox({
                         </span>
                     ) : null}
                 </div>
-                {conditionText ? (
-                    <div
-                        className={`mt-1 truncate text-xs ${
-                            hasWaitingDiscount || hasLoyaltyDiscount
-                                ? "text-green-700"
-                                : (availability?.className ?? "text-admin-text-secondary")
-                        }`}
-                    >
-                        {conditionText}
+                {loyaltyDiscountLabel ? (
+                    <div className="mt-1 truncate text-xs text-green-700">{loyaltyDiscountLabel}</div>
+                ) : null}
+                {waitingDiscountLabel ? (
+                    <div className={`${loyaltyDiscountLabel ? "mt-0.5" : "mt-1"} truncate text-xs text-green-700`}>
+                        {waitingDiscountLabel}
+                    </div>
+                ) : null}
+                {pinnedConditionText ? (
+                    <div className={`mt-1 truncate text-xs ${availability?.className ?? "text-admin-text-secondary"}`}>
+                        {pinnedConditionText}
                     </div>
                 ) : null}
             </div>
@@ -749,16 +707,12 @@ export default function ProductBuyBox({
                                 ) : null}
                             </div>
 
-                            {hasLoyaltyDiscount && (
-                                <div className="mb-2 text-sm text-green-700">
-                                    Скидка {loyaltyPercent.toFixed(2)}% по карте {loyaltyCardNumber}
-                                </div>
-                            )}
+                            {loyaltyDiscountLabel ? (
+                                <div className="mb-2 text-sm text-green-700">{loyaltyDiscountLabel}</div>
+                            ) : null}
 
-                            {hasWaitingDiscount && !showWaitingCheckbox ? (
-                                <div className="mb-2 text-sm text-green-700">
-                                    Скидка {waitingDiscountPercent}% за ожидание доставки
-                                </div>
+                            {waitingDiscountLabel && !showWaitingCheckbox ? (
+                                <div className="mb-2 text-sm text-green-700">{waitingDiscountLabel}</div>
                             ) : null}
 
                             <div className="mb-4">

@@ -42,8 +42,12 @@ export default async function ProductDetailPage({
     }
 
     return (
-        <main className="mx-auto max-w-7xl px-4 py-4 pb-28 sm:px-6 md:py-8 xl:pb-8">
-            <Breadcrumbs className="mb-4" items={getProductBreadcrumbItems(product)} />
+        <main className="mx-auto max-w-7xl px-4 pb-28 pt-1.5 sm:px-6 md:py-8 xl:pb-8">
+            <Breadcrumbs
+                alwaysShow
+                className="max-md:sr-only md:mb-4"
+                items={getProductBreadcrumbItems(product)}
+            />
             <ProductDetailInteractive
                 product={product}
                 initialProductReviews={initialProductReviews}

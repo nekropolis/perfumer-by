@@ -33,6 +33,7 @@ export type CartItemData = {
     waiting_discount: boolean;
     waiting_discount_percent: number | null;
     availability_source: ProductAvailabilitySource;
+    is_promotion?: boolean;
 };
 
 export type CartDiscountCard = {

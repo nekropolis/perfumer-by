@@ -22,6 +22,7 @@ type Props = {
 export default function AppShell({ children, footer }: Props) {
     const pathname = usePathname();
     const isAdminPage = pathname.startsWith("/admin");
+    const hideMobileAccountChrome = pathname === "/account";
 
     if (isAdminPage) {
         return <>{children}</>;
@@ -40,8 +41,10 @@ export default function AppShell({ children, footer }: Props) {
             <div id="main-content" tabIndex={-1} className="w-full min-w-0 max-w-full">
                 {children}
             </div>
-            <RecentlyViewedSection excludeSlug={recentlyViewedExcludeSlug(pathname)} />
-            {footer}
+            <div className={hideMobileAccountChrome ? "max-md:hidden md:contents" : undefined}>
+                <RecentlyViewedSection excludeSlug={recentlyViewedExcludeSlug(pathname)} />
+                {footer}
+            </div>
             <ScrollToTopButton />
         </div>
     );
