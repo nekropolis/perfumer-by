@@ -399,9 +399,8 @@ export default function ProductBuyBox({
 
         return (
             <label
-                className={`inline-flex cursor-pointer select-none text-admin-text ${
-                    compact ? "items-center gap-2 text-[11px] leading-4" : "items-center gap-2.5 text-sm"
-                } ${waitingDiscountForced ? "cursor-not-allowed opacity-80" : ""}`}
+                className={`inline-flex cursor-pointer select-none text-admin-text ${compact ? "items-center gap-2 text-[11px] leading-4" : "items-center gap-2.5 text-sm"
+                    } ${waitingDiscountForced ? "cursor-not-allowed opacity-80" : ""}`}
             >
                 <span
                     className={`relative flex shrink-0 select-none items-center justify-center ${compact ? "h-4 w-4" : "h-5 w-5"
@@ -624,18 +623,18 @@ export default function ProductBuyBox({
             <div className="mx-auto w-full max-w-7xl">
                 {showWaitingCheckbox ? <div className="mb-2">{renderWaitingDiscountRow(true)}</div> : null}
                 <div className={`grid gap-2 ${canAddToCart ? "grid-cols-2" : "grid-cols-1"}`}>
-                {canAddToCart ? (
-                    <OneClickOrderTrigger
-                        productId={productId}
-                        productName={productName}
-                        variantId={selectedVariantId}
-                        variantTitle={selectedVariantTitle}
-                        label="Купить сейчас"
-                        appearance="button"
-                        className={`${siteBtnSecondary} h-12 w-full px-3 text-base`}
-                    />
-                ) : null}
-                {renderCartAction(true)}
+                    {canAddToCart ? (
+                        <OneClickOrderTrigger
+                            productId={productId}
+                            productName={productName}
+                            variantId={selectedVariantId}
+                            variantTitle={selectedVariantTitle}
+                            label="Купить сейчас"
+                            appearance="button"
+                            className={`${siteBtnSecondary} h-12 w-full px-3 text-base`}
+                        />
+                    ) : null}
+                    {renderCartAction(true)}
                 </div>
             </div>
         </div>
