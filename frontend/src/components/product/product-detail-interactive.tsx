@@ -107,23 +107,29 @@ export default function ProductDetailInteractive({
         isVariantEligibleForWaitingDiscount(
             selectedVariant.is_promotion,
             selectedVariant.availability_source,
+            selectedVariant.waiting_discount_percent,
         ),
     );
     const waitingDiscountForced = selectedVariant?.availability_source === "supplier_only";
     const waitingDiscountActive =
-        waitingDiscountForced ||
-        (selectedVariant
-            ? (waitingDiscountByVariant[selectedVariant.id] ??
-                cartItemForSelected?.waiting_discount ??
-                false)
-            : false);
+        selectedVariantEligibleForWaiting &&
+        (waitingDiscountForced ||
+            (selectedVariant
+                ? (waitingDiscountByVariant[selectedVariant.id] ??
+                    cartItemForSelected?.waiting_discount ??
+                    false)
+                : false));
 
     const loyaltyPercent = isAuthenticated && selectedVariantEligibleForLoyalty
         ? (loyaltyCard?.discountPercent ?? 0)
         : 0;
 
     const variantWaitingActive = (variant: ProductVariantData) => {
-        if (!isVariantEligibleForWaitingDiscount(variant.is_promotion, variant.availability_source)) {
+        if (!isVariantEligibleForWaitingDiscount(
+            variant.is_promotion,
+            variant.availability_source,
+            variant.waiting_discount_percent,
+        )) {
             return false;
         }
         if (variant.availability_source === "supplier_only") {

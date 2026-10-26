@@ -168,17 +168,22 @@ export function isVariantEligibleForLoyaltyCardDiscount(isPromotion?: boolean | 
     return !isPromotion;
 }
 
-/** Скидка 3% за ожидание — только при наличии оферов (не «только склад»). */
+/** Скидка 3% за ожидание — только при наличии оферов (не «только склад»).
+ *  Для «склад + офер» бэкенд обнуляет waiting_discount_percent, если вход офера выше входа склада. */
 export function isVariantEligibleForWaitingDiscount(
     isPromotion?: boolean | null,
     availabilitySource?: string | null,
+    waitingDiscountPercent?: number | null,
 ): boolean {
     if (isPromotion) {
         return false;
     }
 
-    // supplier_only — принудительно; main+supplier — опциональный чекбокс
-    return availabilitySource === "main+supplier" || availabilitySource === "supplier_only";
+    if (availabilitySource === "supplier_only") {
+        return true;
+    }
+
+    return availabilitySource === "main+supplier" && (waitingDiscountPercent ?? 0) > 0;
 }
 
 /** Применить скидку 3% за ожидание доставки с округлением до десятых BYN. */

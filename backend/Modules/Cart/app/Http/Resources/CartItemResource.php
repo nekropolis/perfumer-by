@@ -44,6 +44,9 @@ class CartItemResource extends JsonResource
             $displayReserved = $presented['reserved_stock'];
             $isAvailable = $presented['is_available'];
             $availabilitySource = $presented['availability_source'];
+            if (CatalogVariantStockPresenter::optionalWaitingDiscountBlocked($variant, $availabilitySource)) {
+                $waitingDiscount = false;
+            }
             $basePrice = CatalogVariantStockPresenter::storefrontVariantPrice($variant, $presented) ?? 0.0;
             $price = $waitingDiscount && !(bool) $variant->is_promotion
                 ? WaitingDiscountPricing::apply($basePrice)

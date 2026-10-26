@@ -29,4 +29,18 @@ final class WaitingDiscountPricing
 
         return round($price - self::apply($price), 2);
     }
+
+    /**
+     * Опциональная скидка «хочу 3% за ожидание» не даётся, если вход офера
+     * выше входа склада. Сравнение по копейкам: склад 50.00 и офер 50.00 — скидка
+     * остаётся; офер 50.01 — нет. Нет одной из цен — не блокируем.
+     */
+    public static function offerPurchaseExceedsWarehousePurchase(?float $warehousePurchase, ?float $offerPurchase): bool
+    {
+        if ($warehousePurchase === null || $offerPurchase === null || $warehousePurchase <= 0 || $offerPurchase <= 0) {
+            return false;
+        }
+
+        return round($offerPurchase, 2) > round($warehousePurchase, 2);
+    }
 }

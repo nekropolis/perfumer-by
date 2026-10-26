@@ -59,9 +59,15 @@ class AllparfumeCatalogFeedService
                 continue;
             }
 
+            $skipWaitingDiscount = CatalogVariantStockPresenter::optionalWaitingDiscountBlocked(
+                $link,
+                (string) ($presented['availability_source'] ?? ''),
+                $stockContext->eligibleOffersForVariant($link),
+            );
+
             $eligible[] = [
                 'link' => $link,
-                'price' => $this->variantFeedPrice($price, $presented, (bool) $link->is_promotion),
+                'price' => $this->variantFeedPrice($price, $presented, (bool) $link->is_promotion, $skipWaitingDiscount),
             ];
         }
 
@@ -203,9 +209,13 @@ class AllparfumeCatalogFeedService
      *
      * @param  array{availability_source?: string}  $presented
      */
-    private function variantFeedPrice(float $storefrontPrice, array $presented, bool $isPromotion): float
-    {
-        if ($isPromotion) {
+    private function variantFeedPrice(
+        float $storefrontPrice,
+        array $presented,
+        bool $isPromotion,
+        bool $skipWaitingDiscount = false,
+    ): float {
+        if ($isPromotion || $skipWaitingDiscount) {
             return $storefrontPrice;
         }
 

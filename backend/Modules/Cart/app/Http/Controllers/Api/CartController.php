@@ -114,8 +114,11 @@ class CartController extends Controller
 
         if ($availabilitySource === 'supplier_only') {
             $waitingDiscount = true;
-        } elseif ($availabilitySource !== 'main+supplier') {
-            // Только склад / без оферов — скидка за ожидание недоступна.
+        } elseif (
+            $availabilitySource !== 'main+supplier'
+            || CatalogVariantStockPresenter::optionalWaitingDiscountBlocked($variant, $availabilitySource)
+        ) {
+            // Только склад / без оферов, либо офер дороже склада — скидка за ожидание недоступна.
             $waitingDiscount = false;
         }
 
@@ -129,6 +132,14 @@ class CartController extends Controller
             if ($waitingDiscount) {
                 $existingItem->update([
                     'waiting_discount' => true,
+                    'availability_source' => $availabilitySource,
+                ]);
+            } elseif (
+                (bool) $existingItem->waiting_discount
+                && CatalogVariantStockPresenter::optionalWaitingDiscountBlocked($variant, $availabilitySource)
+            ) {
+                $existingItem->update([
+                    'waiting_discount' => false,
                     'availability_source' => $availabilitySource,
                 ]);
             }
@@ -181,7 +192,10 @@ class CartController extends Controller
 
             if ($availabilitySource === 'supplier_only') {
                 $waitingDiscount = true;
-            } elseif ($availabilitySource !== 'main+supplier') {
+            } elseif (
+                $availabilitySource !== 'main+supplier'
+                || ($variant && CatalogVariantStockPresenter::optionalWaitingDiscountBlocked($variant, $availabilitySource))
+            ) {
                 $waitingDiscount = false;
             }
 

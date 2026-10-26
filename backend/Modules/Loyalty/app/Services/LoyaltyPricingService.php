@@ -3,6 +3,7 @@
 namespace Modules\Loyalty\Services;
 
 use Modules\Cart\Models\Cart;
+use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Catalog\Support\MoneyDecimal;
 use Modules\Catalog\Support\WaitingDiscountPricing;
 use Modules\Loyalty\Models\DiscountCard;
@@ -180,7 +181,10 @@ class LoyaltyPricingService
                 return 0.0;
             }
 
-            if ((bool) $item->waiting_discount && !(bool) ($item->variant?->is_promotion ?? false)) {
+            $availabilitySource = (string) ($item->availability_source ?: '');
+            $waitingBlocked = $item->variant
+                && CatalogVariantStockPresenter::optionalWaitingDiscountBlocked($item->variant, $availabilitySource);
+            if ((bool) $item->waiting_discount && !(bool) ($item->variant?->is_promotion ?? false) && ! $waitingBlocked) {
                 $basePrice = WaitingDiscountPricing::apply($basePrice);
             }
 
