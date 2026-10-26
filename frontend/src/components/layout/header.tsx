@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCart } from "@/components/cart/cart-provider";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useWishlist } from "@/components/wishlist/wishlist-provider";
@@ -28,6 +28,31 @@ import {
 
 function readLocation(): string {
     return window.location.pathname + window.location.search;
+}
+
+function SearchRouteArrival({
+    pendingHref,
+    onArrivedAction,
+}: {
+    pendingHref: string | null;
+    onArrivedAction: () => void;
+}) {
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+
+    useEffect(() => {
+        if (!pendingHref) {
+            return;
+        }
+
+        const query = searchParams.toString();
+        const current = query ? `${pathname}?${query}` : pathname;
+        if (current === pendingHref) {
+            onArrivedAction();
+        }
+    }, [pendingHref, pathname, searchParams, onArrivedAction]);
+
+    return null;
 }
 
 function formatMinskFreeDeliveryPromo(threshold: number): string {
@@ -78,6 +103,9 @@ export default function Header() {
         setSearchOpen,
         searchQuery,
         searchLoading,
+        searchNavigating,
+        pendingHref,
+        completeNavigation,
         searchResults,
         searchBrandResults,
         suggestedQuery,
@@ -128,15 +156,19 @@ export default function Header() {
             }
         };
 
+        if (searchNavigating) {
+            return;
+        }
+
         document.addEventListener("mousedown", handleClickOutside);
 
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
-    }, [setSearchOpen]);
+    }, [searchNavigating, setSearchOpen]);
 
     useEffect(() => {
-        if (!isAccountOpen && !isBurgerOpen && !isPhoneDropdownOpen && !searchOpen) {
+        if (searchNavigating || (!isAccountOpen && !isBurgerOpen && !isPhoneDropdownOpen && !searchOpen)) {
             return;
         }
 
@@ -175,7 +207,7 @@ export default function Header() {
 
         document.addEventListener("keydown", handleEscape);
         return () => document.removeEventListener("keydown", handleEscape);
-    }, [isAccountOpen, isBurgerOpen, isPhoneDropdownOpen, searchOpen, setSearchOpen]);
+    }, [isAccountOpen, isBurgerOpen, isPhoneDropdownOpen, searchNavigating, searchOpen, setSearchOpen]);
 
     useEffect(() => {
         if (!isPhoneDropdownOpen) {
@@ -283,15 +315,24 @@ export default function Header() {
     };
 
     const toggleMobileSearch = () => {
+        if (searchNavigating) {
+            return;
+        }
         setProfileMenuPath(null);
         setSearchOpen((current) => !current);
     };
 
     const closeMobileSearch = () => {
+        if (searchNavigating) {
+            return;
+        }
         setSearchOpen(false);
     };
 
     const toggleProfileMenu = () => {
+        if (searchNavigating) {
+            return;
+        }
         setSearchOpen(false);
         setProfileMenuPath((current) => (current ? null : readLocation()));
     };
@@ -416,6 +457,21 @@ export default function Header() {
                 onSuggestedQueryAction={selectSuggestion}
             />
             <MobileProfileSheet open={profileMenuOpen} onCloseAction={closeProfileMenu} />
+            <Suspense fallback={null}>
+                <SearchRouteArrival pendingHref={pendingHref} onArrivedAction={completeNavigation} />
+            </Suspense>
+            {searchNavigating ? (
+                <div
+                    className="fixed inset-0 z-[180] flex items-center justify-center bg-admin-surface/80 backdrop-blur-sm"
+                    role="status"
+                    aria-live="polite"
+                >
+                    <div className="flex items-center gap-3 rounded-2xl border border-admin-border bg-admin-surface px-4 py-3 text-sm font-medium text-admin-text shadow-xl">
+                        <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-admin-primary border-t-transparent" />
+                        Открываем…
+                    </div>
+                </div>
+            ) : null}
             <MobileTabBar
                 cartQty={cartQty}
                 searchOpen={searchOpen}

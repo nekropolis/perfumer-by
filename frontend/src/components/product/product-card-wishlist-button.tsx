@@ -1,5 +1,6 @@
 "use client";
 
+import { Heart } from "lucide-react";
 import { useWishlist } from "@/components/wishlist/wishlist-provider";
 
 type Props = {
@@ -24,9 +25,11 @@ export default function ProductCardWishlistButton({ productId }: Props) {
                 : "border-admin-border bg-white/95 text-admin-text backdrop-blur lg:hover:bg-admin-muted"
                 }`}
         >
-            <span aria-hidden className="text-[13px] leading-none">
-                {inWishlist ? "♥" : "♡"}
-            </span>
+            <Heart
+                aria-hidden
+                className={`h-4 w-4 ${inWishlist ? "fill-current" : ""}`}
+                strokeWidth={1.75}
+            />
         </button>
     );
 }

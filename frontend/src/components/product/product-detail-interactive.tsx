@@ -65,10 +65,6 @@ export default function ProductDetailInteractive({
     const { isInWishlist, toggleWishlist } = useWishlist();
     const { user, isAuthenticated } = useAuth();
     const variants = useMemo(() => normalizeProductVariants(product.variants), [product.variants]);
-    const hasAnyDesignLabel = useMemo(
-        () => variants.some((variant) => formatVariantDesignLabel(variant) !== null),
-        [variants],
-    );
 
     const initialVariantId = useMemo(() => {
         if (variantFromQuery > 0 && variants.some((variant) => variant.id === variantFromQuery)) {
@@ -241,25 +237,25 @@ export default function ProductDetailInteractive({
                 onClick={() => void toggleWishlist(product.id)}
                 aria-pressed={inWishlist}
                 aria-label={inWishlist ? "Убрать из избранного" : "Добавить в избранное"}
-                className={`inline-flex h-10 w-10 items-center justify-center rounded-full ${inWishlist ? "text-admin-primary" : "text-admin-text-secondary"
+                className={`inline-flex h-7 w-7 items-center justify-center rounded-full ${inWishlist ? "text-admin-primary" : "text-admin-text-secondary"
                     }`}
             >
-                <Heart className={`h-5 w-5 ${inWishlist ? "fill-current" : ""}`} aria-hidden />
+                <Heart className={`h-[18px] w-[18px] ${inWishlist ? "fill-current" : ""}`} aria-hidden />
             </button>
             <button
                 type="button"
                 onClick={shareProduct}
                 aria-label={shareCopied ? "Ссылка скопирована" : "Поделиться"}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full text-admin-text-secondary"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full text-admin-text-secondary"
             >
-                <Share2 className="h-5 w-5" aria-hidden />
+                <Share2 className="h-[18px] w-[18px]" aria-hidden />
             </button>
         </>
     );
 
     return (
         <>
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-[320px_minmax(0,1fr)] md:items-start md:gap-8 xl:grid-cols-[320px_minmax(0,1fr)_340px] xl:items-stretch xl:[grid-template-areas:'gallery_variants_buybox'_'service_service_buybox'_'tabs_tabs_buybox']">
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-[320px_minmax(0,1fr)] md:items-start md:gap-8 xl:grid-cols-[310px_minmax(0,1fr)_320px] xl:items-stretch xl:gap-5 xl:[grid-template-areas:'gallery_variants_buybox'_'service_service_buybox'_'tabs_tabs_buybox']">
                 <div className="order-2 md:order-none xl:[grid-area:gallery]">
                     <ProductDetailGallery product={product} selectedVariantHasPromotion={selectedVariantHasPromotion} />
                 </div>
@@ -290,55 +286,63 @@ export default function ProductDetailInteractive({
                                         <span />
                                     )}
 
-                                    <button
-                                        type="button"
-                                        onClick={() => void toggleWishlist(product.id)}
-                                        aria-pressed={inWishlist}
-                                        aria-label={inWishlist ? "Убрать из избранного" : "Добавить в избранное"}
-                                        className={`hidden shrink-0 items-center gap-1 rounded-md px-1 py-0.5 text-sm transition hover:bg-admin-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-primary md:inline-flex ${
-                                            inWishlist
-                                                ? "font-medium text-admin-primary"
+                                    <div className="hidden shrink-0 items-center gap-1 md:flex">
+                                        <button
+                                            type="button"
+                                            onClick={() => void toggleWishlist(product.id)}
+                                            aria-pressed={inWishlist}
+                                            aria-label={inWishlist ? "Убрать из избранного" : "Добавить в избранное"}
+                                            className={`inline-flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-admin-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-primary ${inWishlist
+                                                ? "text-admin-primary"
                                                 : "text-admin-text-secondary hover:text-admin-text"
-                                        }`}
-                                    >
-                                        <Heart
-                                            className={`h-4 w-4 shrink-0 ${inWishlist ? "fill-current" : ""}`}
-                                            aria-hidden
-                                        />
-                                        <span>{inWishlist ? "В избранном" : "В избранное"}</span>
-                                    </button>
+                                                }`}
+                                        >
+                                            <Heart
+                                                className={`h-5 w-5 shrink-0 ${inWishlist ? "fill-current" : ""}`}
+                                                aria-hidden
+                                            />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={shareProduct}
+                                            aria-label={shareCopied ? "Ссылка скопирована" : "Поделиться"}
+                                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-primary"
+                                        >
+                                            <Share2 className="h-5 w-5 shrink-0" aria-hidden />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     <div className="order-3 md:order-none">
-                    <ProductBuyBox
-                        selectedVariant={selectedVariant}
-                        isSelectedVariantInCart={isSelectedVariantInCart}
-                        isPending={isPending}
-                        onAddToCartAction={handleAddToCart}
-                        formatPriceAction={formatProductDetailPrice}
-                        productId={product.id}
-                        productName={productDisplayName(product)}
-                        isProductOutOfStock={product.is_out_of_stock}
-                        displayPrice={displayPrice}
-                        loyaltyCardNumber={
-                            isAuthenticated && selectedVariantEligibleForLoyalty
-                                ? (loyaltyCard?.number ?? null)
-                                : null
-                        }
-                        loyaltyPercent={loyaltyPercent}
-                        waitingDiscountActive={waitingDiscountActive}
-                        waitingDiscountForced={waitingDiscountForced}
-                        waitingDiscountPercent={WAITING_DISCOUNT_PERCENT}
-                        onWaitingDiscountChangeAction={handleWaitingDiscountChange}
-                        waitingDiscountApplicable={selectedVariantEligibleForWaiting}
-                        deliveryDate={deliveryDate}
-                        replacement={product.replacement ?? null}
-                        surface="mobile"
-                        headerActions={stickyHeaderActions}
-                    />
+                        <ProductBuyBox
+                            selectedVariant={selectedVariant}
+                            isSelectedVariantInCart={isSelectedVariantInCart}
+                            isPending={isPending}
+                            onAddToCartAction={handleAddToCart}
+                            formatPriceAction={formatProductDetailPrice}
+                            productId={product.id}
+                            productName={productDisplayName(product)}
+                            isProductOutOfStock={product.is_out_of_stock}
+                            displayPrice={displayPrice}
+                            loyaltyCardNumber={
+                                isAuthenticated && selectedVariantEligibleForLoyalty
+                                    ? (loyaltyCard?.number ?? null)
+                                    : null
+                            }
+                            loyaltyPercent={loyaltyPercent}
+                            waitingDiscountActive={waitingDiscountActive}
+                            waitingDiscountForced={waitingDiscountForced}
+                            waitingDiscountPercent={WAITING_DISCOUNT_PERCENT}
+                            onWaitingDiscountChangeAction={handleWaitingDiscountChange}
+                            waitingDiscountApplicable={selectedVariantEligibleForWaiting}
+                            deliveryDate={deliveryDate}
+                            replacement={product.replacement ?? null}
+                            surface="mobile"
+                            headerActions={stickyHeaderActions}
+                        />
                     </div>
 
                     <div className="order-4 mb-4 flex flex-col gap-1.5 text-sm md:order-none">
@@ -361,8 +365,6 @@ export default function ProductDetailInteractive({
                                     iconSize={12}
                                 />
                             </span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
                             <button
                                 type="button"
                                 onClick={openReviewsTab}
@@ -370,13 +372,14 @@ export default function ProductDetailInteractive({
                             >
                                 {reviewsMetaLabel}
                             </button>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 md:hidden">
                             <button
                                 type="button"
                                 onClick={() => void toggleWishlist(product.id)}
                                 aria-pressed={inWishlist}
-                                className={`inline-flex items-center gap-1 md:hidden ${
-                                    inWishlist ? "font-medium text-admin-primary" : "text-admin-text-secondary"
-                                }`}
+                                className={`inline-flex items-center gap-1 md:hidden ${inWishlist ? "font-medium text-admin-primary" : "text-admin-text-secondary"
+                                    }`}
                             >
                                 <Heart className={`h-4 w-4 shrink-0 ${inWishlist ? "fill-current" : ""}`} aria-hidden />
                                 {inWishlist ? "В избранном" : "В избранное"}
@@ -393,101 +396,102 @@ export default function ProductDetailInteractive({
                     </div>
 
                     <div className="order-5 md:order-none">
-                    {variants.length > 0 ? (
-                        <>
-                            <div className="mb-3 text-sm font-medium text-admin-text">Выбор вариантов</div>
-                            <div className="mb-4 rounded-2xl border border-admin-border bg-admin-bg p-2 xl:mb-0">
-                                <div className="grid grid-cols-2 gap-1.5 lg:grid-cols-3">
-                                    {variants.map((variant) => {
-                                        const isSelected = variant.id === selectedVariantId;
-                                        const availability = getVariantAvailabilityState(
-                                            variant,
-                                            product.is_out_of_stock,
-                                        );
-                                        const gridPrice = variantCustomerPrice(variant);
+                        {variants.length > 0 ? (
+                            <>
+                                <div className="mb-3 text-lg font-semibold text-admin-text">Выбор вариантов</div>
+                                <div className="mb-4 xl:mb-0">
+                                    <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+                                        {variants.map((variant) => {
+                                            const isSelected = variant.id === selectedVariantId;
+                                            const availability = getVariantAvailabilityState(
+                                                variant,
+                                                product.is_out_of_stock,
+                                            );
+                                            const gridPrice = variantCustomerPrice(variant);
+                                            const designLabel = formatVariantDesignLabel(variant);
+                                            const inStore = availability.text === "В наличии";
+                                            const onOrder = availability.text === "Доступен" || availability.text === "Под заказ" || availability.text === "Предзаказ";
+                                            const badgeClass = inStore
+                                                ? "bg-[#E0F7EE] text-[#087D4B]"
+                                                : onOrder
+                                                    ? "bg-[#FFF0E3] text-[#E96900]"
+                                                    : "bg-red-50 text-red-600";
 
-                                        return (
-                                            <button
-                                                key={`variant-${variant.id}`}
-                                                type="button"
-                                                onClick={() => setSelectedVariantId(variant.id)}
-                                                className={`group flex h-full w-full cursor-pointer flex-col rounded-2xl border px-2.5 py-2 text-left transition-all duration-150 ${isSelected
-                                                        ? "border-admin-primary bg-admin-surface shadow-[0_0_0_1px_rgba(36,28,21,0.12)]"
-                                                        : "border-admin-border bg-admin-surface hover:border-admin-primary/40 hover:bg-admin-bg active:scale-[0.98]"
-                                                    }`}
-                                            >
-                                                <span className="flex min-w-0 items-center justify-between gap-1">
-                                                    <span className="min-w-0 truncate text-[13px] font-medium leading-4 text-admin-text">
-                                                        {formatVariantVolumeLine(variant)}
-                                                    </span>
-                                                    {variant.is_promotion ? (
-                                                        <span className="shrink-0 rounded-full bg-[#8E2C3B] px-1 py-px text-[8px] font-semibold uppercase leading-3 tracking-wide text-[#F6E7D6]">
-                                                            Акция
+                                            const isNewDesign = designLabel?.toLowerCase().includes("нов") ?? false;
+
+                                            return (
+                                                <button
+                                                    key={`variant-${variant.id}`}
+                                                    type="button"
+                                                    onClick={() => setSelectedVariantId(variant.id)}
+                                                    className={`flex h-full w-full cursor-pointer overflow-hidden rounded-2xl border text-left transition-colors ${isSelected
+                                                        ? "border-[#159B6A] bg-[#F3FBF7]"
+                                                        : "border-[#E2E6EB] bg-white active:scale-[0.98]"
+                                                        }`}
+                                                >
+                                                    {designLabel ? (
+                                                        <span
+                                                            className={`relative w-4 shrink-0 self-stretch overflow-hidden ${isNewDesign
+                                                                ? "bg-[#E0F7EE] text-[#087D4B]"
+                                                                : "bg-[#F4F6F8] text-[#667085]"
+                                                                }`}
+                                                        >
+                                                            <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rotate-90 whitespace-nowrap text-[9px] font-medium leading-none">
+                                                                {designLabel}
+                                                            </span>
                                                         </span>
                                                     ) : null}
-                                                </span>
-
-                                                {variant.is_set ? (
-                                                    <span className="mt-0.5 line-clamp-1 text-[11px] leading-4 text-admin-text-secondary">
-                                                        набор
-                                                    </span>
-                                                ) : (
-                                                    <span className="mt-0.5 line-clamp-1 text-[11px] leading-4 text-admin-text-secondary">
-                                                        {formatVariantConcentrationLabel(variant)}
-                                                    </span>
-                                                )}
-
-                                                {hasAnyDesignLabel ? (
-                                                    <span className="mt-0.5 line-clamp-1 min-h-4 text-[11px] leading-4 text-admin-text-secondary">
-                                                        {formatVariantDesignLabel(variant) ?? "\u00a0"}
-                                                    </span>
-                                                ) : null}
-
-                                                <div className="mt-auto flex items-baseline gap-1.5 pt-0.5">
-                                                    {gridPrice ? (
-                                                        <span className="text-[15px] font-semibold leading-5 text-admin-text">
-                                                            {formatProductDetailPrice(gridPrice)}
+                                                    <span className="flex min-w-0 flex-1 flex-col px-3 py-3">
+                                                        <span className="block break-words text-[15px] font-semibold leading-5 text-[#141C2E]">
+                                                            {formatVariantVolumeLine(variant)}
                                                         </span>
-                                                    ) : (
-                                                        <span className="text-[15px] font-semibold leading-5 text-admin-text-secondary">
-                                                            —
+                                                        <span className="mt-0.5 block break-words text-[13px] leading-4 text-[#667085]">
+                                                            {variant.is_set ? "набор" : formatVariantConcentrationLabel(variant)}
                                                         </span>
-                                                    )}
-
-                                                    <span className={`text-[11px] leading-4 ${availability.className}`}>
-                                                        {availability.text}
+                                                        {variant.is_promotion ? (
+                                                            <span className="mt-1 inline-flex w-fit rounded-full bg-[#8E2C3B] px-1.5 py-px text-[8px] font-semibold uppercase leading-3 tracking-wide text-[#F6E7D6]">
+                                                                Акция
+                                                            </span>
+                                                        ) : null}
+                                                        <span className="mt-2 flex flex-wrap items-center justify-between gap-x-1.5 gap-y-1">
+                                                            <span className="whitespace-nowrap text-[15px] font-bold leading-none text-[#141C2E] min-[393px]:text-[17px] lg:text-[16px]">
+                                                                {gridPrice ? formatProductDetailPrice(gridPrice) : "—"}
+                                                            </span>
+                                                            <span className={`ml-auto inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium leading-4 lg:px-1 lg:py-px lg:text-[10px] lg:leading-3 ${badgeClass}`}>
+                                                                {availability.text}
+                                                            </span>
+                                                        </span>
                                                     </span>
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-
-                                {product.replacement ? (
-                                    <div className="mt-4">
-                                        <ProductDiscontinuedReplacement
-                                            replacement={product.replacement}
-                                        />
+                                                </button>
+                                            );
+                                        })}
                                     </div>
-                                ) : null}
+
+                                    {product.replacement ? (
+                                        <div className="mt-4">
+                                            <ProductDiscontinuedReplacement
+                                                replacement={product.replacement}
+                                            />
+                                        </div>
+                                    ) : null}
+                                </div>
+                            </>
+                        ) : product.replacement ? (
+                            <div className="mb-6">
+                                <ProductDiscontinuedReplacement replacement={product.replacement} />
                             </div>
-                        </>
-                    ) : product.replacement ? (
-                        <div className="mb-6">
-                            <ProductDiscontinuedReplacement replacement={product.replacement} />
-                        </div>
-                    ) : (
-                        <div className="mb-6 rounded-3xl border border-amber-200 bg-amber-50/70 p-5">
-                            <div className="mb-2 text-2xl font-semibold leading-tight text-amber-900">
-                                Ожидается поступление
+                        ) : (
+                            <div className="mb-6 rounded-3xl border border-amber-200 bg-amber-50/70 p-5">
+                                <div className="mb-2 text-2xl font-semibold leading-tight text-amber-900">
+                                    Ожидается поступление
+                                </div>
+                                <p className="text-sm leading-6 text-amber-900/80">
+                                    Пока у нас нет точных данных о сроках поставки и актуальной цене на этот аромат.
+                                    Заполните форму «Сообщить о появлении» — мы с Вами свяжемся, как только товар появится
+                                    в наличии, и подскажем стоимость.
+                                </p>
                             </div>
-                            <p className="text-sm leading-6 text-amber-900/80">
-                                Пока у нас нет точных данных о сроках поставки и актуальной цене на этот аромат.
-                                Заполните форму «Сообщить о появлении» — мы с Вами свяжемся, как только товар появится
-                                в наличии, и подскажем стоимость.
-                            </p>
-                        </div>
-                    )}
+                        )}
                     </div>
                 </section>
 
@@ -540,8 +544,8 @@ export default function ProductDetailInteractive({
                                 aria-selected={activeTab === "attributes"}
                                 onClick={() => setActiveTab("attributes")}
                                 className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors ${activeTab === "attributes"
-                                        ? "bg-admin-primary text-white"
-                                        : "text-admin-text-secondary hover:text-admin-text"
+                                    ? "bg-admin-primary text-white"
+                                    : "text-admin-text-secondary hover:text-admin-text"
                                     }`}
                             >
                                 Характеристики
@@ -555,8 +559,8 @@ export default function ProductDetailInteractive({
                                 aria-selected={activeTab === "reviews"}
                                 onClick={() => setActiveTab("reviews")}
                                 className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors ${activeTab === "reviews"
-                                        ? "bg-admin-primary text-white"
-                                        : "text-admin-text-secondary hover:text-admin-text"
+                                    ? "bg-admin-primary text-white"
+                                    : "text-admin-text-secondary hover:text-admin-text"
                                     }`}
                                 aria-label={`Отзывы, ${reviewsTabCount}`}
                             >

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import type {
@@ -62,6 +62,8 @@ export function useHeaderSearch({
     >([]);
     const [recentSearches, setRecentSearches] = useState<string[]>([]);
     const [suggestedQuery, setSuggestedQuery] = useState<string | null>(null);
+    const [searchNavigating, setSearchNavigating] = useState(false);
+    const [pendingHref, setPendingHref] = useState<string | null>(null);
 
     const persistRecentSearch = (rawValue: string) => {
         const query = rawValue.trim();
@@ -162,16 +164,47 @@ export function useHeaderSearch({
         }
     };
 
+    const completeNavigation = useCallback(() => {
+        setSearchNavigating(false);
+        setPendingHref(null);
+        setSearchQuery("");
+        setSearchLoading(false);
+        setSearchBrandResults([]);
+        setSearchResults([]);
+        setSuggestedQuery(null);
+        setSearchOpen(false);
+    }, []);
+
+    const beginNavigation = (href: string) => {
+        const current = window.location.pathname + window.location.search;
+        if (current === href) {
+            completeNavigation();
+            onAfterNavigateAction();
+            return;
+        }
+
+        setSearchNavigating(true);
+        setPendingHref(href);
+        onAfterNavigateAction();
+        router.push(href);
+    };
+
+    useEffect(() => {
+        if (!pendingHref) {
+            return;
+        }
+
+        const timeoutId = window.setTimeout(completeNavigation, 12000);
+        return () => window.clearTimeout(timeoutId);
+    }, [pendingHref, completeNavigation]);
+
     const submitSearchPage = () => {
         const query = searchQuery.trim();
         if (!query) {
             return;
         }
         persistRecentSearch(query);
-
-        setSearchOpen(false);
-        onAfterNavigateAction();
-        router.push(`/search?query=${encodeURIComponent(query)}`);
+        beginNavigation(`/search?${new URLSearchParams({ query }).toString()}`);
     };
 
     const clearRecentSearches = () => {
@@ -185,16 +218,12 @@ export function useHeaderSearch({
 
     const handleSelectProduct = (slug: string) => {
         persistRecentSearch(searchQuery);
-        resetSearch();
-        onAfterNavigateAction();
-        router.push(`/${slug}`);
+        beginNavigation(`/${slug}`);
     };
 
     const handleSelectBrand = (slug: string) => {
         persistRecentSearch(searchQuery);
-        resetSearch();
-        onAfterNavigateAction();
-        router.push(`/brands/${encodeURIComponent(slug)}`);
+        beginNavigation(`/brands/${encodeURIComponent(slug)}`);
     };
 
     const selectSuggestion = (value: string) => {
@@ -208,6 +237,9 @@ export function useHeaderSearch({
         setSearchOpen,
         searchQuery,
         searchLoading,
+        searchNavigating,
+        pendingHref,
+        completeNavigation,
         searchResults,
         searchBrandResults,
         suggestedQuery,

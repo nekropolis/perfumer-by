@@ -332,7 +332,7 @@ export default function CatalogGridToolbar({
             className="sticky z-[110] border-b border-admin-border bg-[var(--background)]"
             style={{ top: "var(--catalog-toolbar-sticky-top)" }}
         >
-            <div className="flex flex-col gap-2 py-2 sm:gap-3 sm:py-4 max-lg:landscape:gap-2 max-lg:landscape:py-2">
+            <div className="flex flex-col gap-1.5 py-1.5 sm:gap-2 sm:py-2 max-lg:landscape:gap-1.5 max-lg:landscape:py-1.5">
                 {showCategoryChips ? (
                     <div className="flex min-w-0 items-center gap-2">
                         <div className="shrink-0 lg:hidden">{mobileRightAction}</div>

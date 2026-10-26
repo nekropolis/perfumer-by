@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { BellRing, ChevronRight } from "lucide-react";
+import { BellRing, ChevronRight, CirclePercent, Package, Store } from "lucide-react";
 import StockNotificationModal from "@/components/product/stock-notification-modal";
 import OneClickOrderTrigger from "@/components/product/one-click-order-trigger";
 import type { ProductReplacementData, ProductVariantData } from "@/types/catalog";
@@ -25,6 +25,32 @@ const emptySubscribe = () => () => { };
 const getClientSnapshot = () => true;
 const getServerSnapshot = () => false;
 const STOREFRONT_BOTTOM_BAR_HEIGHT = "--storefront-bottom-bar-height";
+
+function PinnedInfoBadge({
+    tone,
+    children,
+}: {
+    tone: "green" | "orange" | "store";
+    children: ReactNode;
+}) {
+    const toneClass = tone === "orange"
+        ? "bg-[#FFF0E3] text-[#E96900]"
+        : "bg-[#E0F7EE] text-[#087D4B]";
+    const iconClass = tone === "orange" ? "text-[#F07816]" : "text-[#159B6A]";
+
+    return (
+        <div className={`inline-flex h-5 max-w-full items-center gap-1 rounded-full px-1.5 text-[12px] font-medium leading-none ${toneClass}`}>
+            {tone === "orange" ? (
+                <Package className={`h-3 w-3 shrink-0 ${iconClass}`} aria-hidden />
+            ) : tone === "store" ? (
+                <Store className={`h-3 w-3 shrink-0 ${iconClass}`} aria-hidden />
+            ) : (
+                <CirclePercent className={`h-3 w-3 shrink-0 ${iconClass}`} aria-hidden />
+            )}
+            <span className="truncate">{children}</span>
+        </div>
+    );
+}
 
 function DiagonalStrike({ children }: { children: ReactNode }) {
     return (
@@ -523,9 +549,29 @@ export default function ProductBuyBox({
     const waitingDiscountLabel = hasWaitingDiscount
         ? `Скидка ${waitingDiscountPercent}% за ожидание доставки`
         : null;
-    const pinnedConditionText = !loyaltyDiscountLabel && !waitingDiscountLabel && availability
+    const pinnedConditionText = availability
         ? [availability.status, availability.shipping].filter(Boolean).join(" · ")
         : null;
+
+    const priceStatusBadges = loyaltyDiscountLabel || waitingDiscountLabel || availability ? (
+        <div className="flex flex-col items-start gap-1">
+            {loyaltyDiscountLabel ? <PinnedInfoBadge tone="green">{loyaltyDiscountLabel}</PinnedInfoBadge> : null}
+            {waitingDiscountLabel ? <PinnedInfoBadge tone="green">{waitingDiscountLabel}</PinnedInfoBadge> : null}
+            {availability ? (
+                availability.shipping ? (
+                    <PinnedInfoBadge tone="orange">
+                        {[availability.status, availability.shipping].filter(Boolean).join(" · ")}
+                    </PinnedInfoBadge>
+                ) : availability.status === "Наличие в магазине" ? (
+                    <PinnedInfoBadge tone="store">{availability.status}</PinnedInfoBadge>
+                ) : (
+                    <div className={`text-sm font-medium ${availability.className}`}>
+                        {availability.status}
+                    </div>
+                )
+            ) : null}
+        </div>
+    ) : null;
 
     const mobilePriceDetails = showMobile ? (
         <div ref={priceDetailsRef} className="mb-3 xl:hidden">
@@ -548,20 +594,10 @@ export default function ProductBuyBox({
                             </div>
                         ) : null}
                     </div>
-                    {loyaltyDiscountLabel ? (
-                        <div className="mt-1.5 text-sm text-green-700">{loyaltyDiscountLabel}</div>
-                    ) : null}
-                    {waitingDiscountLabel && !showWaitingCheckbox ? (
-                        <div className="mt-1.5 text-sm text-green-700">{waitingDiscountLabel}</div>
-                    ) : null}
                     {selectedVariantLine ? (
                         <div className="mt-1.5 text-sm font-medium text-admin-text">{selectedVariantLine}</div>
                     ) : null}
-                    {availability ? (
-                        <div className={`mt-1 text-sm font-medium ${availability.className}`}>
-                            {[availability.status, availability.shipping].filter(Boolean).join(" · ")}
-                        </div>
-                    ) : null}
+                    {priceStatusBadges ? <div className="mt-1.5">{priceStatusBadges}</div> : null}
                 </>
             ) : showReplacementCta ? (
                 <div className="flex min-w-0 items-center gap-2.5">
@@ -609,47 +645,56 @@ export default function ProductBuyBox({
     const pinnedPriceBar = pricePinned && headerSlot ? (
         <div
             className={[
-                "flex items-center gap-2 border-t border-admin-border bg-admin-surface px-3 py-2 transition-[opacity,transform] duration-300 ease-out xl:hidden",
+                "border-t border-admin-border bg-admin-surface px-3 py-1.5 transition-[opacity,transform] duration-300 ease-out xl:hidden",
                 priceBarEntered ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0",
             ].join(" ")}
         >
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0">
+                {productName ? (
+                    <div className="truncate text-[15px] font-semibold leading-none text-[#141C2E]">{productName}</div>
+                ) : null}
                 {showReplacementCta && !hasVariant ? (
-                    <div className="truncate text-xs text-admin-text-secondary">Предлагаем замену</div>
+                    <div className="mt-0.5 truncate text-xs leading-none text-admin-text-secondary">Предлагаем замену</div>
                 ) : selectedVariantLine ? (
-                    <div className="truncate text-xs font-medium text-admin-text">{selectedVariantLine}</div>
+                    <div className="mt-0.5 truncate text-xs leading-none text-[#667085]">{selectedVariantLine}</div>
                 ) : null}
-                <div className="mt-0.5 flex min-w-0 items-baseline gap-2">
-                    <span className="truncate text-lg font-semibold leading-none tabular-nums text-admin-text">
-                        {showReplacementCta && !hasVariant
-                            ? replacementTitle
-                            : hasVariant && effectivePrice
-                                ? formatPriceAction(effectivePrice)
-                                : priceLabel}
-                    </span>
-                    {hasVariant && (selectedVariant.old_price || hasAnyDiscount) ? (
-                        <span className="text-sm font-medium leading-none text-admin-text-secondary">
-                            <DiagonalStrike>
-                                {formatPriceAction(selectedVariant.old_price || selectedVariant.price)}
-                            </DiagonalStrike>
+                <div className="mt-1 flex min-w-0 items-center gap-2">
+                    <div className="flex min-w-0 flex-1 items-baseline gap-2">
+                        <span className="truncate text-lg font-semibold leading-none tabular-nums text-[#141C2E]">
+                            {showReplacementCta && !hasVariant
+                                ? replacementTitle
+                                : hasVariant && effectivePrice
+                                    ? formatPriceAction(effectivePrice)
+                                    : priceLabel}
                         </span>
-                    ) : null}
-                </div>
-                {loyaltyDiscountLabel ? (
-                    <div className="mt-1 truncate text-xs text-green-700">{loyaltyDiscountLabel}</div>
-                ) : null}
-                {waitingDiscountLabel ? (
-                    <div className={`${loyaltyDiscountLabel ? "mt-0.5" : "mt-1"} truncate text-xs text-green-700`}>
-                        {waitingDiscountLabel}
+                        {hasVariant && (selectedVariant.old_price || hasAnyDiscount) ? (
+                            <span className="text-sm font-medium leading-none text-admin-text-secondary">
+                                <DiagonalStrike>
+                                    {formatPriceAction(selectedVariant.old_price || selectedVariant.price)}
+                                </DiagonalStrike>
+                            </span>
+                        ) : null}
                     </div>
-                ) : null}
-                {pinnedConditionText ? (
-                    <div className={`mt-1 truncate text-xs ${availability?.className ?? "text-admin-text-secondary"}`}>
-                        {pinnedConditionText}
+                    {headerActions ? <div className="flex shrink-0 items-center gap-1">{headerActions}</div> : null}
+                </div>
+                {loyaltyDiscountLabel || waitingDiscountLabel || pinnedConditionText ? (
+                    <div className="mt-1 flex flex-col items-start gap-0.5">
+                        {loyaltyDiscountLabel ? <PinnedInfoBadge tone="green">{loyaltyDiscountLabel}</PinnedInfoBadge> : null}
+                        {waitingDiscountLabel ? <PinnedInfoBadge tone="green">{waitingDiscountLabel}</PinnedInfoBadge> : null}
+                        {pinnedConditionText ? (
+                            availability?.shipping ? (
+                                <PinnedInfoBadge tone="orange">{pinnedConditionText}</PinnedInfoBadge>
+                            ) : availability?.status === "Наличие в магазине" ? (
+                                <PinnedInfoBadge tone="store">{pinnedConditionText}</PinnedInfoBadge>
+                            ) : (
+                                <div className={`truncate text-xs ${availability?.className ?? "text-admin-text-secondary"}`}>
+                                    {pinnedConditionText}
+                                </div>
+                            )
+                        ) : null}
                     </div>
                 ) : null}
             </div>
-            {headerActions ? <div className="flex shrink-0 items-center gap-1">{headerActions}</div> : null}
         </div>
     ) : null;
 
@@ -707,21 +752,7 @@ export default function ProductBuyBox({
                                 ) : null}
                             </div>
 
-                            {loyaltyDiscountLabel ? (
-                                <div className="mb-2 text-sm text-green-700">{loyaltyDiscountLabel}</div>
-                            ) : null}
-
-                            {waitingDiscountLabel && !showWaitingCheckbox ? (
-                                <div className="mb-2 text-sm text-green-700">{waitingDiscountLabel}</div>
-                            ) : null}
-
-                            <div className="mb-4">
-                                {availability ? (
-                                    <div className={`text-sm font-medium ${availability.className}`}>
-                                        {[availability.status, availability.shipping].filter(Boolean).join(". ")}
-                                    </div>
-                                ) : null}
-                            </div>
+                            {priceStatusBadges ? <div className="mb-4">{priceStatusBadges}</div> : null}
 
                             {showWaitingCheckbox ? <div className="mb-4">{renderWaitingDiscountRow()}</div> : null}
 
