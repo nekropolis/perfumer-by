@@ -134,6 +134,11 @@ class ExceptionTelegramReporter
 
     private function disabled(): bool
     {
+        // Dev (APP_ENV=local) must not page Telegram with SSR/exception alerts.
+        if (app()->environment('local')) {
+            return true;
+        }
+
         if (app()->environment('testing') && ! $this->allowInTesting) {
             return true;
         }
