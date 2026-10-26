@@ -38,7 +38,7 @@ export default function AppShell({ children, footer }: Props) {
             </a>
             <Header />
             {/* Pages own <main> for a11y/SEO; avoid nested <main> hydration/DOM repair issues */}
-            <div id="main-content" tabIndex={-1} className="flex w-full min-w-0 max-w-full flex-1 flex-col">
+            <div id="main-content" tabIndex={-1} className="w-full min-w-0 max-w-full flex-1">
                 {children}
                 <div className={hideMobileAccountChrome ? "max-md:hidden" : undefined}>
                     <RecentlyViewedSection excludeSlug={recentlyViewedExcludeSlug(pathname)} />
