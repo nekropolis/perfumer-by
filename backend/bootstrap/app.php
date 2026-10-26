@@ -27,6 +27,15 @@ return Application::configure(basePath: dirname(__DIR__))
             'is_admin' => IsAdmin::class,
             'is_admin_or_manager' => IsAdminOrManager::class,
         ]);
+        // API has no named login route. A guest request without Accept: application/json
+        // otherwise calls route('login') and throws RouteNotFoundException.
+        $middleware->redirectGuestsTo(function (Request $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return null;
+            }
+
+            return '/';
+        });
         // OpenCart /index.php?route=… hits PHP (nginx), not Next — resolve seo_redirects here.
         $middleware->prepend(LegacyOpenCartRedirect::class);
         // seo-redirects/resolve: trailing spaces in legacy from_path are meaningful.

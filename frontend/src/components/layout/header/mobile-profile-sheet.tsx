@@ -32,16 +32,17 @@ export default function MobileProfileSheet({ open, onCloseAction }: Props) {
             role="dialog"
             aria-modal="true"
             aria-label="Меню"
-            className="fixed inset-x-0 z-[145] flex flex-col bg-admin-surface md:hidden"
+            className="fixed inset-x-0 z-[145] flex flex-col bg-admin-bg md:hidden"
             style={{
                 top: "var(--storefront-header-row-height, 52px)",
-                bottom: "calc(var(--storefront-tab-bar-height, 0px) + var(--storefront-keyboard-inset, 0px))",
+                bottom: "var(--storefront-keyboard-inset, 0px)",
+                paddingBottom: "calc(var(--storefront-tab-bar-height, 0px) + 1px)",
             }}
         >
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">
                 <AccountMoreLinks showContacts onNavigateAction={onCloseAction} />
             </div>
-            <div className="shrink-0 border-t border-admin-border px-3 py-3">
+            <div className="shrink-0 border-t border-admin-border bg-admin-bg px-3 py-3">
                 <button type="button" className={`${siteBtnSecondary} min-h-12 w-full`} onClick={onCloseAction}>
                     Закрыть
                 </button>

@@ -132,6 +132,8 @@ export default function CatalogMobileFiltersDrawer(props: Props) {
     const searchParams = useCatalogSearchParams();
     const { navigate } = useCatalogNavigation();
     const priceApplyRef = useRef<(() => void) | null>(null);
+    const [priceMatchCount, setPriceMatchCount] = useState<number | null>(null);
+    const shownCount = priceMatchCount ?? props.productsCount;
 
     const openPanel = useCallback(() => {
         closeAfterTransitionRef.current = false;
@@ -242,7 +244,7 @@ export default function CatalogMobileFiltersDrawer(props: Props) {
                     onReset={resetFilters}
                     onShow={showResults}
                     onSheetTransitionEnd={handleSheetTransitionEnd}
-                    productsCount={props.productsCount}
+                    productsCount={shownCount}
                 >
                     <CatalogFilters
                         brands={props.brands}
@@ -254,6 +256,7 @@ export default function CatalogMobileFiltersDrawer(props: Props) {
                         hideReset
                         variant="modal"
                         priceApplyRef={priceApplyRef}
+                        onPriceMatchCountAction={setPriceMatchCount}
                     />
                 </DrawerPanel>,
                 document.body

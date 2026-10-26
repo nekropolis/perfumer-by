@@ -7,11 +7,14 @@ import type { CatalogBrandItem, CatalogFilterAttribute } from "@/types/catalog";
 import { groupBrandsByFirstLetter, orderedLettersWithBrands } from "@/lib/brand-letter-groups";
 import { useCatalogNavigation } from "@/components/catalog/catalog-navigation";
 import { useSiteContent } from "@/components/layout/site-content-context";
+import { apiFetch } from "@/lib/api";
 
 import { siteBtnPrimary, siteBtnSecondary, siteFilterChip, siteFilterChipActive, siteFilterChipInactive, siteInput, siteCheckbox } from "@/lib/site-ui-classes";
 import BynSign from "@/components/ui/byn-sign";
 import {
+    buildBrandProductsQuery,
     buildCatalogFacetedFiltersResetPath,
+    buildCatalogProductsQuery,
     CATALOG_GENDER_ATTRIBUTE_ID,
     CATALOG_SECTION_CHIPS,
     getActiveCatalogGender,
@@ -56,6 +59,7 @@ type Props = {
     hideReset?: boolean;
     variant?: "default" | "modal";
     priceApplyRef?: RefObject<(() => void) | null>;
+    onPriceMatchCountAction?: (count: number | null) => void;
 };
 
 export default function CatalogFilters({
@@ -68,6 +72,7 @@ export default function CatalogFilters({
     hideReset = false,
     variant = "default",
     priceApplyRef,
+    onPriceMatchCountAction,
 }: Props) {
     const { navigate, isNavigating } = useCatalogNavigation();
     const searchParams = useCatalogSearchParams();
@@ -75,6 +80,7 @@ export default function CatalogFilters({
 
     const [priceMinDraft, setPriceMinDraft] = useState(searchParams.get("price_min") ?? "");
     const [priceMaxDraft, setPriceMaxDraft] = useState(searchParams.get("price_max") ?? "");
+    const [priceMatchCount, setPriceMatchCount] = useState<number | null>(null);
     const [brandQuery, setBrandQuery] = useState("");
     const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
     const safeAttributes = Array.isArray(attributes) ? attributes : [];
@@ -201,6 +207,53 @@ export default function CatalogFilters({
             priceApplyRef.current = applyPrice;
         }
     });
+
+    const hasPriceDraft = priceMinDraft.trim() !== "" || priceMaxDraft.trim() !== "";
+
+    useEffect(() => {
+        if (!hasPriceDraft) {
+            setPriceMatchCount(null);
+            onPriceMatchCountAction?.(null);
+            return;
+        }
+
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => {
+            const record: Record<string, string | undefined> = {};
+            searchParams.forEach((value, key) => {
+                record[key] = value;
+            });
+            record.page = "1";
+            record.price_min = priceMinDraft.trim() || undefined;
+            record.price_max = priceMaxDraft.trim() || undefined;
+
+            const brandSlug = basePath.match(/^\/brands\/([^/]+)/)?.[1];
+            const query = brandSlug
+                ? buildBrandProductsQuery(decodeURIComponent(brandSlug), record)
+                : buildCatalogProductsQuery(record);
+
+            void apiFetch<{ meta?: { total?: number } }>(`/catalog/products?${query.toString()}`, {
+                signal: controller.signal,
+                cache: "no-store",
+            })
+                .then((response) => {
+                    const total = response.meta?.total;
+                    const count = typeof total === "number" ? total : null;
+                    setPriceMatchCount(count);
+                    onPriceMatchCountAction?.(count);
+                })
+                .catch((error: unknown) => {
+                    if (error instanceof DOMException && error.name === "AbortError") {
+                        return;
+                    }
+                });
+        }, 350);
+
+        return () => {
+            window.clearTimeout(timeoutId);
+            controller.abort();
+        };
+    }, [basePath, hasPriceDraft, onPriceMatchCountAction, priceMaxDraft, priceMinDraft, searchParams]);
 
     const isOptionSelected = (attributeId: number, optionId: number) => {
         if (attributeId === CATALOG_GENDER_ATTRIBUTE_ID) {
@@ -476,6 +529,11 @@ export default function CatalogFilters({
                             className={siteInput}
                         />
                     </div>
+                    {hasPriceDraft ? (
+                        <div className="text-sm text-admin-text-secondary">
+                            {priceMatchCount === null ? "Считаем…" : `Найдено: ${priceMatchCount}`}
+                        </div>
+                    ) : null}
                     {!isModal ? (
                         <button type="button" onClick={applyPrice} className={`${siteBtnPrimary} w-full`}>
                             Применить
