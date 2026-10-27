@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { ProductDetailData } from "@/types/catalog";
 import ProductStatusLabels from "@/components/product/product-status-labels";
 import {
@@ -17,9 +17,10 @@ import { normalizeProductImages } from "@/lib/product-detail-utils";
 type Props = {
     product: ProductDetailData;
     selectedVariantHasPromotion: boolean;
+    mobileActions?: ReactNode;
 };
 
-export default function ProductDetailGallery({ product, selectedVariantHasPromotion }: Props) {
+export default function ProductDetailGallery({ product, selectedVariantHasPromotion, mobileActions }: Props) {
     const images = useMemo(() => normalizeProductImages(product.images), [product.images]);
     const defaultImage = images.find((image) => image.is_main) || images[0] || null;
 
@@ -160,10 +161,13 @@ export default function ProductDetailGallery({ product, selectedVariantHasPromot
                     {product.brand ? (
                         <Link
                             href={`/brands/${product.brand.slug}`}
-                            className="absolute left-2 top-2 z-30 max-w-[calc(100%-1rem)] truncate rounded-full border border-admin-text/20 bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-admin-text shadow-md md:hidden"
+                            className="absolute left-2 top-2 z-30 max-w-[calc(100%-5.5rem)] truncate rounded-full border border-admin-text/20 bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-admin-text shadow-md md:hidden"
                         >
                             {product.brand.name}
                         </Link>
+                    ) : null}
+                    {mobileActions ? (
+                        <div className="absolute right-2 top-2 z-30 flex flex-col gap-1.5 md:hidden">{mobileActions}</div>
                     ) : null}
                 </div>
 

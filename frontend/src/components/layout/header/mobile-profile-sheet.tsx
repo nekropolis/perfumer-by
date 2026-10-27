@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
-import AccountMoreLinks from "@/components/account/account-more-links";
+import AccountMoreLinks, { MOBILE_MENU_IMAGE_SRCS } from "@/components/account/account-more-links";
 import { siteBtnSecondary } from "@/lib/site-ui-classes";
 
 type Props = {
@@ -11,6 +11,19 @@ type Props = {
 };
 
 export default function MobileProfileSheet({ open, onCloseAction }: Props) {
+    useEffect(() => {
+        if (window.matchMedia("(min-width: 768px)").matches) {
+            return;
+        }
+
+        for (const src of MOBILE_MENU_IMAGE_SRCS) {
+            const image = new Image();
+            image.decoding = "async";
+            image.fetchPriority = "low";
+            image.src = src;
+        }
+    }, []);
+
     useEffect(() => {
         if (!open) {
             return;

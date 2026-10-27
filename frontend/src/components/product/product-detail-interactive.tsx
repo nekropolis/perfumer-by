@@ -257,7 +257,35 @@ export default function ProductDetailInteractive({
         <>
             <div className="grid grid-cols-1 gap-2 md:grid-cols-[320px_minmax(0,1fr)] md:items-start md:gap-8 xl:grid-cols-[310px_minmax(0,1fr)_320px] xl:items-stretch xl:gap-5 xl:[grid-template-areas:'gallery_variants_buybox'_'service_service_buybox'_'tabs_tabs_buybox']">
                 <div className="order-2 md:order-none xl:[grid-area:gallery]">
-                    <ProductDetailGallery product={product} selectedVariantHasPromotion={selectedVariantHasPromotion} />
+                    <ProductDetailGallery
+                        product={product}
+                        selectedVariantHasPromotion={selectedVariantHasPromotion}
+                        mobileActions={
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => void toggleWishlist(product.id)}
+                                    aria-pressed={inWishlist}
+                                    aria-label={inWishlist ? "Убрать из избранного" : "Добавить в избранное"}
+                                    className={`inline-flex h-8 w-8 items-center justify-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)] transition active:scale-90 ${inWishlist ? "text-black" : "text-white"}`}
+                                >
+                                    <Heart
+                                        className={`h-6 w-6 ${inWishlist ? "fill-black" : "fill-transparent"}`}
+                                        strokeWidth={2}
+                                        aria-hidden
+                                    />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={shareProduct}
+                                    aria-label={shareCopied ? "Ссылка скопирована" : "Поделиться"}
+                                    className="inline-flex h-8 w-8 items-center justify-center text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)] transition active:scale-90"
+                                >
+                                    <Share2 className="h-6 w-6" strokeWidth={2} aria-hidden />
+                                </button>
+                            </>
+                        }
+                    />
                 </div>
 
                 <section className="contents min-w-0 md:block xl:[grid-area:variants]">
@@ -373,39 +401,32 @@ export default function ProductDetailInteractive({
                                 {reviewsMetaLabel}
                             </button>
                         </div>
-                        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 md:hidden">
-                            <button
-                                type="button"
-                                onClick={openReviewsTab}
-                                className="text-admin-text-secondary transition hover:text-admin-text"
-                            >
-                                {reviewsMetaLabel}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => void toggleWishlist(product.id)}
-                                aria-pressed={inWishlist}
-                                className={`inline-flex items-center gap-1 md:hidden ${inWishlist ? "font-medium text-admin-primary" : "text-admin-text-secondary"
-                                    }`}
-                            >
-                                <Heart className={`h-4 w-4 shrink-0 ${inWishlist ? "fill-current" : ""}`} aria-hidden />
-                                {inWishlist ? "В избранном" : "В избранное"}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={shareProduct}
-                                className="inline-flex items-center gap-1 text-admin-text-secondary md:hidden"
-                            >
-                                <Share2 className="h-4 w-4 shrink-0" aria-hidden />
-                                {shareCopied ? "Скопировано" : "Поделиться"}
-                            </button>
-                        </div>
                     </div>
 
                     <div className="order-5 md:order-none">
+                        {variants.length === 0 ? (
+                            <div className="mb-3 flex justify-end md:hidden">
+                                <button
+                                    type="button"
+                                    onClick={openReviewsTab}
+                                    className="text-sm text-admin-text-secondary transition hover:text-admin-text"
+                                >
+                                    {reviewsMetaLabel}
+                                </button>
+                            </div>
+                        ) : null}
                         {variants.length > 0 ? (
                             <>
-                                <div className="mb-3 text-lg font-semibold text-admin-text">Выбор вариантов</div>
+                                <div className="mb-3 flex items-baseline justify-between gap-3">
+                                    <div className="text-lg font-semibold text-admin-text">Выбор вариантов</div>
+                                    <button
+                                        type="button"
+                                        onClick={openReviewsTab}
+                                        className="shrink-0 text-sm text-admin-text-secondary transition hover:text-admin-text md:hidden"
+                                    >
+                                        {reviewsMetaLabel}
+                                    </button>
+                                </div>
                                 <div className="mb-4 xl:mb-0">
                                     <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
                                         {variants.map((variant) => {

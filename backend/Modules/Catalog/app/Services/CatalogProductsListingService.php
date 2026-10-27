@@ -83,9 +83,8 @@ class CatalogProductsListingService
             'images' => ProductListResource::imagesForListingEagerLoad(),
             ...ProductListResource::cardAttributesEagerLoad(),
             'replacementProduct:id,is_active,is_out_of_stock',
-            'variants' => static function ($q): void {
-                $q->where('is_active', true)
-                    ->select(self::VARIANT_LINK_COLUMNS)
+            'activeVariants' => static function ($q): void {
+                $q->select(self::VARIANT_LINK_COLUMNS)
                     ->with([
                         'definition' => static function ($dq): void {
                             $dq->select(self::VARIANT_DEFINITION_COLUMNS);
@@ -220,6 +219,7 @@ class CatalogProductsListingService
 
         CatalogProductQueryFilters::applyBaseFilters($query, $request);
         CatalogProductQueryFilters::applyAttributeFilters($query, $request);
+        CatalogProductQueryFilters::applyInStoreFilter($query, $request);
 
         $query->whereHas('variants', function (Builder $variantQuery) use ($request): void {
             $this->constrainPromotionListingVariants($variantQuery, $request);

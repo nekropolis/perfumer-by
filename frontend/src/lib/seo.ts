@@ -224,6 +224,7 @@ export function catalogListingFilterActive(sp: Record<string, string | undefined
     if (sp.volume?.trim()) return true;
     if (sp.tester?.trim()) return true;
     if (sp.miniature?.trim()) return true;
+    if (sp.in_store?.trim()) return true;
 
     const curatedFlags = [
         sp.sale === "1",
@@ -248,6 +249,7 @@ export function brandListingFilterActive(sp: Record<string, string | undefined>)
     if (sp.tester?.trim()) return true;
     if (sp.miniature?.trim()) return true;
     if (sp.set?.trim()) return true;
+    if (sp.in_store?.trim()) return true;
     if (sp.sale?.trim() || sp.new?.trim() || sp.hit?.trim() || sp.gender?.trim()) return true;
     if (Object.keys(sp).some((k) => k.startsWith("attr_") && String(sp[k] ?? "").trim())) return true;
     return false;

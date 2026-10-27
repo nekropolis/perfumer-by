@@ -172,10 +172,11 @@ export default function CatalogGridToolbar({
             });
         }
 
-        const typeFlags: Array<{ key: "tester" | "miniature" | "set"; label: string }> = [
+        const typeFlags: Array<{ key: "tester" | "miniature" | "set" | "in_store"; label: string }> = [
             { key: "tester", label: "Тестер" },
             { key: "miniature", label: "Миниатюра" },
             { key: "set", label: "Набор" },
+            { key: "in_store", label: "В магазине" },
         ];
         for (const flag of typeFlags) {
             if (searchParams.get(flag.key) !== "1") {

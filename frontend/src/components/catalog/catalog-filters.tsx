@@ -300,9 +300,9 @@ export default function CatalogFilters({
         });
     };
 
-    const isFlagSelected = (key: "tester" | "miniature" | "set") => searchParams.get(key) === "1";
+    const isFlagSelected = (key: "tester" | "miniature" | "set" | "in_store") => searchParams.get(key) === "1";
 
-    const toggleFlag = (key: "tester" | "miniature" | "set") => {
+    const toggleFlag = (key: "tester" | "miniature" | "set" | "in_store") => {
         pushParams((params) => {
             if (params.get(key) === "1") {
                 params.delete(key);
@@ -559,6 +559,12 @@ export default function CatalogFilters({
                         "Набор",
                         isFlagSelected("set"),
                         () => toggleFlag("set"),
+                    )}
+                    {renderCheckboxOption(
+                        "in_store",
+                        "В магазине",
+                        isFlagSelected("in_store"),
+                        () => toggleFlag("in_store"),
                     )}
                 </section>
 

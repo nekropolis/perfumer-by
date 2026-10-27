@@ -34,6 +34,8 @@ describe("catalog default sort SEO sync", () => {
         expect(catalogListingFilterActive({ attr_18: "699" })).toBe(false);
         expect(catalogListingFilterActive({ sort: CATALOG_DEFAULT_SORT, attr_18: "699" })).toBe(false);
         expect(catalogListingFilterActive({ set: "1", tester: "1" })).toBe(true);
+        expect(catalogListingFilterActive({ in_store: "1" })).toBe(true);
+        expect(buildCatalogProductsQuery({ in_store: "1" }).get("in_store")).toBe("1");
         expect(catalogListingFilterActive({ attr_18: "699", gender: "female" })).toBe(true);
         expect(catalogListingFilterActive({ attr_18: "1" })).toBe(true);
     });

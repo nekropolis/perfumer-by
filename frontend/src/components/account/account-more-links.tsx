@@ -33,17 +33,19 @@ const MENU_IMAGES_STOCK: Record<string, string> = {
 };
 
 const MENU_IMAGES_THEMED: Record<string, string> = {
-    "/brands": "/home/menu/brands.jpg",
-    "/catalog?new=1": "/home/menu/new.jpg",
-    "/catalog?hit=1": "/home/menu/hits.jpg",
-    "/news": "/home/menu/news.jpg",
-    "/articles": "/home/menu/articles.jpg",
-    "/reviews": "/home/menu/reviews.jpg",
-    "/contacts": "/home/menu/contacts.jpg",
+    "/brands": "/home/menu/brands.webp",
+    "/catalog?new=1": "/home/menu/new.webp",
+    "/catalog?hit=1": "/home/menu/hits.webp",
+    "/news": "/home/menu/news.webp",
+    "/articles": "/home/menu/articles.webp",
+    "/reviews": "/home/menu/reviews.webp",
+    "/contacts": "/home/menu/contacts.webp",
 };
 
 const MENU_IMAGE_SET = "themed" as "stock" | "themed";
 const MENU_IMAGES = MENU_IMAGE_SET === "themed" ? MENU_IMAGES_THEMED : MENU_IMAGES_STOCK;
+
+export const MOBILE_MENU_IMAGE_SRCS = [...new Set(Object.values(MENU_IMAGES))];
 
 /** Кадр справа от подписи: масштаб и точка, чтобы предмет не уходил под текст. */
 const MENU_IMAGE_FRAME: Record<string, { size: string; position: string }> = {

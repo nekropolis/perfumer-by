@@ -32,6 +32,7 @@ final class CatalogProductQueryFilters
         self::applyPriceFilters($query, $request);
         self::applyVolumeFilters($query, $request);
         self::applyVariantTypeFilters($query, $request);
+        self::applyInStoreFilter($query, $request);
     }
 
     /**
@@ -465,6 +466,33 @@ final class CatalogProductQueryFilters
             CatalogVariantStockPresenter::applyStorefrontInStockScope($variantQuery);
             $variantQuery->whereHas('definition', function ($definitionQuery) use ($selectedBuckets): void {
                 self::applyVolumeBucketConstraints($definitionQuery, $selectedBuckets);
+            });
+        });
+    }
+
+    /**
+     * Товары с остатком на складе магазина (main), без учёта поставщика и предзаказа.
+     *
+     * @param  Builder<Product>  $query
+     */
+    public static function applyInStoreFilter(Builder $query, Request $request): void
+    {
+        if ($request->input('in_store') !== '1') {
+            return;
+        }
+
+        $mainWarehouseId = self::warehouseIdByCode(Warehouse::CODE_MAIN);
+        if ($mainWarehouseId <= 0) {
+            $query->whereRaw('0 = 1');
+
+            return;
+        }
+
+        $query->whereHas('activeVariants', function (Builder $variantQuery) use ($mainWarehouseId): void {
+            $variantQuery->whereHas('warehouseStocks', function (Builder $stockQuery) use ($mainWarehouseId): void {
+                $stockQuery
+                    ->where('warehouse_id', $mainWarehouseId)
+                    ->whereRaw('(stock - COALESCE(reserved_stock, 0)) > 0');
             });
         });
     }

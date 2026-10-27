@@ -20,11 +20,11 @@ export default function ProductCardWishlistButton({ productId }: Props) {
                 void toggleWishlist(productId);
             }}
             aria-label={inWishlist ? "Убрать из избранного" : "Добавить в избранное"}
-            className={`absolute right-1.5 top-1.5 z-10 flex h-8 w-8 items-center justify-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)] transition active:scale-90 ${inWishlist ? "text-black" : "text-white"}`}
+            className={`absolute right-0.5 top-0.5 z-10 flex h-8 w-8 items-center justify-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)] transition active:scale-90 ${inWishlist ? "text-black" : "text-white"}`}
         >
             <Heart
                 aria-hidden
-                className={`h-5 w-5 ${inWishlist ? "fill-black" : "fill-transparent"}`}
+                className={`h-6 w-6 ${inWishlist ? "fill-black" : "fill-transparent"}`}
                 strokeWidth={2}
             />
         </button>
