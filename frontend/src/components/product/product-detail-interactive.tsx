@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import type { ProductDetailData, ProductVariantData } from "@/types/catalog";
 import type { ReviewItem } from "@/types/reviews";
-import { addToCart, updateCartItem } from "@/lib/cart-api";
+import { addToCart, removeCartItem, updateCartItem } from "@/lib/cart-api";
 import { useCart } from "@/components/cart/cart-provider";
 import { useWishlist } from "@/components/wishlist/wishlist-provider";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -217,6 +217,21 @@ export default function ProductDetailInteractive({
         });
     };
 
+    const handleRemoveFromCart = () => {
+        if (!cartItemForSelected) {
+            return;
+        }
+
+        startTransition(async () => {
+            try {
+                const response = await removeCartItem(cartItemForSelected.id);
+                setCartState(response.data);
+            } catch (error) {
+                console.error(error);
+            }
+        });
+    };
+
     const shareProduct = () => {
         const url = window.location.href;
         const payload = { title: productTitle, url };
@@ -350,6 +365,7 @@ export default function ProductDetailInteractive({
                             isSelectedVariantInCart={isSelectedVariantInCart}
                             isPending={isPending}
                             onAddToCartAction={handleAddToCart}
+                            onRemoveFromCartAction={handleRemoveFromCart}
                             formatPriceAction={formatProductDetailPrice}
                             productId={product.id}
                             productName={productDisplayName(product)}

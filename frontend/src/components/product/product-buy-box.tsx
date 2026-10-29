@@ -79,6 +79,7 @@ type Props = {
     isSelectedVariantInCart: boolean;
     isPending: boolean;
     onAddToCartAction: () => void;
+    onRemoveFromCartAction?: () => void;
     formatPriceAction: (price: string | null) => ReactNode;
     productId: number;
     productName: string;
@@ -104,6 +105,7 @@ export default function ProductBuyBox({
     isSelectedVariantInCart,
     isPending,
     onAddToCartAction,
+    onRemoveFromCartAction,
     formatPriceAction,
     productId,
     productName,
@@ -467,19 +469,26 @@ export default function ProductBuyBox({
 
         if (canAddToCart) {
             if (isSelectedVariantInCart) {
+                if (compact) {
+                    return (
+                        <button
+                            type="button"
+                            onClick={onRemoveFromCartAction}
+                            disabled={isPending || !onRemoveFromCartAction}
+                            className={`${siteBtnSecondary} h-12 w-full shrink-0 px-3 text-base disabled:cursor-not-allowed disabled:opacity-50`}
+                        >
+                            {isPending ? "..." : "Убрать"}
+                        </button>
+                    );
+                }
+
                 return (
                     <Link
                         href="/cart"
-                        className={`${siteBtnSecondary} shrink-0 ${compact ? "inline-flex h-12 w-full items-center justify-center px-3 text-base" : "flex-1 cursor-pointer"}`}
+                        className={`${siteBtnSecondary} flex-1 shrink-0 cursor-pointer`}
                     >
-                        {compact ? (
-                            "В корзине"
-                        ) : (
-                            <>
-                                <span aria-hidden>✓</span>
-                                <span>&nbsp;В корзине (оформить)</span>
-                            </>
-                        )}
+                        <span aria-hidden>✓</span>
+                        <span>&nbsp;В корзине (оформить)</span>
                     </Link>
                 );
             }
@@ -629,7 +638,7 @@ export default function ProductBuyBox({
                             productName={productName}
                             variantId={selectedVariantId}
                             variantTitle={selectedVariantTitle}
-                            label="Купить сейчас"
+                            label="Заказать"
                             appearance="button"
                             className={`${siteBtnSecondary} h-12 w-full px-3 text-base`}
                         />

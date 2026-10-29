@@ -50,6 +50,7 @@ export default function MobileSearchSheet({
     onSuggestedQueryAction,
 }: Props) {
     const inputRef = useRef<HTMLInputElement | null>(null);
+    const listRef = useRef<HTMLDivElement | null>(null);
     const [isPhone, setIsPhone] = useState(false);
 
     useEffect(() => {
@@ -83,9 +84,11 @@ export default function MobileSearchSheet({
             if (!(target instanceof Node)) {
                 return;
             }
-            const sheet = document.querySelector('[aria-label="Поиск"]');
-            const tabBar = document.querySelector('nav[aria-label="Разделы"]');
-            if (sheet?.contains(target) || tabBar?.contains(target)) {
+            // Разрешаем скролл списка и тачбар; остальное (фон + шапка шита) блокируем.
+            // Нельзя искать по aria-label «Поиск» — в DOM уже есть инпут шапки с тем же label.
+            const list = listRef.current;
+            const tabBar = document.querySelector("nav.storefront-tab-bar");
+            if (list?.contains(target) || tabBar?.contains(target)) {
                 return;
             }
             event.preventDefault();
@@ -108,7 +111,7 @@ export default function MobileSearchSheet({
         <div
             role="dialog"
             aria-modal="true"
-            aria-label="Поиск"
+            aria-label="Поиск по каталогу"
             className="fixed inset-x-0 top-0 z-[145] flex flex-col bg-admin-surface md:hidden"
             style={{
                 bottom: "calc(var(--storefront-tab-bar-height, 0px) + var(--storefront-keyboard-inset, 0px))",
@@ -156,7 +159,10 @@ export default function MobileSearchSheet({
                 </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">
+            <div
+                ref={listRef}
+                className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-3 py-3 [-webkit-overflow-scrolling:touch]"
+            >
                 {searchLoading ? (
                     <div className="px-1 py-3 text-sm text-admin-text-secondary">Поиск...</div>
                 ) : query.length < 2 ? (
@@ -181,7 +187,7 @@ export default function MobileSearchSheet({
                                             key={`recent-sheet-${item}`}
                                             type="button"
                                             onClick={() => onRecentSelectAction(item)}
-                                            className="block w-full rounded-2xl px-3 py-2.5 text-left text-sm text-admin-text"
+                                            className="block w-full rounded-2xl px-3 py-2.5 text-left text-sm text-admin-text transition-colors active:bg-[var(--header-control-bg)]"
                                         >
                                             {renderHighlightedText(item, searchQuery)}
                                         </button>
@@ -202,7 +208,7 @@ export default function MobileSearchSheet({
                                             key={`popular-sheet-${item}`}
                                             type="button"
                                             onClick={() => onPopularSelectAction(item)}
-                                            className="rounded-full border border-admin-border bg-admin-surface px-3 py-1.5 text-sm text-admin-text-secondary"
+                                            className="rounded-full border border-admin-border bg-admin-surface px-3 py-1.5 text-sm text-admin-text-secondary transition-colors active:bg-[var(--header-control-bg)]"
                                         >
                                             {item}
                                         </button>
@@ -218,7 +224,7 @@ export default function MobileSearchSheet({
                             <button
                                 type="button"
                                 onClick={() => onSuggestedQueryAction(suggestedQuery)}
-                                className="mt-2 rounded-2xl border border-admin-border px-2.5 py-1.5 text-left text-sm text-admin-text"
+                                className="mt-2 rounded-2xl border border-admin-border px-2.5 py-1.5 text-left text-sm text-admin-text transition-colors active:bg-[var(--header-control-bg)]"
                             >
                                 Возможно, вы имели в виду:{" "}
                                 <span className="font-medium">{suggestedQuery}</span>
@@ -232,7 +238,7 @@ export default function MobileSearchSheet({
                                 key={`sheet-brand-${brand.id}`}
                                 type="button"
                                 onClick={() => onBrandSelectAction(brand.slug)}
-                                className="block w-full rounded-2xl px-3 py-2.5 text-left text-sm text-admin-text"
+                                className="block w-full rounded-2xl px-3 py-2.5 text-left text-sm text-admin-text transition-colors active:bg-[var(--header-control-bg)]"
                             >
                                 {renderHighlightedText(brand.name, searchQuery)}
                             </button>
@@ -244,7 +250,7 @@ export default function MobileSearchSheet({
                                     key={`sheet-product-${item.id}`}
                                     type="button"
                                     onClick={() => onProductSelectAction(item.slug)}
-                                    className="block w-full rounded-2xl px-3 py-2.5 text-left"
+                                    className="block w-full rounded-2xl px-3 py-2.5 text-left transition-colors active:bg-[var(--header-control-bg)]"
                                 >
                                     {item.matched_code ? (
                                         <div className="truncate text-[11px] font-medium text-admin-primary">

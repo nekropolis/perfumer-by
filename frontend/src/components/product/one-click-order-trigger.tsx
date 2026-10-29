@@ -23,7 +23,7 @@ export default function OneClickOrderTrigger({
     productName,
     variantId = null,
     variantTitle,
-    label = "Купить в один клик",
+    label = "Заказать",
     className = defaultLinkClass,
     disabled = false,
     appearance = "link",

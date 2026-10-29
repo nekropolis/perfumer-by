@@ -269,18 +269,18 @@ export default function CatalogMobileFiltersDrawer(props: Props) {
 
     return (
         <>
-            <div className={compact ? "shrink-0 lg:hidden" : "mb-4 lg:hidden"}>
+            <div className={compact ? "min-w-0 w-full lg:hidden" : "mb-4 lg:hidden"}>
                 <button
                     type="button"
                     onClick={openPanel}
                     className={
                         compact
-                            ? `${filterChipClass} h-10 shrink-0 gap-2 px-4 text-sm [touch-action:manipulation]`
+                            ? `${filterChipClass} h-10 w-full justify-center gap-2 px-3 text-sm [touch-action:manipulation] sm:px-4`
                             : `${filterChipClass} w-full justify-center gap-2 px-4 py-3.5 text-sm [touch-action:manipulation]`
                     }
                 >
                     <SlidersHorizontal className="h-4 w-4 shrink-0 text-admin-text-secondary" aria-hidden />
-                    <span>Фильтры{hasActiveFilters ? " •" : ""}</span>
+                    <span className="truncate">Фильтры{hasActiveFilters ? " •" : ""}</span>
                 </button>
             </div>
 

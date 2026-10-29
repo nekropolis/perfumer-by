@@ -9,6 +9,8 @@ type Props = {
     cartQty: number;
     searchOpen: boolean;
     menuOpen: boolean;
+    /** Имя пользователя, если вошёл; иначе «Профиль». */
+    profileLabel: string;
     onOpenSearchAction: () => void;
     onToggleMenuAction: () => void;
     onDismissMenuAction: (href?: string) => void;
@@ -60,6 +62,7 @@ export default function MobileTabBar({
     cartQty,
     searchOpen,
     menuOpen,
+    profileLabel,
     onOpenSearchAction,
     onToggleMenuAction,
     onDismissMenuAction,
@@ -161,14 +164,15 @@ export default function MobileTabBar({
                 </button>
                 <Link
                     href="/account"
-                    className={tabClass(profileActive)}
+                    className={`${tabClass(profileActive)} px-0.5`}
                     aria-current={profileActive ? "page" : undefined}
+                    aria-label={profileLabel === "Профиль" ? "Профиль" : `Профиль, ${profileLabel}`}
                     onClick={() => onDismissMenuAction("/account")}
                 >
                     <span className={tabIconClass(profileActive)}>
                         <UserRound className="h-5 w-5" aria-hidden />
                     </span>
-                    Профиль
+                    <span className="max-w-full truncate px-0.5">{profileLabel}</span>
                 </Link>
             </div>
         </nav>

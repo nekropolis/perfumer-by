@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import { lineItemProductTitle } from "@/lib/product-display-name";
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import {
     addGiftCertificateTemplateToCart,
     applyDiscountCard,
@@ -33,8 +33,9 @@ import {
     waitingDiscountAmountForLines,
 } from "@/lib/checkout-line-selection";
 import { useCart } from "@/components/cart/cart-provider";
+import MobileBenefitButtons from "@/components/cart/mobile-benefit-buttons";
 import { useAuth } from "@/components/auth/auth-provider";
-import CartPricingBreakdown from "@/components/cart/cart-pricing-breakdown";
+import CartPricingBreakdown, { CartPricingPayBar } from "@/components/cart/cart-pricing-breakdown";
 import SiteConfirmDialog from "@/components/ui/site-confirm-dialog";
 import { withBynSignReplacingCode, withBynSignReplacingCodeText } from "@/lib/byn-sign";
 import { formatMoneyRub } from "@/lib/format-money-display";
@@ -67,6 +68,111 @@ type CartLineSelectControlProps = {
     onToggle: () => void;
     ariaLabel: string;
 };
+
+/** Ширина красной зоны удаления — свайп не должен уходить дальше неё. */
+const DELETE_ACTION_WIDTH_PX = 72;
+const DELETE_SWIPE_TRIGGER_PX = 48;
+
+function SwipeToDelete({
+    children,
+    disabled,
+    onDelete,
+}: {
+    children: ReactNode;
+    disabled?: boolean;
+    onDelete: () => void;
+}) {
+    const [offset, setOffset] = useState(0);
+    const [dragging, setDragging] = useState(false);
+    const gesture = useRef<{ x: number; y: number; locked: boolean | null; pointerId: number } | null>(null);
+    const offsetRef = useRef(0);
+    const suppressClick = useRef(false);
+
+    const setOffsetBoth = (value: number) => {
+        offsetRef.current = value;
+        setOffset(value);
+    };
+
+    return (
+        <div className="relative overflow-hidden rounded-xl md:overflow-visible">
+            <div
+                className="absolute inset-y-0 right-0 flex items-center justify-center bg-red-600 text-white md:hidden"
+                style={{ width: DELETE_ACTION_WIDTH_PX }}
+                aria-hidden
+            >
+                <Trash2 className="h-5 w-5" />
+            </div>
+            <div
+                className={dragging ? "relative bg-admin-surface" : "relative bg-admin-surface transition-transform duration-200 ease-out"}
+                style={{ transform: offset === 0 ? undefined : `translateX(${offset}px)`, touchAction: "pan-y" }}
+                onClickCapture={(event) => {
+                    if (!suppressClick.current) {
+                        return;
+                    }
+                    suppressClick.current = false;
+                    event.preventDefault();
+                    event.stopPropagation();
+                }}
+                onTouchStart={(event) => {
+                    if (disabled) {
+                        return;
+                    }
+                    const target = event.target as HTMLElement | null;
+                    if (target?.closest("button, input, label, textarea, select")) {
+                        return;
+                    }
+                    const touch = event.changedTouches[0];
+                    if (!touch) {
+                        return;
+                    }
+                    gesture.current = { x: touch.clientX, y: touch.clientY, locked: null, pointerId: touch.identifier };
+                }}
+                onTouchMove={(event) => {
+                    const current = gesture.current;
+                    if (!current) {
+                        return;
+                    }
+                    const touch = Array.from(event.changedTouches).find((item) => item.identifier === current.pointerId);
+                    if (!touch) {
+                        return;
+                    }
+                    const dx = touch.clientX - current.x;
+                    const dy = touch.clientY - current.y;
+                    if (current.locked === null) {
+                        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) {
+                            return;
+                        }
+                        current.locked = Math.abs(dx) > Math.abs(dy);
+                        if (!current.locked) {
+                            gesture.current = null;
+                            return;
+                        }
+                        setDragging(true);
+                    }
+                    const next = Math.min(0, Math.max(dx, -DELETE_ACTION_WIDTH_PX));
+                    setOffsetBoth(next);
+                }}
+                onTouchEnd={() => {
+                    const current = gesture.current;
+                    gesture.current = null;
+                    setDragging(false);
+                    if (current?.locked && offsetRef.current <= -DELETE_SWIPE_TRIGGER_PX && !disabled) {
+                        suppressClick.current = true;
+                        onDelete();
+                    }
+                    setOffsetBoth(0);
+                }}
+                onTouchCancel={() => {
+                    gesture.current = null;
+                    setDragging(false);
+                    setOffsetBoth(0);
+                }}
+            >
+                {children}
+            </div>
+        </div>
+    );
+}
 
 function CartLineSelectControl({ checked, onToggle, ariaLabel }: CartLineSelectControlProps) {
     return (
@@ -408,8 +514,8 @@ export default function CartPage() {
     if (!cart || (cart.items.length === 0 && (cart.gift_certificate_items?.length ?? 0) === 0)) {
         return (
             <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-                <div className="mb-6">
-                    <h1 className="text-3xl font-semibold sm:text-4xl">Корзина</h1>
+                <div className="mb-6 hidden md:block">
+                    <h1 className="text-3xl font-semibold md:text-4xl">Корзина</h1>
                 </div>
 
                 <div className={`${siteCard} px-6 py-10 text-center sm:px-8`}>
@@ -444,11 +550,11 @@ export default function CartPage() {
     }
 
     return (
-        <main className="mx-auto max-w-7xl px-4 py-8 pb-28 sm:px-6 lg:px-8 lg:pb-8">
-            <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <main className="mx-auto max-w-7xl px-4 py-4 pb-28 sm:px-6 md:py-8 lg:px-8 lg:pb-8">
+            <div className="mb-4 flex flex-col gap-3 md:mb-8 md:flex-row md:items-end md:justify-between">
                 <div>
-                    <h1 className="text-3xl font-semibold sm:text-4xl">Корзина</h1>
-                    <p className="mt-2 text-sm text-admin-text-secondary">
+                    <h1 className="hidden text-3xl font-semibold md:block md:text-4xl">Корзина</h1>
+                    <p className="text-sm text-admin-text-secondary md:mt-2">
                         {cart.qty} {cart.qty === 1 ? "товар" : cart.qty < 5 ? "товара" : "товаров"} в корзине
                         {partialLineSelection ? (
                             <>
@@ -460,16 +566,22 @@ export default function CartPage() {
                     </p>
                 </div>
 
-                <Link href="/catalog" className={siteBtnSecondary}>
-                    Продолжить покупки
-                </Link>
+                <div className="hidden md:block">
+                    <Link href="/catalog" className={siteBtnSecondary}>
+                        Продолжить покупки
+                    </Link>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
                 <section className="space-y-4">
                     {cart.gift_certificate_items?.map((item) => (
-                        <article
+                        <SwipeToDelete
                             key={`gift-template-${item.id}`}
+                            disabled={isPending}
+                            onDelete={() => deleteGiftTemplateItem(item.id, item.title)}
+                        >
+                        <article
                             className={`${siteCard} p-4 sm:p-5`}
                         >
                             <div className="flex gap-3 sm:gap-4">
@@ -532,6 +644,7 @@ export default function CartPage() {
                                 </div>
                             </div>
                         </article>
+                        </SwipeToDelete>
                     ))}
 
                     {cart.items.map((item) => {
@@ -539,8 +652,12 @@ export default function CartPage() {
                         const unitPrice = cartItemCustomerUnitPrice(item, loyaltyPercent);
                         const strikePrice = cartItemStrikeUnitPrice(item, loyaltyPercent);
                         return (
-                        <article
+                        <SwipeToDelete
                             key={item.id}
+                            disabled={isPending}
+                            onDelete={() => requestDeleteProduct(item.id, lineItemProductTitle(item))}
+                        >
+                        <article
                             className={`${siteCard} p-4 sm:p-5`}
                         >
                             <div className="flex gap-3 sm:gap-4">
@@ -554,17 +671,31 @@ export default function CartPage() {
                                 <div className="min-w-0 flex-1">
                                     <Link
                                         href={`/${item.product_slug}`}
-                                        className="block text-lg font-medium leading-6 text-[var(--foreground)] transition hover:opacity-80"
+                                        className="block text-base font-medium leading-snug text-[var(--foreground)] transition hover:opacity-80 md:hidden"
+                                    >
+                                        {lineItemProductTitle(item)}
+                                    </Link>
+                                    {(item.variant?.display_name || item.variant?.title || item.variant?.type) ? (
+                                        <p className="mt-0.5 text-sm leading-snug text-[var(--text-secondary)] md:hidden">
+                                            {[item.variant?.display_name || item.variant?.title, item.variant?.type]
+                                                .map((part) => part?.trim())
+                                                .filter(Boolean)
+                                                .join(" - ")}
+                                        </p>
+                                    ) : null}
+                                    <Link
+                                        href={`/${item.product_slug}`}
+                                        className="hidden text-lg font-medium leading-6 text-[var(--foreground)] transition hover:opacity-80 md:block"
                                     >
                                         {lineItemProductTitle(item)}
                                     </Link>
 
-                                    <div className="mt-1 text-sm text-[var(--text-secondary)]">
+                                    <div className="mt-1 hidden text-sm text-[var(--text-secondary)] md:block">
                                         {item.variant?.display_name || item.variant?.title}
                                     </div>
 
                                     {item.variant?.type && (
-                                        <div className="mt-1 text-xs text-[var(--text-secondary)]">
+                                        <div className="mt-1 hidden text-xs text-[var(--text-secondary)] md:block">
                                             {item.variant.type}
                                         </div>
                                     )}
@@ -649,6 +780,7 @@ export default function CartPage() {
                                 </div>
                             </div>
                         </article>
+                        </SwipeToDelete>
                         );
                     })}
 
@@ -693,7 +825,8 @@ export default function CartPage() {
                 </section>
 
                 <aside className="self-start xl:sticky xl:top-24">
-                    <div className={`${siteCard} p-5 sm:p-6`}>
+                    <div className={`${siteCard} overflow-hidden`}>
+                        <div className="p-5 sm:p-6">
                         <div className="mb-5 text-xl font-semibold text-admin-text">Ваш заказ</div>
 
                         <CartPricingBreakdown
@@ -703,6 +836,7 @@ export default function CartPage() {
                             discountCard={pricingBreakdown.discountCard}
                             giftCertificate={pricingBreakdown.giftCertificate}
                             waitingDiscountAmount={selectedWaitingDiscountAmount}
+                            hidePayBar
                         />
 
                         {partialLineSelection && !partialQuote ? (
@@ -716,7 +850,7 @@ export default function CartPage() {
                             </p>
                         ) : null}
 
-                        <div className="mt-5 space-y-3 border-t border-[var(--line)] pt-4">
+                        <div className="mt-5 hidden space-y-3 border-t border-[var(--line)] pt-4 md:block">
                             <div>
                                 <div className="mb-1 text-xs text-[var(--text-secondary)]">Подарочный сертификат</div>
                                 {!cart.gift_certificate ? (
@@ -927,7 +1061,7 @@ export default function CartPage() {
                             </div>
                         </div>
 
-                        <div className="mt-5 border-t border-admin-border pt-4">
+                        <div className="mt-5 hidden border-t border-admin-border pt-4 md:block">
                             <div className="flex items-end justify-between gap-4">
                                 <div>
                                     <div className="text-sm text-admin-text-secondary">
@@ -940,6 +1074,7 @@ export default function CartPage() {
                             </div>
                         </div>
 
+                        <div className="hidden md:block">
                         {hasCheckoutSelection ? (
                             <Link
                                 href="/checkout"
@@ -960,6 +1095,9 @@ export default function CartPage() {
                         <div className="mt-4 text-xs leading-5 text-[var(--text-secondary)]">
                             После оформления заказа мы свяжемся с вами для подтверждения деталей доставки и оплаты.
                         </div>
+                        </div>
+                        </div>
+                        <CartPricingPayBar total={pricingBreakdown.total} grandTotal={checkoutTotalStr} />
                     </div>
                 </aside>
             </div>
@@ -969,32 +1107,37 @@ export default function CartPage() {
                 className="fixed inset-x-0 z-[130] border-t border-admin-border bg-admin-surface/95 backdrop-blur md:hidden"
                 style={{ bottom: "calc(var(--storefront-tab-bar-height, 0px) + var(--storefront-keyboard-inset, 0px))" }}
             >
-                <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3">
-                    <div className="min-w-0 flex-1">
-                        <div className="text-xs text-admin-text-secondary">
-                            {partialLineSelection ? "К оформлению" : "Итого"}
+                <div className="mx-auto max-w-7xl px-4 py-2">
+                    <MobileBenefitButtons />
+                </div>
+                <div className="border-t border-admin-border">
+                    <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3">
+                        <div className="min-w-0 flex-1">
+                            <div className="text-xs text-admin-text-secondary">
+                                {partialLineSelection ? "К оформлению" : "Итого"}
+                            </div>
+                            <div className="truncate text-lg font-semibold">
+                                {formatMoneyRub(checkoutTotalStr)}
+                            </div>
                         </div>
-                        <div className="truncate text-lg font-semibold">
-                            {formatMoneyRub(checkoutTotalStr)}
-                        </div>
-                    </div>
 
-                    {hasCheckoutSelection ? (
-                        <Link
-                            href="/checkout"
-                            onClick={persistCheckoutSelection}
-                            className={`${siteBtnPrimary} shrink-0 px-4 py-2.5 text-sm`}
-                        >
-                            Оформить
-                        </Link>
-                    ) : (
-                        <span
-                            className={`${siteBtnPrimary} shrink-0 cursor-not-allowed px-4 py-2.5 text-sm opacity-45`}
-                            aria-disabled
-                        >
-                            Оформить
-                        </span>
-                    )}
+                        {hasCheckoutSelection ? (
+                            <Link
+                                href="/checkout"
+                                onClick={persistCheckoutSelection}
+                                className={`${siteBtnPrimary} shrink-0 px-4 py-2.5 text-sm`}
+                            >
+                                Оформить
+                            </Link>
+                        ) : (
+                            <span
+                                className={`${siteBtnPrimary} shrink-0 cursor-not-allowed px-4 py-2.5 text-sm opacity-45`}
+                                aria-disabled
+                            >
+                                Оформить
+                            </span>
+                        )}
+                    </div>
                 </div>
             </div>
 

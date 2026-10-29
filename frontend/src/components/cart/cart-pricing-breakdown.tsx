@@ -28,8 +28,31 @@ type Props = {
     waitingDiscountAmount?: string | null;
     /** Подарок при оплате наличными на чекауте */
     sampleGift?: boolean;
+    /** Скрыть полосу «К оплате» — вынести футером карточки «Ваш заказ». */
+    hidePayBar?: boolean;
     className?: string;
 };
+
+export function CartPricingPayBar({
+    total,
+    grandTotal,
+    className = "",
+}: {
+    total: string;
+    grandTotal?: string | null;
+    className?: string;
+}) {
+    return (
+        <div
+            className={`flex items-center justify-between bg-admin-text px-5 py-3.5 text-base font-semibold text-white sm:px-6 ${className}`}
+        >
+            <span>К оплате</span>
+            <span>
+                {grandTotal && grandTotal.trim() !== "" ? formatMoneyRub(grandTotal) : formatMoneyRub(total)}
+            </span>
+        </div>
+    );
+}
 
 export default function CartPricingBreakdown({
     itemsQty,
@@ -41,6 +64,7 @@ export default function CartPricingBreakdown({
     grandTotal,
     waitingDiscountAmount,
     sampleGift = false,
+    hidePayBar = false,
     className = "",
 }: Props) {
     const sub = parseMoneyMinorUnits(subtotal);
@@ -126,12 +150,9 @@ export default function CartPricingBreakdown({
                 </div>
             ) : null}
 
-            <div className="flex items-center justify-between border-t border-admin-border pt-3 text-base font-semibold text-admin-text">
-                <span>К оплате</span>
-                <span>
-                    {grandTotal && grandTotal.trim() !== "" ? formatMoneyRub(grandTotal) : formatMoneyRub(total)}
-                </span>
-            </div>
+            {hidePayBar ? null : (
+                <CartPricingPayBar total={total} grandTotal={grandTotal} className="mt-1 rounded-2xl px-3 py-2.5" />
+            )}
         </div>
     );
 }

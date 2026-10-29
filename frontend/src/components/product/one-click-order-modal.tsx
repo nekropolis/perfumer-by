@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { MousePointerClick, X } from "lucide-react";
@@ -25,6 +25,10 @@ type Props = {
     variantTitle?: string | null;
 };
 
+const emptySubscribe = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
+
 export default function OneClickOrderModal({
     open,
     onCloseAction,
@@ -34,7 +38,7 @@ export default function OneClickOrderModal({
     variantTitle,
 }: Props) {
     const { user } = useAuth();
-    const [mounted, setMounted] = useState(false);
+    const mounted = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
     const [customerName, setCustomerName] = useState("");
     const [phone, setPhone] = useState("");
     const [allowPlainPhone, setAllowPlainPhone] = useState(false);
@@ -43,10 +47,6 @@ export default function OneClickOrderModal({
     const [errorMessage, setErrorMessage] = useState("");
     const [successMessage, setSuccessMessage] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
-
-    useEffect(() => {
-        setMounted(true);
-    }, []);
 
     useEffect(() => {
         if (!open) return;
@@ -130,8 +130,7 @@ export default function OneClickOrderModal({
             });
 
             setSuccessMessage(
-                response.message ||
-                    "Заказ принят — менеджер свяжется с вами для уточнения деталей.",
+                response.message || "Заказ принят — менеджер свяжется с вами для уточнения деталей.",
             );
         } catch (error) {
             console.error(error);
@@ -165,27 +164,22 @@ export default function OneClickOrderModal({
 
     return createPortal(
         <div
-            className="fixed inset-0 z-[200] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+            className="fixed inset-x-0 top-0 z-[140] flex items-end justify-center bg-black/50 p-0 max-md:bottom-[calc(var(--storefront-tab-bar-height,0px)+var(--storefront-keyboard-inset,0px))] md:inset-0 md:z-[200] md:items-center md:p-4"
             onMouseDown={handleOverlayClick}
         >
             <div
-                className="relative w-full max-w-sm overflow-hidden rounded-t-3xl border border-[var(--line)] bg-[var(--surface)] shadow-2xl sm:rounded-3xl"
+                className="relative w-full max-w-sm overflow-hidden rounded-t-3xl border border-[var(--line)] bg-[var(--surface)] shadow-2xl md:rounded-3xl"
                 role="dialog"
                 aria-modal="true"
-                aria-labelledby="one-click-order-title"
+                aria-label="Заказать"
             >
-                <div className="flex items-start justify-between gap-3 border-b border-[var(--line)] px-5 py-4">
+                <div className="hidden items-start justify-between gap-3 border-b border-[var(--line)] px-5 py-4 md:flex">
                     <div className="min-w-0">
-                        <h2
-                            id="one-click-order-title"
-                            className="flex items-center gap-2 text-lg font-semibold leading-tight"
-                        >
+                        <h2 className="flex items-center gap-2 text-lg font-semibold leading-tight">
                             <MousePointerClick className="h-5 w-5 text-[var(--accent)]" />
-                            Купить в один клик
+                            Заказать
                         </h2>
-                        <div className="mt-0.5 truncate text-sm text-[var(--text-secondary)]">
-                            {contextLine}
-                        </div>
+                        <div className="mt-0.5 truncate text-sm text-[var(--text-secondary)]">{contextLine}</div>
                     </div>
 
                     <button
@@ -199,15 +193,16 @@ export default function OneClickOrderModal({
                 </div>
 
                 {successMessage ? (
-                    <div className="px-5 py-6">
+                    <div className="px-5 py-5">
+                        <div className="mb-3 truncate text-sm text-[var(--text-secondary)] md:hidden">{contextLine}</div>
                         <div className="rounded-2xl border border-[var(--line)] bg-[var(--background)] p-4 text-sm leading-6 text-[var(--foreground)]">
                             {successMessage}
                         </div>
-                        <div className="mt-4 flex justify-end">
+                        <div className="mt-4 flex gap-2">
                             <button
                                 type="button"
                                 onClick={onCloseAction}
-                                className="rounded-2xl bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[var(--background)] transition hover:bg-[var(--accent-hover)]"
+                                className={`${siteBtnPrimary} h-12 flex-1 px-4 text-base`}
                             >
                                 Закрыть
                             </button>
@@ -215,6 +210,8 @@ export default function OneClickOrderModal({
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit} className="space-y-4 px-5 py-5" noValidate>
+                        <div className="truncate text-sm text-[var(--text-secondary)] md:hidden">{contextLine}</div>
+
                         <input
                             type="text"
                             name="website"
@@ -244,9 +241,7 @@ export default function OneClickOrderModal({
 
                         <div>
                             <div className="mb-1 flex items-center justify-between gap-3">
-                                <label className="text-sm font-medium text-[var(--foreground)]">
-                                    Телефон
-                                </label>
+                                <label className="text-sm font-medium text-[var(--foreground)]">Телефон</label>
                                 <label className="inline-flex cursor-pointer items-center">
                                     <input
                                         type="checkbox"
@@ -289,7 +284,7 @@ export default function OneClickOrderModal({
                                 }`}
                             />
                             <span>
-                                Нажимая «Купить в один клик», я принимаю условия{" "}
+                                Нажимая «Заказать», я принимаю условия{" "}
                                 <Link
                                     href={LEGAL_PAGE_PATHS.offer}
                                     target="_blank"
@@ -299,11 +294,8 @@ export default function OneClickOrderModal({
                                 >
                                     публичной оферты
                                 </Link>
-                                <LegalHelpIcon
-                                    href={LEGAL_PAGE_PATHS.offer}
-                                    label="Открыть публичную оферту"
-                                />{" "}
-                                и согласен(а) на обработку персональных данных согласно{" "}
+                                <LegalHelpIcon href={LEGAL_PAGE_PATHS.offer} label="Открыть публичную оферту" /> и
+                                согласен(а) на обработку персональных данных согласно{" "}
                                 <Link
                                     href={LEGAL_PAGE_PATHS.privacy}
                                     target="_blank"
@@ -326,26 +318,26 @@ export default function OneClickOrderModal({
                             </span>
                         </label>
 
-                        {errorMessage && (
+                        {errorMessage ? (
                             <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                                 {errorMessage}
                             </div>
-                        )}
+                        ) : null}
 
-                        <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:items-center sm:justify-end">
+                        <div className="flex gap-2 pt-1">
                             <button
                                 type="button"
                                 onClick={onCloseAction}
-                                className={`${siteBtnSecondary} w-full sm:w-auto`}
+                                className={`${siteBtnSecondary} h-12 flex-1 px-4 text-base`}
                             >
-                                Отмена
+                                Закрыть
                             </button>
                             <button
                                 type="submit"
                                 disabled={isSubmitting || !canSubmit}
-                                className={`${siteBtnPrimary} w-full sm:w-auto`}
+                                className={`${siteBtnPrimary} h-12 flex-1 px-4 text-base`}
                             >
-                                {isSubmitting ? "Отправка..." : "Купить в один клик"}
+                                {isSubmitting ? "Отправка..." : "Заказать"}
                             </button>
                         </div>
                     </form>

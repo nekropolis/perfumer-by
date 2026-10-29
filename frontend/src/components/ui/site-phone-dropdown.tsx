@@ -81,9 +81,31 @@ export default function SitePhoneDropdown({ className = "", size = "sm" }: SiteP
                     onClick={() => setOpen((prev) => !prev)}
                     aria-expanded={open}
                     aria-haspopup="menu"
-                    className="whitespace-nowrap text-right text-[11px] font-medium leading-tight text-admin-text"
+                    aria-label={`${phoneShortLabel}, МТС / A1 / life`}
+                    className="inline-flex items-center gap-2 text-left"
                 >
-                    МТС / A1 / life - {phoneShortLabel}
+                    <svg
+                        aria-hidden
+                        viewBox="0 0 24 24"
+                        className="h-5 w-5 shrink-0 text-admin-text"
+                        fill="none"
+                    >
+                        <path
+                            d="M8.5 3.75h2.2c.5 0 .94.33 1.08.81l.9 3.02a1.13 1.13 0 0 1-.32 1.13l-1.35 1.35a13.2 13.2 0 0 0 5.33 5.33l1.35-1.35a1.13 1.13 0 0 1 1.13-.32l3.02.9c.48.14.81.58.81 1.08v2.2c0 .62-.5 1.13-1.12 1.13A15.37 15.37 0 0 1 3.75 4.87c0-.62.5-1.12 1.13-1.12Z"
+                            stroke="currentColor"
+                            strokeWidth="1.7"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        />
+                    </svg>
+                    <span className="min-w-0 leading-tight">
+                        <span className="block text-sm font-semibold tracking-tight text-admin-text">
+                            {phoneShortLabel}
+                        </span>
+                        <span className="mt-0.5 block text-[11px] font-normal text-admin-text-secondary">
+                            МТС / A1 / life
+                        </span>
+                    </span>
                 </button>
                 {dropdown}
             </div>

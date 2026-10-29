@@ -476,6 +476,11 @@ export default function Header() {
                 cartQty={cartQty}
                 searchOpen={searchOpen}
                 menuOpen={profileMenuOpen}
+                profileLabel={
+                    isAuthenticated
+                        ? user?.first_name?.trim() || user?.name?.trim()?.split(/\s+/)[0] || "Профиль"
+                        : "Профиль"
+                }
                 onOpenSearchAction={toggleMobileSearch}
                 onToggleMenuAction={toggleProfileMenu}
                 onDismissMenuAction={(href) => {

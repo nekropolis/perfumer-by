@@ -22,7 +22,8 @@ type Props = {
 export default function AppShell({ children, footer }: Props) {
     const pathname = usePathname();
     const isAdminPage = pathname.startsWith("/admin");
-    const hideMobileAccountChrome = pathname === "/account";
+    const hideMobileAccountChrome =
+        pathname === "/account" || pathname === "/cart" || pathname === "/checkout";
 
     if (isAdminPage) {
         return <>{children}</>;

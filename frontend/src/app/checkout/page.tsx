@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronLeft, Plus } from "lucide-react";
+import { ChevronLeft, Info, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
+import { HEADER_STICKY_EXTENSION_ID } from "@/components/layout/header/constants";
 import {
     CHECKOUT_LINE_SELECTION_STORAGE_KEY,
     createOrder,
@@ -32,7 +33,8 @@ import { useCart } from "@/components/cart/cart-provider";
 import { lineItemProductTitle } from "@/lib/product-display-name";
 import { useAuth } from "@/components/auth/auth-provider";
 import { authUserCheckoutName } from "@/lib/auth-api";
-import CartPricingBreakdown from "@/components/cart/cart-pricing-breakdown";
+import CartPricingBreakdown, { CartPricingPayBar } from "@/components/cart/cart-pricing-breakdown";
+import MobileBenefitButtons from "@/components/cart/mobile-benefit-buttons";
 import LegalHelpIcon from "@/components/legal/legal-help-icon";
 import { LEGAL_PAGE_PATHS } from "@/lib/legal-links";
 import { formatMoneyDisplay, formatMoneyRub, formatMoneyRubText } from "@/lib/format-money-display";
@@ -82,11 +84,10 @@ function CheckoutDeliveryDays({ days }: { days: CheckoutCityHit["delivery_days"]
                 return (
                     <span
                         key={key}
-                        className={`inline-flex h-6 min-w-[1.75rem] items-center justify-center rounded-md px-1.5 text-[11px] font-semibold tracking-wide ${
-                            on
+                        className={`inline-flex h-6 min-w-[1.75rem] items-center justify-center rounded-md px-1.5 text-[11px] font-semibold tracking-wide ${on
                                 ? "bg-[var(--accent)] text-[var(--background)]"
                                 : "border border-[var(--line)] bg-[var(--surface)] text-[var(--text-secondary)]"
-                        }`}
+                            }`}
                         title={on ? `${short}: доставка` : `${short}: нет`}
                     >
                         {short}
@@ -127,6 +128,65 @@ const CARD_PAYMENT_WARNING =
     "Внимание: при оплате по карте — скидки по скидочным картам не предоставляются.";
 const CASH_SAMPLE_GIFT_HINT = "При оплате наличными — пробник в подарок.";
 const CARD_SAMPLE_GIFT_WARNING = "При оплате картой пробник в подарок не предоставляется.";
+
+function CheckoutTermsText() {
+    return (
+        <>
+            Нажимая «Подтвердить заказ», я принимаю условия{" "}
+            <Link
+                href={LEGAL_PAGE_PATHS.offer}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-admin-primary underline-offset-2 hover:underline"
+            >
+                публичной оферты
+            </Link>
+            <LegalHelpIcon href={LEGAL_PAGE_PATHS.offer} label="Открыть публичную оферту" /> и согласен(а) на обработку
+            персональных данных согласно{" "}
+            <Link
+                href={LEGAL_PAGE_PATHS.privacy}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-admin-primary underline-offset-2 hover:underline"
+            >
+                политике
+            </Link>
+            <LegalHelpIcon href={LEGAL_PAGE_PATHS.privacy} label="Открыть политику обработки персональных данных" />.
+        </>
+    );
+}
+
+function CheckoutTermsConsent({
+    id,
+    checked,
+    showError,
+    onCheckedChange,
+}: {
+    id: string;
+    checked: boolean;
+    showError: boolean;
+    onCheckedChange: (checked: boolean) => void;
+}) {
+    return (
+        <label htmlFor={id} className="flex cursor-pointer items-start gap-2.5 text-sm leading-snug text-admin-text">
+            <input
+                id={id}
+                type="checkbox"
+                aria-invalid={showError || undefined}
+                checked={checked}
+                onChange={(event) => onCheckedChange(event.target.checked)}
+                className={`mt-0.5 h-4 w-4 shrink-0 rounded border-admin-border accent-admin-primary ${showError ? "outline outline-2 outline-offset-1 outline-red-500" : ""
+                    }`}
+            />
+            <span>
+                <CheckoutTermsText />
+                {showError ? (
+                    <span className="mt-1 block text-xs text-red-600">Отметьте согласие, чтобы оформить заказ.</span>
+                ) : null}
+            </span>
+        </label>
+    );
+}
 
 export default function CheckoutPage() {
     const router = useRouter();
@@ -171,6 +231,7 @@ export default function CheckoutPage() {
     const [cityOpen, setCityOpen] = useState(false);
     const [cityLookupFailed, setCityLookupFailed] = useState(false);
     const cityPickerRef = useRef<HTMLDivElement>(null);
+    const mobileCheckoutBarRef = useRef<HTMLDivElement | null>(null);
     const [deliveryAddress, setDeliveryAddress] = useState("");
     const [deliveryStreetPrefix, setDeliveryStreetPrefix] = useState<string>(DEFAULT_VETER_STREET_PREFIX);
     const [deliveryHouse, setDeliveryHouse] = useState("");
@@ -200,6 +261,12 @@ export default function CheckoutPage() {
     const [addressTouched, setAddressTouched] = useState(false);
     const [submitAttempted, setSubmitAttempted] = useState(false);
     const [consentTerms, setConsentTerms] = useState(false);
+    const [consentInfoOpen, setConsentInfoOpen] = useState(false);
+    const [headerSlotReady, setHeaderSlotReady] = useState(false);
+
+    useEffect(() => {
+        setHeaderSlotReady(true);
+    }, []);
 
     const phoneIsValid = allowPlainPhone ? isPlainByPhoneComplete(phone) : isBelarusPhoneComplete(phone);
     const addressRequired = deliveryMethod !== "pickup";
@@ -316,6 +383,32 @@ export default function CheckoutPage() {
             .then((r) => setShopSettings(r.data))
             .catch(() => setShopSettings(null));
     }, []);
+
+    useEffect(() => {
+        const root = document.documentElement;
+        const bar = mobileCheckoutBarRef.current;
+        if (!bar) {
+            root.style.removeProperty("--storefront-bottom-bar-height");
+            return;
+        }
+
+        const publishHeight = () => {
+            const height = Math.ceil(bar.getBoundingClientRect().height);
+            if (height > 0) {
+                root.style.setProperty("--storefront-bottom-bar-height", `${height}px`);
+                return;
+            }
+            root.style.removeProperty("--storefront-bottom-bar-height");
+        };
+
+        publishHeight();
+        const observer = new ResizeObserver(publishHeight);
+        observer.observe(bar);
+        return () => {
+            observer.disconnect();
+            root.style.removeProperty("--storefront-bottom-bar-height");
+        };
+    }, [cart?.token, quote?.total]);
 
     useEffect(() => {
         if (deliveryCity.trim()) {
@@ -470,9 +563,9 @@ export default function CheckoutPage() {
             additionalAddressOpen &&
             Boolean(
                 additionalDeliveryAddress.trim() ||
-                    additionalDeliveryHouse.trim() ||
-                    additionalDeliveryKorpus.trim() ||
-                    additionalDeliveryApartment.trim(),
+                additionalDeliveryHouse.trim() ||
+                additionalDeliveryKorpus.trim() ||
+                additionalDeliveryApartment.trim(),
             );
 
         const orderDeliveryAddress = deliveryMethod === "pickup"
@@ -516,9 +609,9 @@ export default function CheckoutPage() {
                     consent_privacy: true,
                     ...(lineSelection
                         ? {
-                              cart_item_ids: lineSelection.cart_item_ids,
-                              gift_certificate_cart_item_ids: lineSelection.gift_certificate_cart_item_ids,
-                          }
+                            cart_item_ids: lineSelection.cart_item_ids,
+                            gift_certificate_cart_item_ids: lineSelection.gift_certificate_cart_item_ids,
+                        }
                         : {}),
                 });
 
@@ -542,9 +635,34 @@ export default function CheckoutPage() {
         });
     };
 
+    const headerSlot =
+        headerSlotReady && typeof document !== "undefined"
+            ? document.getElementById(HEADER_STICKY_EXTENSION_ID)
+            : null;
+
+    const mobileTitleBar =
+        headerSlot != null
+            ? createPortal(
+                  <div className="flex items-center gap-0.5 border-t border-admin-border px-1.5 py-1 md:hidden">
+                      <Link
+                          href="/cart"
+                          aria-label="В корзину"
+                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-admin-text"
+                      >
+                          <ChevronLeft className="h-5 w-5" aria-hidden />
+                      </Link>
+                      <div className="min-w-0 truncate text-[15px] font-semibold leading-none text-admin-text">
+                          Оформление заказа
+                      </div>
+                  </div>,
+                  headerSlot,
+              )
+            : null;
+
     if (loading) {
         return (
             <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+                {mobileTitleBar}
                 <p className="text-sm text-admin-text-secondary">Загрузка корзины…</p>
             </main>
         );
@@ -556,16 +674,15 @@ export default function CheckoutPage() {
     ) {
         return (
             <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-                <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                {mobileTitleBar}
+                <div className="mb-6 hidden items-center justify-between gap-3 md:flex">
                     <h1 className="text-3xl font-semibold">Оформление заказа</h1>
-                    <Link
-                        href="/cart"
-                        className={`${siteBtnSecondary} gap-1.5 self-start`}
-                    >
+                    <Link href="/cart" className={`${siteBtnSecondary} gap-1.5`}>
                         <ChevronLeft className="h-4 w-4 shrink-0 text-admin-primary" aria-hidden />
                         В корзину
                     </Link>
                 </div>
+                <h1 className="sr-only md:hidden">Оформление заказа</h1>
                 <p className="mb-6 text-admin-text-secondary">Корзина пуста.</p>
                 <Link href="/catalog" className={siteBtnPrimary}>
                     Перейти в каталог
@@ -584,19 +701,23 @@ export default function CheckoutPage() {
     const breakdownSubtotal = listSubtotalForLines(checkoutCartLines.items, checkoutCartLines.giftItems);
 
     const merchandisePayStr = quote != null ? merchandisePayFromQuote(quote) : (cart.total ?? cart.subtotal);
+    const checkoutPayStr =
+        quote?.total && quote.total.trim() !== "" ? quote.total : merchandisePayStr;
 
     return (
-        <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-            <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <main className="mx-auto max-w-7xl px-4 py-3 pb-28 sm:px-6 md:py-10 md:pb-10">
+            {mobileTitleBar}
+            <div className="mb-8 hidden items-center justify-between gap-3 md:flex">
                 <h1 className="text-3xl font-semibold">Оформление заказа</h1>
-                <Link href="/cart" className={`${siteBtnSecondary} gap-1.5 self-start`}>
+                <Link href="/cart" className={`${siteBtnSecondary} gap-1.5`}>
                     <ChevronLeft className="h-4 w-4 shrink-0 text-admin-primary" aria-hidden />
                     В корзину
                 </Link>
             </div>
+            <h1 className="sr-only md:hidden">Оформление заказа</h1>
 
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
-                <form onSubmit={handleSubmit} className={`${siteCard} p-5`}>
+                <form id="checkout-form" onSubmit={handleSubmit} className={`${siteCard} p-5`}>
                     <div className="mb-5">
                         <label htmlFor={nameId} className="mb-2 block text-sm font-medium text-admin-text">Имя</label>
                         <input
@@ -626,11 +747,10 @@ export default function CheckoutPage() {
                                     className="peer sr-only"
                                 />
                                 <span
-                                    className={`rounded-2xl border px-2.5 py-1 text-[11px] font-medium transition ${
-                                        allowPlainPhone
+                                    className={`rounded-2xl border px-2.5 py-1 text-[11px] font-medium transition ${allowPlainPhone
                                             ? "border-admin-primary bg-admin-primary text-white"
                                             : "border-admin-border bg-admin-surface text-admin-text-secondary hover:bg-admin-muted"
-                                    }`}
+                                        }`}
                                 >
                                     Международный номер
                                 </span>
@@ -662,11 +782,10 @@ export default function CheckoutPage() {
                                 return (
                                     <label
                                         key={value}
-                                        className={`flex cursor-pointer items-center gap-2 rounded-2xl border px-3 py-2.5 text-sm transition ${
-                                            active
+                                        className={`flex cursor-pointer items-center gap-2 rounded-2xl border px-3 py-2.5 text-sm transition ${active
                                                 ? "border-admin-primary bg-admin-muted text-admin-text"
                                                 : "border-admin-border bg-admin-surface text-admin-text-secondary hover:bg-admin-muted/70"
-                                        }`}
+                                            }`}
                                     >
                                         <input
                                             type="radio"
@@ -748,8 +867,8 @@ export default function CheckoutPage() {
                                         </div>
                                     ) : null}
                                     {!deliveryCityId &&
-                                    cityQuery.trim().length >= 2 &&
-                                    cityHits.length === 0 ? (
+                                        cityQuery.trim().length >= 2 &&
+                                        cityHits.length === 0 ? (
                                         <p className="mt-2 text-xs text-[var(--text-secondary)]">
                                             {cityLookupFailed
                                                 ? "Поиск временно недоступен."
@@ -1027,13 +1146,12 @@ export default function CheckoutPage() {
                                 return (
                                     <label
                                         key={value}
-                                        className={`flex cursor-pointer items-center gap-2 rounded-2xl border px-3 py-2.5 text-sm transition ${
-                                            disabled
+                                        className={`flex cursor-pointer items-center gap-2 rounded-2xl border px-3 py-2.5 text-sm transition ${disabled
                                                 ? "cursor-not-allowed border-admin-border bg-admin-muted/40 opacity-50"
                                                 : active
-                                                  ? "border-admin-primary bg-admin-muted text-admin-text"
-                                                  : "border-admin-border bg-admin-surface text-admin-text-secondary hover:bg-admin-muted/70"
-                                        }`}
+                                                    ? "border-admin-primary bg-admin-muted text-admin-text"
+                                                    : "border-admin-border bg-admin-surface text-admin-text-secondary hover:bg-admin-muted/70"
+                                            }`}
                                     >
                                         <input
                                             type="radio"
@@ -1089,76 +1207,34 @@ export default function CheckoutPage() {
                         />
                     </div>
 
-                    <div className="mb-5 space-y-3 rounded-2xl border border-admin-border bg-admin-muted/40 p-4">
-                        <label
-                            htmlFor="checkout-consent-terms"
-                            className="flex cursor-pointer items-start gap-2.5 text-sm leading-snug text-admin-text"
-                        >
-                            <input
-                                id="checkout-consent-terms"
-                                type="checkbox"
-                                aria-invalid={showConsentError || undefined}
-                                checked={consentTerms}
-                                onChange={(e) => setConsentTerms(e.target.checked)}
-                                className={`mt-0.5 h-4 w-4 shrink-0 rounded border-admin-border accent-admin-primary ${
-                                    showConsentError
-                                        ? "outline outline-2 outline-offset-1 outline-red-500"
-                                        : ""
-                                }`}
-                            />
-                            <span>
-                                Нажимая «Подтвердить заказ», я принимаю условия{" "}
-                                <Link
-                                    href={LEGAL_PAGE_PATHS.offer}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="font-medium text-admin-primary underline-offset-2 hover:underline"
-                                >
-                                    публичной оферты
-                                </Link>
-                                <LegalHelpIcon
-                                    href={LEGAL_PAGE_PATHS.offer}
-                                    label="Открыть публичную оферту"
-                                />{" "}
-                                и согласен(а) на обработку персональных данных согласно{" "}
-                                <Link
-                                    href={LEGAL_PAGE_PATHS.privacy}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="font-medium text-admin-primary underline-offset-2 hover:underline"
-                                >
-                                    политике
-                                </Link>
-                                <LegalHelpIcon
-                                    href={LEGAL_PAGE_PATHS.privacy}
-                                    label="Открыть политику обработки персональных данных"
-                                />
-                                .
-                                {showConsentError ? (
-                                    <span className="mt-1 block text-xs text-red-600">
-                                        Отметьте согласие, чтобы оформить заказ.
-                                    </span>
-                                ) : null}
-                            </span>
-                        </label>
+                    <div className="mb-5 hidden space-y-3 rounded-2xl border border-admin-border bg-admin-muted/40 p-4 md:block">
+                        <CheckoutTermsConsent
+                            id="checkout-consent-terms"
+                            checked={consentTerms}
+                            showError={showConsentError}
+                            onCheckedChange={setConsentTerms}
+                        />
                     </div>
 
-                    <button
-                        type="submit"
-                        disabled={isPending || !phoneIsValid || !addressIsValid || !consentsValid}
-                        className={`${siteBtnPrimary} w-full px-5 py-3 text-base sm:w-auto`}
-                    >
-                        {isPending ? "Оформление..." : "Подтвердить заказ"}
-                    </button>
+                    <div className="hidden md:block">
+                        <button
+                            type="submit"
+                            disabled={isPending || !phoneIsValid || !addressIsValid || !consentsValid}
+                            className={`${siteBtnPrimary} w-full px-5 py-3 text-base sm:w-auto`}
+                        >
+                            {isPending ? "Оформление..." : "Подтвердить заказ"}
+                        </button>
 
-                    {errorMessage && (
-                        <div role="alert" className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                            {errorMessage}
-                        </div>
-                    )}
+                        {errorMessage && (
+                            <div role="alert" className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                                {errorMessage}
+                            </div>
+                        )}
+                    </div>
                 </form>
 
-                <aside className={`${siteCard} p-5`}>
+                <aside className={`${siteCard} overflow-hidden`}>
+                    <div className="p-5">
                     <div className="mb-4 text-lg font-medium text-admin-text">Ваш заказ</div>
 
                     <div className="space-y-4">
@@ -1183,27 +1259,27 @@ export default function CheckoutPage() {
                             const unitPrice = cartItemCustomerUnitPrice(item, checkoutLineLoyaltyPercent);
                             const strikePrice = cartItemStrikeUnitPrice(item, checkoutLineLoyaltyPercent);
                             return (
-                            <div key={item.id} className="border-b border-[var(--line)] pb-4 last:border-b-0">
-                                <div className="font-medium">{lineItemProductTitle(item)}</div>
-                                <div className="text-sm text-[var(--text-secondary)]">
-                                    {item.variant?.display_name || item.variant?.title}
-                                </div>
-                                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--text-secondary)]">
-                                    <span>
-                                        {item.qty} × {formatMoneyRub(unitPrice)}
-                                        {strikePrice ? (
-                                            <span className="ml-2 line-through">
-                                                {formatMoneyRub(strikePrice)}
-                                            </span>
-                                        ) : null}
-                                    </span>
-                                    {item.waiting_discount && item.waiting_discount_percent !== null && (
-                                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-                                            -{item.waiting_discount_percent}% за ожидание
+                                <div key={item.id} className="border-b border-[var(--line)] pb-4 last:border-b-0">
+                                    <div className="font-medium">{lineItemProductTitle(item)}</div>
+                                    <div className="text-sm text-[var(--text-secondary)]">
+                                        {item.variant?.display_name || item.variant?.title}
+                                    </div>
+                                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--text-secondary)]">
+                                        <span>
+                                            {item.qty} × {formatMoneyRub(unitPrice)}
+                                            {strikePrice ? (
+                                                <span className="ml-2 line-through">
+                                                    {formatMoneyRub(strikePrice)}
+                                                </span>
+                                            ) : null}
                                         </span>
-                                    )}
+                                        {item.waiting_discount && item.waiting_discount_percent !== null && (
+                                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                                                -{item.waiting_discount_percent}% за ожидание
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
                             );
                         })}
                     </div>
@@ -1220,10 +1296,17 @@ export default function CheckoutPage() {
                             grandTotal={quote?.total}
                             waitingDiscountAmount={waitingDiscountAmount}
                             sampleGift={paymentMethod === "cash"}
+                            hidePayBar
                         />
                     </div>
 
-                    <div className="mt-5 space-y-3 border-t border-[var(--line)] pt-4">
+                    {errorMessage ? (
+                        <div role="alert" className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 md:hidden">
+                            {errorMessage}
+                        </div>
+                    ) : null}
+
+                    <div className="mt-5 hidden space-y-3 border-t border-[var(--line)] pt-4 md:block">
                         <div>
                             <label htmlFor={giftCodeId} className="mb-1 block text-xs text-[var(--text-secondary)]">Подарочный сертификат</label>
                             {!cart.gift_certificate ? (
@@ -1443,59 +1526,151 @@ export default function CheckoutPage() {
                     </div>
 
                     {cardInCheckout ? (
-                        <p className="mt-3 text-xs leading-5 text-[var(--text-secondary)]">
+                        <p className="mt-3 hidden text-xs leading-5 text-[var(--text-secondary)] md:block">
                             Карта <span className="font-mono text-[var(--foreground)]">{cardInCheckout.number}</span> в корзине.
                             {paymentMethod === "card"
                                 ? " При оплате картой процент скидки к заказу не применяется."
                                 : parseCheckoutMoney(quote?.loyalty_discount_amount ?? cardInCheckout.discount_amount) > 0
-                                  ? <> Скидка: {quote?.loyalty_discount_percent ?? cardInCheckout.discount_percent}% (−{withBynSign(
+                                    ? <> Скидка: {quote?.loyalty_discount_percent ?? cardInCheckout.discount_percent}% (−{withBynSign(
                                         formatMoneyDisplay(
                                             quote?.loyalty_discount_amount ?? cardInCheckout.discount_amount,
                                         ) ??
-                                            (quote?.loyalty_discount_amount ?? cardInCheckout.discount_amount),
+                                        (quote?.loyalty_discount_amount ?? cardInCheckout.discount_amount),
                                     )}).</>
-                                  : " Скидка по карте для текущих условий не применяется."}
+                                    : " Скидка по карте для текущих условий не применяется."}
                         </p>
                     ) : null}
+                    </div>
+                    <CartPricingPayBar total={merchandisePayStr} grandTotal={quote?.total} />
                 </aside>
             </div>
 
+            <div
+                ref={mobileCheckoutBarRef}
+                className="fixed inset-x-0 z-[130] border-t border-admin-border bg-admin-surface/95 backdrop-blur md:hidden"
+                style={{ bottom: "calc(var(--storefront-tab-bar-height, 0px) + var(--storefront-keyboard-inset, 0px))" }}
+            >
+                <div className="mx-auto max-w-7xl px-4 py-2">
+                    <MobileBenefitButtons />
+                </div>
+                <div className="border-t border-admin-border px-4 py-3">
+                    <div className="mx-auto max-w-7xl">
+                        <div className="mb-2 flex items-center gap-1.5">
+                            <label
+                                htmlFor="checkout-consent-terms-mobile"
+                                className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 text-xs text-admin-text"
+                            >
+                                <input
+                                    id="checkout-consent-terms-mobile"
+                                    type="checkbox"
+                                    aria-invalid={showConsentError || undefined}
+                                    checked={consentTerms}
+                                    onChange={(event) => setConsentTerms(event.target.checked)}
+                                    className={`h-3.5 w-3.5 shrink-0 rounded border-admin-border accent-admin-primary ${
+                                        showConsentError ? "outline outline-2 outline-offset-1 outline-red-500" : ""
+                                    }`}
+                                />
+                                <span className={showConsentError ? "text-red-600" : undefined}>Согласие</span>
+                            </label>
+                            <button
+                                type="button"
+                                onClick={() => setConsentInfoOpen(true)}
+                                aria-label="Подробнее о согласии"
+                                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
+                            >
+                                <Info className="h-3.5 w-3.5" aria-hidden />
+                            </button>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <div className="min-w-0 flex-1">
+                                <div className="text-xs text-admin-text-secondary">К оплате</div>
+                                <div className="truncate text-lg font-semibold">{formatMoneyRub(checkoutPayStr)}</div>
+                            </div>
+                            <button
+                                type="submit"
+                                form="checkout-form"
+                                disabled={isPending || !phoneIsValid || !addressIsValid || !consentsValid}
+                                className={`${siteBtnPrimary} shrink-0 px-4 py-2.5 text-sm`}
+                            >
+                                {isPending ? "Оформление..." : "Подтвердить"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {consentInfoOpen && typeof document !== "undefined"
+                ? createPortal(
+                    <div
+                        className="fixed inset-x-0 top-0 z-[140] flex items-end justify-center bg-slate-900/40 p-0"
+                        style={{
+                            bottom: "calc(var(--storefront-tab-bar-height, 0px) + var(--storefront-keyboard-inset, 0px))",
+                        }}
+                        onClick={() => setConsentInfoOpen(false)}
+                        role="presentation"
+                    >
+                        <div
+                            className="w-full rounded-t-2xl border border-admin-border bg-admin-surface p-4 shadow-2xl"
+                            onClick={(event) => event.stopPropagation()}
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="checkout-consent-info-title"
+                        >
+                            <div id="checkout-consent-info-title" className="mb-2 text-base font-semibold text-admin-text">
+                                Согласие
+                            </div>
+                            <p className="text-sm leading-relaxed text-admin-text-secondary">
+                                <CheckoutTermsText />
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => setConsentInfoOpen(false)}
+                                className={`${siteBtnPrimary} mt-4 w-full`}
+                            >
+                                Понятно
+                            </button>
+                        </div>
+                    </div>,
+                    document.body,
+                )
+                : null}
+
             {cardSampleWarningOpen && typeof document !== "undefined"
                 ? createPortal(
-                      <div
-                          className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-900/40 p-0 backdrop-blur-[1px] sm:items-center sm:p-4"
-                          onClick={() => setCardSampleWarningOpen(false)}
-                          role="presentation"
-                      >
-                          <div
-                              className="flex w-full max-w-md flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface p-5 shadow-2xl sm:rounded-xl"
-                              onClick={(e) => e.stopPropagation()}
-                              role="dialog"
-                              aria-modal="true"
-                              aria-labelledby="card-sample-warning-title"
-                          >
-                              <div
-                                  id="card-sample-warning-title"
-                                  className="mb-2 text-lg font-semibold text-admin-text"
-                              >
-                                  Внимание
-                              </div>
-                              <p className="text-sm leading-relaxed text-admin-text-secondary">
-                                  {CARD_SAMPLE_GIFT_WARNING}
-                              </p>
-                              <div className="mt-5 flex justify-end">
-                                  <button
-                                      type="button"
-                                      onClick={() => setCardSampleWarningOpen(false)}
-                                      className={`${siteBtnPrimary} w-full sm:w-auto`}
-                                  >
-                                      Понятно
-                                  </button>
-                              </div>
-                          </div>
-                      </div>,
-                      document.body,
-                  )
+                    <div
+                        className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-900/40 p-0 backdrop-blur-[1px] sm:items-center sm:p-4"
+                        onClick={() => setCardSampleWarningOpen(false)}
+                        role="presentation"
+                    >
+                        <div
+                            className="flex w-full max-w-md flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface p-5 shadow-2xl sm:rounded-xl"
+                            onClick={(e) => e.stopPropagation()}
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="card-sample-warning-title"
+                        >
+                            <div
+                                id="card-sample-warning-title"
+                                className="mb-2 text-lg font-semibold text-admin-text"
+                            >
+                                Внимание
+                            </div>
+                            <p className="text-sm leading-relaxed text-admin-text-secondary">
+                                {CARD_SAMPLE_GIFT_WARNING}
+                            </p>
+                            <div className="mt-5 flex justify-end">
+                                <button
+                                    type="button"
+                                    onClick={() => setCardSampleWarningOpen(false)}
+                                    className={`${siteBtnPrimary} w-full sm:w-auto`}
+                                >
+                                    Понятно
+                                </button>
+                            </div>
+                        </div>
+                    </div>,
+                    document.body,
+                )
                 : null}
         </main>
     );
