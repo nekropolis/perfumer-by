@@ -181,6 +181,7 @@ export default async function RootSlugPage({
                     product={product}
                     initialProductReviews={initialProductReviews}
                     initialProductReviewsTotal={reviewsMeta?.total}
+                    initialProductReviewsAverage={reviewsMeta?.average ?? null}
                     variantFromQuery={variantFromQuery}
                 />
             </>

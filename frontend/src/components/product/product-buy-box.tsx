@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { BellRing, ChevronRight, CirclePercent, Package, Store } from "lucide-react";
+import { BellRing, ChevronLeft, ChevronRight, CirclePercent, Package, Store } from "lucide-react";
 import StockNotificationModal from "@/components/product/stock-notification-modal";
 import OneClickOrderTrigger from "@/components/product/one-click-order-trigger";
 import type { ProductReplacementData, ProductVariantData } from "@/types/catalog";
@@ -98,6 +98,8 @@ type Props = {
     surface?: "desktop" | "mobile" | "all";
     /** Иконки справа в закреплённой строке под шапкой. */
     headerActions?: ReactNode;
+    /** Скрыть строку варианта под ценой на мобиле (она под названием). */
+    hideMobileVariantLine?: boolean;
 };
 
 export default function ProductBuyBox({
@@ -122,6 +124,7 @@ export default function ProductBuyBox({
     replacement = null,
     surface = "all",
     headerActions,
+    hideMobileVariantLine = false,
 }: Props) {
     const showDesktop = surface === "all" || surface === "desktop";
     const showMobile = surface === "all" || surface === "mobile";
@@ -203,7 +206,29 @@ export default function ProductBuyBox({
         };
     }, [selectedVariant, waitingDiscountApplicable, waitingDiscountForced, waitingDiscountActive, deliveryDateText, isProductOutOfStock]);
 
-    const hasAnyDiscount = hasLoyaltyDiscount || hasWaitingDiscount || selectedVariant?.discount_percent;
+    const hasAnyDiscount = Boolean(
+        hasLoyaltyDiscount || hasWaitingDiscount || selectedVariant?.discount_percent,
+    );
+    const comparePriceForDiscount =
+        selectedVariant?.old_price || (hasAnyDiscount ? selectedVariant?.price : null) || null;
+    const discountPercentBadge = (() => {
+        if (!selectedVariant) {
+            return null;
+        }
+        if (selectedVariant.discount_percent && selectedVariant.discount_percent > 0) {
+            return selectedVariant.discount_percent;
+        }
+        if (!comparePriceForDiscount || !effectivePrice) {
+            return null;
+        }
+        const oldN = Number(comparePriceForDiscount);
+        const newN = Number(effectivePrice);
+        if (!Number.isFinite(oldN) || !Number.isFinite(newN) || oldN <= 0 || newN >= oldN) {
+            return null;
+        }
+        const pct = Math.round((1 - newN / oldN) * 100);
+        return pct > 0 ? pct : null;
+    })();
 
     useEffect(() => {
         if (!showMobile || !mobileBarPortalReady) {
@@ -260,7 +285,7 @@ export default function ProductBuyBox({
                 return;
             }
 
-            setPricePinned(priceEl.getBoundingClientRect().bottom <= readStickyTop());
+            setPricePinned(priceEl.getBoundingClientRect().top <= readStickyTop());
         };
 
         const disconnect = () => {
@@ -562,7 +587,7 @@ export default function ProductBuyBox({
         : null;
 
     const priceStatusBadges = loyaltyDiscountLabel || waitingDiscountLabel || availability ? (
-        <div className="flex flex-col items-start gap-1">
+        <div className="flex flex-col items-start gap-1.5">
             {loyaltyDiscountLabel ? <PinnedInfoBadge tone="green">{loyaltyDiscountLabel}</PinnedInfoBadge> : null}
             {waitingDiscountLabel ? <PinnedInfoBadge tone="green">{waitingDiscountLabel}</PinnedInfoBadge> : null}
             {availability ? (
@@ -582,33 +607,36 @@ export default function ProductBuyBox({
     ) : null;
 
     const mobilePriceDetails = showMobile ? (
-        <div ref={priceDetailsRef} className="mb-3 xl:hidden">
+        <div className="mb-3 mt-0.5 xl:hidden">
             {hasVariant ? (
                 <>
-                    <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
-                        <div className="text-2xl font-semibold leading-none tabular-nums text-admin-text">
+                    <div
+                        ref={priceDetailsRef}
+                        className="flex flex-nowrap items-baseline gap-x-2"
+                    >
+                        <div className="shrink-0 text-[26px] font-bold leading-none tabular-nums text-admin-text">
                             {effectivePrice ? formatPriceAction(effectivePrice) : priceLabel}
                         </div>
                         {(selectedVariant.old_price || hasAnyDiscount) ? (
-                            <div className="text-base font-medium leading-none text-admin-text-secondary">
+                            <div className="shrink-0 text-sm font-medium leading-none text-admin-text-secondary">
                                 <DiagonalStrike>
                                     {formatPriceAction(selectedVariant.old_price || selectedVariant.price)}
                                 </DiagonalStrike>
                             </div>
                         ) : null}
-                        {selectedVariant.discount_percent ? (
-                            <div className="inline-flex rounded-full bg-admin-muted px-2 py-0.5 text-xs font-medium text-admin-text">
-                                - {selectedVariant.discount_percent}%
-                            </div>
+                        {discountPercentBadge ? (
+                            <span className="inline-flex shrink-0 items-center rounded bg-admin-primary px-1.5 py-0.5 text-xs font-semibold leading-none text-white">
+                                -{discountPercentBadge}%
+                            </span>
                         ) : null}
                     </div>
-                    {selectedVariantLine ? (
-                        <div className="mt-1.5 text-sm font-medium text-admin-text">{selectedVariantLine}</div>
+                    {!hideMobileVariantLine && selectedVariantLine ? (
+                        <div className="mt-1.5 text-sm font-medium text-admin-text-secondary">{selectedVariantLine}</div>
                     ) : null}
-                    {priceStatusBadges ? <div className="mt-1.5">{priceStatusBadges}</div> : null}
+                    {priceStatusBadges ? <div className="mt-2">{priceStatusBadges}</div> : null}
                 </>
             ) : showReplacementCta ? (
-                <div className="flex min-w-0 items-center gap-2.5">
+                <div ref={priceDetailsRef} className="flex min-w-0 items-center gap-2.5">
                     {renderReplacementThumb("h-12 w-12")}
                     <div className="min-w-0">
                         <div className="text-xs text-admin-text-secondary">Предлагаем замену</div>
@@ -616,7 +644,9 @@ export default function ProductBuyBox({
                     </div>
                 </div>
             ) : (
-                <div className="text-sm font-medium text-admin-text">Ожидается поступление</div>
+                <div ref={priceDetailsRef} className="text-sm font-medium text-admin-text">
+                    Ожидается поступление
+                </div>
             )}
         </div>
     ) : null;
@@ -653,22 +683,39 @@ export default function ProductBuyBox({
     const pinnedPriceBar = pricePinned && headerSlot ? (
         <div
             className={[
-                "border-t border-admin-border bg-admin-surface px-3 py-1.5 transition-[opacity,transform] duration-300 ease-out xl:hidden",
+                "border-b border-admin-border bg-admin-surface px-3 py-2.5 shadow-sm transition-[opacity,transform] duration-300 ease-out xl:hidden",
                 priceBarEntered ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0",
             ].join(" ")}
         >
-            <div className="min-w-0">
-                {productName ? (
-                    <div className="truncate text-[15px] font-semibold leading-none text-[#141C2E]">{productName}</div>
-                ) : null}
-                {showReplacementCta && !hasVariant ? (
-                    <div className="mt-0.5 truncate text-xs leading-none text-admin-text-secondary">Предлагаем замену</div>
-                ) : selectedVariantLine ? (
-                    <div className="mt-0.5 truncate text-xs leading-none text-[#667085]">{selectedVariantLine}</div>
-                ) : null}
-                <div className="mt-1 flex min-w-0 items-center gap-2">
-                    <div className="flex min-w-0 flex-1 items-baseline gap-2">
-                        <span className="truncate text-lg font-semibold leading-none tabular-nums text-[#141C2E]">
+            <div className="flex min-w-0 items-start gap-2">
+                <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                        <Link
+                            href="/catalog"
+                            aria-label="В каталог"
+                            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-admin-border bg-admin-muted/70 text-admin-text transition active:scale-90"
+                        >
+                            <ChevronLeft className="h-4 w-4" aria-hidden />
+                        </Link>
+                        <div className="min-w-0 flex-1">
+                            {productName ? (
+                                <div className="truncate text-[15px] font-bold leading-tight text-admin-text">
+                                    {productName}
+                                </div>
+                            ) : null}
+                            {showReplacementCta && !hasVariant ? (
+                                <div className="mt-0.5 truncate text-sm font-medium leading-snug text-admin-text-secondary">
+                                    Предлагаем замену
+                                </div>
+                            ) : selectedVariantLine ? (
+                                <div className="mt-0.5 truncate text-sm font-medium leading-snug text-admin-text-secondary">
+                                    {selectedVariantLine}
+                                </div>
+                            ) : null}
+                        </div>
+                    </div>
+                    <div className="mt-1.5 flex flex-nowrap items-baseline gap-x-2">
+                        <span className="shrink-0 text-[22px] font-bold leading-none tabular-nums text-admin-text">
                             {showReplacementCta && !hasVariant
                                 ? replacementTitle
                                 : hasVariant && effectivePrice
@@ -676,31 +723,38 @@ export default function ProductBuyBox({
                                     : priceLabel}
                         </span>
                         {hasVariant && (selectedVariant.old_price || hasAnyDiscount) ? (
-                            <span className="text-sm font-medium leading-none text-admin-text-secondary">
+                            <span className="shrink-0 text-sm font-medium leading-none text-admin-text-secondary">
                                 <DiagonalStrike>
                                     {formatPriceAction(selectedVariant.old_price || selectedVariant.price)}
                                 </DiagonalStrike>
                             </span>
                         ) : null}
-                    </div>
-                    {headerActions ? <div className="flex shrink-0 items-center gap-1">{headerActions}</div> : null}
-                </div>
-                {loyaltyDiscountLabel || waitingDiscountLabel || pinnedConditionText ? (
-                    <div className="mt-1 flex flex-col items-start gap-0.5">
-                        {loyaltyDiscountLabel ? <PinnedInfoBadge tone="green">{loyaltyDiscountLabel}</PinnedInfoBadge> : null}
-                        {waitingDiscountLabel ? <PinnedInfoBadge tone="green">{waitingDiscountLabel}</PinnedInfoBadge> : null}
-                        {pinnedConditionText ? (
-                            availability?.shipping ? (
-                                <PinnedInfoBadge tone="orange">{pinnedConditionText}</PinnedInfoBadge>
-                            ) : availability?.status === "Наличие в магазине" ? (
-                                <PinnedInfoBadge tone="store">{pinnedConditionText}</PinnedInfoBadge>
-                            ) : (
-                                <div className={`truncate text-xs ${availability?.className ?? "text-admin-text-secondary"}`}>
-                                    {pinnedConditionText}
-                                </div>
-                            )
+                        {discountPercentBadge ? (
+                            <span className="inline-flex shrink-0 items-center rounded bg-admin-primary px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white">
+                                -{discountPercentBadge}%
+                            </span>
                         ) : null}
                     </div>
+                    {loyaltyDiscountLabel || waitingDiscountLabel || pinnedConditionText ? (
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            {loyaltyDiscountLabel ? <PinnedInfoBadge tone="green">{loyaltyDiscountLabel}</PinnedInfoBadge> : null}
+                            {waitingDiscountLabel ? <PinnedInfoBadge tone="green">{waitingDiscountLabel}</PinnedInfoBadge> : null}
+                            {pinnedConditionText ? (
+                                availability?.shipping ? (
+                                    <PinnedInfoBadge tone="orange">{pinnedConditionText}</PinnedInfoBadge>
+                                ) : availability?.status === "Наличие в магазине" ? (
+                                    <PinnedInfoBadge tone="store">{pinnedConditionText}</PinnedInfoBadge>
+                                ) : (
+                                    <div className={`truncate text-xs ${availability?.className ?? "text-admin-text-secondary"}`}>
+                                        {pinnedConditionText}
+                                    </div>
+                                )
+                            ) : null}
+                        </div>
+                    ) : null}
+                </div>
+                {headerActions ? (
+                    <div className="flex shrink-0 flex-col items-center gap-1.5 pt-0.5">{headerActions}</div>
                 ) : null}
             </div>
         </div>
@@ -736,8 +790,8 @@ export default function ProductBuyBox({
                                 </div>
                             ) : null}
 
-                            <div className="mb-4 flex flex-wrap items-end gap-2">
-                                <div className="text-4xl font-semibold leading-none">
+                            <div className="mb-4 flex flex-nowrap items-baseline gap-2">
+                                <div className="shrink-0 text-4xl font-bold leading-none tabular-nums">
                                     {effectivePrice
                                         ? formatPriceAction(effectivePrice)
                                         : selectedVariant.is_preorder
@@ -745,18 +799,18 @@ export default function ProductBuyBox({
                                             : "Цена уточняется"}
                                 </div>
 
-                                {(selectedVariant.old_price || hasAnyDiscount) && (
-                                    <div className="self-start mt-0.5 text-xl font-medium leading-none text-admin-text-secondary">
+                                {(selectedVariant.old_price || hasAnyDiscount) ? (
+                                    <div className="shrink-0 text-xl font-medium leading-none text-admin-text-secondary">
                                         <DiagonalStrike>
                                             {formatPriceAction(selectedVariant.old_price || selectedVariant.price)}
                                         </DiagonalStrike>
                                     </div>
-                                )}
+                                ) : null}
 
-                                {selectedVariant.discount_percent ? (
-                                    <div className="inline-flex self-start rounded-full bg-admin-muted px-3 py-1 text-sm font-medium text-admin-text">
-                                        - {selectedVariant.discount_percent}%
-                                    </div>
+                                {discountPercentBadge ? (
+                                    <span className="inline-flex shrink-0 items-center rounded bg-admin-primary px-2 py-1 text-sm font-semibold leading-none text-white">
+                                        -{discountPercentBadge}%
+                                    </span>
                                 ) : null}
                             </div>
 

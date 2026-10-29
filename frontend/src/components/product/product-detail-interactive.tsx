@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, Heart, Share2 } from "lucide-react";
+import { ChevronLeft, Heart, Share2, Star } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import type { ProductDetailData, ProductVariantData } from "@/types/catalog";
@@ -41,6 +41,7 @@ type Props = {
     initialProductReviews?: ReviewItem[];
     /** Всего опубликованных отзывов (список ограничен 50). */
     initialProductReviewsTotal?: number;
+    initialProductReviewsAverage?: number | null;
     attributesContent: React.ReactNode;
     descriptionContent: React.ReactNode;
     deliveryDate?: string | null;
@@ -52,6 +53,7 @@ export default function ProductDetailInteractive({
     product,
     initialProductReviews,
     initialProductReviewsTotal,
+    initialProductReviewsAverage = null,
     attributesContent,
     descriptionContent,
     deliveryDate,
@@ -59,8 +61,27 @@ export default function ProductDetailInteractive({
     variantFromQuery = 0,
 }: Props) {
     const [isPending, startTransition] = useTransition();
-    const [activeTab, setActiveTab] = useState<"attributes" | "reviews">("attributes");
+    const [activeTab, setActiveTab] = useState<"about" | "description" | "reviews">("about");
+    const hasDescription = Boolean(descriptionContent);
     const reviewsTabCount = initialProductReviewsTotal ?? initialProductReviews?.length ?? 0;
+    const reviewsAverage = useMemo(() => {
+        if (initialProductReviewsAverage != null && Number.isFinite(initialProductReviewsAverage)) {
+            return initialProductReviewsAverage;
+        }
+        const list = initialProductReviews ?? [];
+        if (list.length === 0) {
+            return null;
+        }
+        const sum = list.reduce((acc, review) => acc + (Number(review.stars) || 0), 0);
+        return sum / list.length;
+    }, [initialProductReviews, initialProductReviewsAverage]);
+    const reviewsAverageLabel =
+        reviewsAverage != null
+            ? reviewsAverage.toLocaleString("ru-RU", {
+                minimumFractionDigits: 1,
+                maximumFractionDigits: 1,
+            })
+            : null;
     const { cart, setCartState } = useCart();
     const { isInWishlist, toggleWishlist } = useWishlist();
     const { user, isAuthenticated } = useAuth();
@@ -159,6 +180,8 @@ export default function ProductDetailInteractive({
     const reviewsMetaLabel = formatReviewsCountLabel(reviewsTabCount);
 
     const productTitle = product.h1 || productDisplayName(product);
+    const brandName = product.brand?.name?.trim() || "";
+    const productNameOnly = product.name.trim() || productTitle;
 
     const openReviewsTab = () => {
         setActiveTab("reviews");
@@ -245,6 +268,9 @@ export default function ProductDetailInteractive({
         });
     };
 
+    const mobileOverlayBtnClass =
+        "inline-flex h-9 w-9 items-center justify-center rounded-full border border-admin-border bg-white/95 text-admin-text shadow-sm transition active:scale-90";
+
     const stickyHeaderActions = (
         <>
             <button
@@ -252,29 +278,65 @@ export default function ProductDetailInteractive({
                 onClick={() => void toggleWishlist(product.id)}
                 aria-pressed={inWishlist}
                 aria-label={inWishlist ? "Убрать из избранного" : "Добавить в избранное"}
-                className={`inline-flex h-7 w-7 items-center justify-center rounded-full ${inWishlist ? "text-admin-primary" : "text-admin-text-secondary"
-                    }`}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-admin-border bg-white text-admin-text shadow-sm transition active:scale-90"
             >
-                <Heart className={`h-[18px] w-[18px] ${inWishlist ? "fill-current" : ""}`} aria-hidden />
+                <Heart
+                    className={`h-[18px] w-[18px] ${inWishlist ? "fill-admin-primary text-admin-primary" : "fill-transparent"}`}
+                    strokeWidth={1.75}
+                    aria-hidden
+                />
             </button>
             <button
                 type="button"
                 onClick={shareProduct}
                 aria-label={shareCopied ? "Ссылка скопирована" : "Поделиться"}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-full text-admin-text-secondary"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-admin-border bg-white text-admin-text shadow-sm transition active:scale-90"
             >
-                <Share2 className="h-[18px] w-[18px]" aria-hidden />
+                <Share2 className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden />
             </button>
         </>
     );
 
+    const selectedVariantLine = !selectedVariant
+        ? null
+        : selectedVariant.is_set
+            ? "Набор"
+            : [formatVariantVolumeLine(selectedVariant), formatVariantConcentrationLabel(selectedVariant)]
+                .filter((part) => part.trim().length > 0)
+                .join(" · ");
+
+    const reviewsSummaryButton = (
+        <button
+            type="button"
+            onClick={openReviewsTab}
+            className="inline-flex items-center gap-1.5 text-sm transition hover:opacity-80"
+            aria-label={reviewsMetaLabel}
+        >
+            <Star
+                className="h-4 w-4 shrink-0 text-[var(--review-star)]"
+                fill="currentColor"
+                strokeWidth={0}
+                aria-hidden
+            />
+            {reviewsAverageLabel ? (
+                <span className="font-medium tabular-nums text-admin-text">{reviewsAverageLabel}</span>
+            ) : null}
+            <span className="text-admin-text-secondary">({reviewsMetaLabel})</span>
+        </button>
+    );
+
     return (
         <>
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-[320px_minmax(0,1fr)] md:items-start md:gap-8 xl:grid-cols-[310px_minmax(0,1fr)_320px] xl:items-stretch xl:gap-5 xl:[grid-template-areas:'gallery_variants_buybox'_'service_service_buybox'_'tabs_tabs_buybox']">
-                <div className="order-2 md:order-none xl:[grid-area:gallery]">
+            <div className="grid grid-cols-1 gap-1.5 md:grid-cols-[320px_minmax(0,1fr)] md:items-start md:gap-8 xl:grid-cols-[310px_minmax(0,1fr)_320px] xl:items-stretch xl:gap-5 xl:[grid-template-areas:'gallery_variants_buybox'_'service_service_buybox'_'tabs_tabs_buybox']">
+                <div className="order-1 md:order-none xl:[grid-area:gallery]">
                     <ProductDetailGallery
                         product={product}
                         selectedVariantHasPromotion={selectedVariantHasPromotion}
+                        mobileBackAction={
+                            <Link href="/catalog" aria-label="В каталог" className={mobileOverlayBtnClass}>
+                                <ChevronLeft className="h-5 w-5" aria-hidden />
+                            </Link>
+                        }
                         mobileActions={
                             <>
                                 <button
@@ -282,10 +344,10 @@ export default function ProductDetailInteractive({
                                     onClick={() => void toggleWishlist(product.id)}
                                     aria-pressed={inWishlist}
                                     aria-label={inWishlist ? "Убрать из избранного" : "Добавить в избранное"}
-                                    className={`inline-flex h-8 w-8 items-center justify-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)] transition active:scale-90 ${inWishlist ? "text-black" : "text-white"}`}
+                                    className={mobileOverlayBtnClass}
                                 >
                                     <Heart
-                                        className={`h-6 w-6 ${inWishlist ? "fill-black" : "fill-transparent"}`}
+                                        className={`h-5 w-5 ${inWishlist ? "fill-admin-primary text-admin-primary" : "fill-transparent"}`}
                                         strokeWidth={2}
                                         aria-hidden
                                     />
@@ -294,9 +356,9 @@ export default function ProductDetailInteractive({
                                     type="button"
                                     onClick={shareProduct}
                                     aria-label={shareCopied ? "Ссылка скопирована" : "Поделиться"}
-                                    className="inline-flex h-8 w-8 items-center justify-center text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)] transition active:scale-90"
+                                    className={mobileOverlayBtnClass}
                                 >
-                                    <Share2 className="h-6 w-6" strokeWidth={2} aria-hidden />
+                                    <Share2 className="h-5 w-5" strokeWidth={2} aria-hidden />
                                 </button>
                             </>
                         }
@@ -304,62 +366,61 @@ export default function ProductDetailInteractive({
                 </div>
 
                 <section className="contents min-w-0 md:block xl:[grid-area:variants]">
-                    <div className="order-1 md:order-none">
-                        <div className="flex items-start gap-0.5 md:mb-2 md:block">
-                            <Link
-                                href="/catalog"
-                                aria-label="В каталог"
-                                className="mt-px inline-flex shrink-0 text-admin-text-secondary md:hidden"
-                            >
-                                <ChevronLeft className="h-4 w-4" aria-hidden />
-                            </Link>
-                            <div className="flex min-w-0 flex-1 flex-col">
-                                <h1 className="order-1 font-display text-base font-semibold leading-tight md:order-2 md:mb-2 md:text-4xl">
-                                    {productTitle}
-                                </h1>
-                                <div className="order-2 hidden flex-wrap items-center justify-between gap-x-3 gap-y-1 md:order-1 md:mb-2 md:flex">
-                                    {product.brand ? (
-                                        <Link
-                                            href={`/brands/${product.brand.slug}`}
-                                            className="min-w-0 truncate text-sm font-medium uppercase tracking-[0.08em] text-admin-text-secondary transition hover:text-admin-text"
-                                        >
-                                            {product.brand.name}
-                                        </Link>
-                                    ) : (
-                                        <span />
-                                    )}
+                    <div className="order-2 md:order-none md:mb-2">
+                        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                            {product.brand ? (
+                                <Link
+                                    href={`/brands/${product.brand.slug}`}
+                                    className="min-w-0 truncate text-sm font-medium text-admin-text-secondary transition hover:text-admin-text"
+                                >
+                                    {brandName}
+                                </Link>
+                            ) : (
+                                <span />
+                            )}
 
-                                    <div className="hidden shrink-0 items-center gap-1 md:flex">
-                                        <button
-                                            type="button"
-                                            onClick={() => void toggleWishlist(product.id)}
-                                            aria-pressed={inWishlist}
-                                            aria-label={inWishlist ? "Убрать из избранного" : "Добавить в избранное"}
-                                            className={`inline-flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-admin-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-primary ${inWishlist
-                                                ? "text-admin-primary"
-                                                : "text-admin-text-secondary hover:text-admin-text"
-                                                }`}
-                                        >
-                                            <Heart
-                                                className={`h-5 w-5 shrink-0 ${inWishlist ? "fill-current" : ""}`}
-                                                aria-hidden
-                                            />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={shareProduct}
-                                            aria-label={shareCopied ? "Ссылка скопирована" : "Поделиться"}
-                                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-primary"
-                                        >
-                                            <Share2 className="h-5 w-5 shrink-0" aria-hidden />
-                                        </button>
-                                    </div>
-                                </div>
+                            <div className="hidden shrink-0 items-center gap-1 md:flex">
+                                <button
+                                    type="button"
+                                    onClick={() => void toggleWishlist(product.id)}
+                                    aria-pressed={inWishlist}
+                                    aria-label={inWishlist ? "Убрать из избранного" : "Добавить в избранное"}
+                                    className={`inline-flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-admin-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-primary ${inWishlist
+                                        ? "text-admin-primary"
+                                        : "text-admin-text-secondary hover:text-admin-text"
+                                        }`}
+                                >
+                                    <Heart
+                                        className={`h-5 w-5 shrink-0 ${inWishlist ? "fill-current" : ""}`}
+                                        aria-hidden
+                                    />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={shareProduct}
+                                    aria-label={shareCopied ? "Ссылка скопирована" : "Поделиться"}
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-primary"
+                                >
+                                    <Share2 className="h-5 w-5 shrink-0" aria-hidden />
+                                </button>
                             </div>
                         </div>
+                        <h1 className="sr-only">{productTitle}</h1>
+                        <p
+                            className="mt-0.5 text-[22px] font-bold leading-tight tracking-tight text-admin-text md:mt-1.5 md:font-display md:text-4xl md:font-semibold md:tracking-normal"
+                            aria-hidden="true"
+                        >
+                            {productNameOnly}
+                        </p>
+                        {selectedVariantLine ? (
+                            <div className="mt-0.5 text-sm font-medium text-admin-text-secondary md:hidden">
+                                {selectedVariantLine}
+                            </div>
+                        ) : null}
+                        <div className="mt-1">{reviewsSummaryButton}</div>
                     </div>
 
-                    <div className="order-3 md:order-none">
+                    <div className="order-3 md:order-none md:mt-0">
                         <ProductBuyBox
                             selectedVariant={selectedVariant}
                             isSelectedVariantInCart={isSelectedVariantInCart}
@@ -386,6 +447,7 @@ export default function ProductDetailInteractive({
                             replacement={product.replacement ?? null}
                             surface="mobile"
                             headerActions={stickyHeaderActions}
+                            hideMobileVariantLine
                         />
                     </div>
 
@@ -409,40 +471,13 @@ export default function ProductDetailInteractive({
                                     iconSize={12}
                                 />
                             </span>
-                            <button
-                                type="button"
-                                onClick={openReviewsTab}
-                                className="hidden text-admin-text-secondary transition hover:text-admin-text md:inline"
-                            >
-                                {reviewsMetaLabel}
-                            </button>
                         </div>
                     </div>
 
                     <div className="order-5 md:order-none">
-                        {variants.length === 0 ? (
-                            <div className="mb-3 flex justify-end md:hidden">
-                                <button
-                                    type="button"
-                                    onClick={openReviewsTab}
-                                    className="text-sm text-admin-text-secondary transition hover:text-admin-text"
-                                >
-                                    {reviewsMetaLabel}
-                                </button>
-                            </div>
-                        ) : null}
                         {variants.length > 0 ? (
                             <>
-                                <div className="mb-3 flex items-baseline justify-between gap-3">
-                                    <div className="text-lg font-semibold text-admin-text">Выбор вариантов</div>
-                                    <button
-                                        type="button"
-                                        onClick={openReviewsTab}
-                                        className="shrink-0 text-sm text-admin-text-secondary transition hover:text-admin-text md:hidden"
-                                    >
-                                        {reviewsMetaLabel}
-                                    </button>
-                                </div>
+                                <div className="mb-3 text-lg font-semibold text-admin-text">Выбор вариантов</div>
                                 <div className="mb-4 xl:mb-0">
                                     <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
                                         {variants.map((variant) => {
@@ -573,7 +608,7 @@ export default function ProductDetailInteractive({
                     <ProductServiceInfo delivery={deliveryInfo} />
                 </section>
 
-                <section id="product-info-tabs" className="order-7 min-w-0 md:order-none md:col-span-2 xl:[grid-area:tabs]">
+                <section id="product-info-tabs" className="order-7 mt-5 min-w-0 md:order-none md:col-span-2 md:mt-6 xl:[grid-area:tabs]">
                     <div>
                         <div
                             className="flex items-center gap-2 overflow-x-auto border-b border-admin-border pb-3"
@@ -583,17 +618,34 @@ export default function ProductDetailInteractive({
                             <button
                                 type="button"
                                 role="tab"
-                                id="product-tab-attributes"
-                                aria-controls="product-tabpanel-attributes"
-                                aria-selected={activeTab === "attributes"}
-                                onClick={() => setActiveTab("attributes")}
-                                className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors ${activeTab === "attributes"
+                                id="product-tab-about"
+                                aria-controls="product-tabpanel-about"
+                                aria-selected={activeTab === "about"}
+                                onClick={() => setActiveTab("about")}
+                                className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors ${activeTab === "about"
                                     ? "bg-admin-primary text-white"
                                     : "text-admin-text-secondary hover:text-admin-text"
                                     }`}
                             >
-                                Характеристики
+                                О товаре
                             </button>
+
+                            {hasDescription ? (
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    id="product-tab-description"
+                                    aria-controls="product-tabpanel-description"
+                                    aria-selected={activeTab === "description"}
+                                    onClick={() => setActiveTab("description")}
+                                    className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors ${activeTab === "description"
+                                        ? "bg-admin-primary text-white"
+                                        : "text-admin-text-secondary hover:text-admin-text"
+                                        }`}
+                                >
+                                    Описание
+                                </button>
+                            ) : null}
 
                             <button
                                 type="button"
@@ -617,14 +669,27 @@ export default function ProductDetailInteractive({
 
                         <div className="pt-1 sm:pt-2">
                             <div
-                                className={activeTab === "attributes" ? "block" : "hidden"}
+                                className={activeTab === "about" ? "block" : "hidden"}
                                 role="tabpanel"
-                                id="product-tabpanel-attributes"
-                                aria-labelledby="product-tab-attributes"
-                                aria-hidden={activeTab !== "attributes"}
+                                id="product-tabpanel-about"
+                                aria-labelledby="product-tab-about"
+                                aria-hidden={activeTab !== "about"}
                             >
                                 {attributesContent}
                             </div>
+
+                            {/* Описание всегда в DOM (hidden), чтобы SEO не теряло текст. */}
+                            {hasDescription ? (
+                                <div
+                                    className={activeTab === "description" ? "block" : "hidden"}
+                                    role="tabpanel"
+                                    id="product-tabpanel-description"
+                                    aria-labelledby="product-tab-description"
+                                    aria-hidden={activeTab !== "description"}
+                                >
+                                    {descriptionContent}
+                                </div>
+                            ) : null}
 
                             <div
                                 className={activeTab === "reviews" ? "block" : "hidden"}
@@ -639,8 +704,6 @@ export default function ProductDetailInteractive({
                                     initialReviews={initialProductReviews}
                                 />
                             </div>
-
-                            {descriptionContent}
                         </div>
                     </div>
                 </section>

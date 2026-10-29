@@ -14,6 +14,7 @@ type Props = {
     initialProductReviews?: ReviewItem[];
     /** Всего опубликованных отзывов (список ограничен 50). */
     initialProductReviewsTotal?: number;
+    initialProductReviewsAverage?: number | null;
     variantFromQuery?: number;
 };
 
@@ -21,6 +22,7 @@ export default async function ProductDetailPage({
     product,
     initialProductReviews,
     initialProductReviewsTotal,
+    initialProductReviewsAverage = null,
     variantFromQuery = 0,
 }: Props) {
     let deliveryDate = DEFAULT_SITE_CONTENT.waiting_discount_delivery_date;
@@ -42,7 +44,7 @@ export default async function ProductDetailPage({
     }
 
     return (
-        <main className="mx-auto max-w-7xl px-4 pb-28 pt-1.5 sm:px-6 md:py-8 xl:pb-8">
+        <main className="mx-auto max-w-7xl px-4 pb-28 pt-1 sm:px-6 md:py-8 xl:pb-8">
             <Breadcrumbs
                 alwaysShow
                 className="max-md:sr-only md:mb-4"
@@ -52,8 +54,13 @@ export default async function ProductDetailPage({
                 product={product}
                 initialProductReviews={initialProductReviews}
                 initialProductReviewsTotal={initialProductReviewsTotal}
+                initialProductReviewsAverage={initialProductReviewsAverage}
                 attributesContent={<ProductDetailAttributes product={product} />}
-                descriptionContent={<ProductDetailDescription description={product.description} />}
+                descriptionContent={
+                    product.description ? (
+                        <ProductDetailDescription description={product.description} embedded />
+                    ) : null
+                }
                 deliveryDate={deliveryDate}
                 deliveryInfo={deliveryInfo}
                 variantFromQuery={variantFromQuery}
