@@ -162,119 +162,117 @@ export default function MobileBenefitButtons() {
             <div
                 id={panelId}
                 inert={open ? undefined : true}
-                className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${
-                    open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
-                }`}
+                className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                    }`}
             >
                 <div className="min-h-0 overflow-hidden">
-                <div
-                    className={`space-y-3 px-0.5 pb-1 pt-1 transition-transform duration-300 ease-out motion-reduce:transition-none ${
-                        open ? "translate-y-0" : "-translate-y-1"
-                    }`}
-                >
-                    {certificate ? (
-                        <AppliedRow
-                            label={`Сертификат ${certificate.code}${certificate.amount ? ` · ${formatMoneyRubText(certificate.amount)}` : ""}`}
-                            onRemove={() => setConfirmClear("gift")}
-                        />
-                    ) : (
-                        <Field
-                            id={giftInputId}
-                            label="Номер сертификата"
-                            placeholder="Введите код"
-                            value={giftCode}
-                            inputRef={giftInputRef}
-                            invalid={Boolean(giftError)}
-                            onChange={(value) => {
-                                setGiftCode(normalizeGiftCertificateCodeInput(value));
-                                setGiftError("");
-                            }}
-                        />
-                    )}
-
-                    {discountCard ? (
-                        <AppliedRow
-                            label={`Карта ${discountCard.number}${discountCard.discount_percent ? ` · ${discountCard.discount_percent}%` : ""}`}
-                            onRemove={() => setConfirmClear("card")}
-                        />
-                    ) : (
-                        <Field
-                            id={cardInputId}
-                            label="Карта лояльности"
-                            placeholder="Номер телефона или карты"
-                            value={cardNumber}
-                            invalid={Boolean(cardError)}
-                            onChange={(value) => {
-                                setCardNumber(value);
-                                setCardConflict(null);
-                                setCardError("");
-                            }}
-                        />
-                    )}
-
-                    <input
-                        type="text"
-                        value={giftHoneypot}
-                        onChange={(event) => setGiftHoneypot(event.target.value)}
-                        tabIndex={-1}
-                        autoComplete="off"
-                        aria-hidden="true"
-                        className="hidden"
-                    />
-
-                    {giftError ? <Message tone="error">{giftError}</Message> : null}
-                    {cardError ? <Message tone="error">{cardError}</Message> : null}
-                    {cardConflict ? (
-                        <Message tone="warning">
-                            Применить эту карту только к текущему заказу? Карта в профиле не изменится. Нажмите «Применить скидку» ещё раз.
-                        </Message>
-                    ) : null}
-                    {confirmClear === "gift" && certificate ? (
-                        <Message tone="warning">
-                            <span>Убрать сертификат {certificate.code}?</span>
-                            <span className="mt-2 flex gap-2">
-                                <button type="button" onClick={() => setConfirmClear(null)} className={`${siteBtnSecondary} flex-1`}>
-                                    Отмена
-                                </button>
-                                <button
-                                    type="button"
-                                    disabled={isPending}
-                                    onClick={() => clearApplied("gift")}
-                                    className={`${siteBtnPrimary} flex-1`}
-                                >
-                                    Убрать
-                                </button>
-                            </span>
-                        </Message>
-                    ) : null}
-                    {confirmClear === "card" && discountCard ? (
-                        <Message tone="warning">
-                            <span>Убрать карту {discountCard.number}?</span>
-                            <span className="mt-2 flex gap-2">
-                                <button type="button" onClick={() => setConfirmClear(null)} className={`${siteBtnSecondary} flex-1`}>
-                                    Отмена
-                                </button>
-                                <button
-                                    type="button"
-                                    disabled={isPending}
-                                    onClick={() => clearApplied("card")}
-                                    className={`${siteBtnPrimary} flex-1`}
-                                >
-                                    Убрать
-                                </button>
-                            </span>
-                        </Message>
-                    ) : null}
-
-                    <button
-                        type="button"
-                        disabled={isPending || (!canApplyGift && !canApplyCard)}
-                        onClick={applyFilled}
-                        className={`${siteBtnPrimary} w-full`}
+                    <div
+                        className={`space-y-3 px-0.5 pb-1 pt-1 transition-transform duration-300 ease-out motion-reduce:transition-none ${open ? "translate-y-0" : "-translate-y-1"
+                            }`}
                     >
-                        {isPending ? "Применение..." : "Применить скидку"}
-                    </button>
-                </div>
+                        {certificate ? (
+                            <AppliedRow
+                                label={`Сертификат ${certificate.code}${certificate.amount ? ` · ${formatMoneyRubText(certificate.amount)}` : ""}`}
+                                onRemove={() => setConfirmClear("gift")}
+                            />
+                        ) : (
+                            <Field
+                                id={giftInputId}
+                                label="Номер сертификата"
+                                placeholder="Введите код"
+                                value={giftCode}
+                                inputRef={giftInputRef}
+                                invalid={Boolean(giftError)}
+                                onChange={(value) => {
+                                    setGiftCode(normalizeGiftCertificateCodeInput(value));
+                                    setGiftError("");
+                                }}
+                            />
+                        )}
+
+                        {discountCard ? (
+                            <AppliedRow
+                                label={`Карта ${discountCard.number}${discountCard.discount_percent ? ` · ${discountCard.discount_percent}%` : ""}`}
+                                onRemove={() => setConfirmClear("card")}
+                            />
+                        ) : (
+                            <Field
+                                id={cardInputId}
+                                label="Карта лояльности"
+                                placeholder="Номер телефона или карты"
+                                value={cardNumber}
+                                invalid={Boolean(cardError)}
+                                onChange={(value) => {
+                                    setCardNumber(value);
+                                    setCardConflict(null);
+                                    setCardError("");
+                                }}
+                            />
+                        )}
+
+                        <input
+                            type="text"
+                            value={giftHoneypot}
+                            onChange={(event) => setGiftHoneypot(event.target.value)}
+                            tabIndex={-1}
+                            autoComplete="off"
+                            aria-hidden="true"
+                            className="hidden"
+                        />
+
+                        {giftError ? <Message tone="error">{giftError}</Message> : null}
+                        {cardError ? <Message tone="error">{cardError}</Message> : null}
+                        {cardConflict ? (
+                            <Message tone="warning">
+                                Применить эту карту только к текущему заказу? Карта в профиле не изменится. Нажмите «Применить скидку» ещё раз.
+                            </Message>
+                        ) : null}
+                        {confirmClear === "gift" && certificate ? (
+                            <Message tone="warning">
+                                <span>Убрать сертификат {certificate.code}?</span>
+                                <span className="mt-2 flex gap-2">
+                                    <button type="button" onClick={() => setConfirmClear(null)} className={`${siteBtnSecondary} flex-1`}>
+                                        Отмена
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={isPending}
+                                        onClick={() => clearApplied("gift")}
+                                        className={`${siteBtnPrimary} flex-1`}
+                                    >
+                                        Убрать
+                                    </button>
+                                </span>
+                            </Message>
+                        ) : null}
+                        {confirmClear === "card" && discountCard ? (
+                            <Message tone="warning">
+                                <span>Убрать карту {discountCard.number}?</span>
+                                <span className="mt-2 flex gap-2">
+                                    <button type="button" onClick={() => setConfirmClear(null)} className={`${siteBtnSecondary} flex-1`}>
+                                        Отмена
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={isPending}
+                                        onClick={() => clearApplied("card")}
+                                        className={`${siteBtnPrimary} flex-1`}
+                                    >
+                                        Убрать
+                                    </button>
+                                </span>
+                            </Message>
+                        ) : null}
+
+                        <button
+                            type="button"
+                            disabled={isPending || (!canApplyGift && !canApplyCard)}
+                            onClick={applyFilled}
+                            className={`${siteBtnPrimary} w-full`}
+                        >
+                            {isPending ? "Применение..." : "Применить скидку"}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
