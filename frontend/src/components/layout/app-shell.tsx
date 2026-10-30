@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import Header from "@/components/layout/header";
 import RecentlyViewedSection from "@/components/layout/recently-viewed-section";
 import ScrollToTopButton from "@/components/layout/scroll-to-top-button";
+import StorefrontKeyboardController from "@/components/layout/storefront-keyboard-controller";
 
 function recentlyViewedExcludeSlug(pathname: string): string | null {
     if (!/^\/[^/]+$/.test(pathname) || pathname === "/") {
@@ -37,6 +38,7 @@ export default function AppShell({ children, footer }: Props) {
             >
                 Перейти к содержимому
             </a>
+            <StorefrontKeyboardController />
             <Header />
             {/* Pages own <main> for a11y/SEO; avoid nested <main> hydration/DOM repair issues */}
             <div id="main-content" tabIndex={-1} className="w-full min-w-0 max-w-full flex-1">

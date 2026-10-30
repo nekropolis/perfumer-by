@@ -100,6 +100,8 @@ type Props = {
     headerActions?: ReactNode;
     /** Скрыть строку варианта под ценой на мобиле (она под названием). */
     hideMobileVariantLine?: boolean;
+    /** Назад с мобильной sticky-строки. */
+    onBackAction?: () => void;
 };
 
 export default function ProductBuyBox({
@@ -125,6 +127,7 @@ export default function ProductBuyBox({
     surface = "all",
     headerActions,
     hideMobileVariantLine = false,
+    onBackAction,
 }: Props) {
     const showDesktop = surface === "all" || surface === "desktop";
     const showMobile = surface === "all" || surface === "mobile";
@@ -274,9 +277,16 @@ export default function ProductBuyBox({
 
         const readStickyTop = () => {
             const stickyTopRaw = getComputedStyle(document.documentElement)
+                .getPropertyValue("--storefront-header-row-height")
+                .trim();
+            const fromHeader = Number.parseFloat(stickyTopRaw);
+            if (Number.isFinite(fromHeader) && fromHeader > 0) {
+                return fromHeader;
+            }
+            const catalogTopRaw = getComputedStyle(document.documentElement)
                 .getPropertyValue("--catalog-toolbar-sticky-top")
                 .trim();
-            return Number.parseFloat(stickyTopRaw) || 64;
+            return Number.parseFloat(catalogTopRaw) || 64;
         };
 
         const updatePinned = () => {
@@ -285,7 +295,10 @@ export default function ProductBuyBox({
                 return;
             }
 
-            setPricePinned(priceEl.getBoundingClientRect().top <= readStickyTop());
+            const stickyTop = readStickyTop();
+            const priceTop = priceEl.getBoundingClientRect().top;
+            // Hysteresis: stay pinned until price is clearly back below the header.
+            setPricePinned((prev) => (prev ? priceTop <= stickyTop + 28 : priceTop <= stickyTop));
         };
 
         const disconnect = () => {
@@ -304,7 +317,7 @@ export default function ProductBuyBox({
             observer = new IntersectionObserver(() => updatePinned(), {
                 root: null,
                 rootMargin: `-${stickyTop}px 0px 0px 0px`,
-                threshold: [0, 1],
+                threshold: [0, 0.01, 1],
             });
             observer.observe(priceEl);
         };
@@ -654,7 +667,7 @@ export default function ProductBuyBox({
     const mobileBar = (
         <div
             ref={mobileBarRef}
-            className="fixed inset-x-0 z-[130] border-t border-admin-border bg-admin-surface/95 px-3 py-2 backdrop-blur xl:hidden"
+            className="storefront-bottom-cta fixed inset-x-0 z-[130] border-t border-admin-border px-3 py-2 backdrop-blur-md xl:hidden"
             style={{
                 bottom: "calc(var(--storefront-tab-bar-height, env(safe-area-inset-bottom)) + var(--storefront-keyboard-inset, 0px))",
             }}
@@ -690,13 +703,14 @@ export default function ProductBuyBox({
             <div className="flex min-w-0 items-start gap-2">
                 <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-center gap-1.5">
-                        <Link
-                            href="/catalog"
-                            aria-label="В каталог"
+                        <button
+                            type="button"
+                            onClick={() => (onBackAction ? onBackAction() : undefined)}
+                            aria-label="Назад"
                             className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-admin-border bg-admin-muted/70 text-admin-text transition active:scale-90"
                         >
                             <ChevronLeft className="h-4 w-4" aria-hidden />
-                        </Link>
+                        </button>
                         <div className="min-w-0 flex-1">
                             {productName ? (
                                 <div className="truncate text-[15px] font-bold leading-tight text-admin-text">

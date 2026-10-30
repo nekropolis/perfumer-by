@@ -112,7 +112,8 @@ export default function MobileSearchSheet({
             role="dialog"
             aria-modal="true"
             aria-label="Поиск по каталогу"
-            className="fixed inset-x-0 top-0 z-[145] flex flex-col bg-admin-surface md:hidden"
+            className="storefront-keyboard-sheet fixed inset-x-0 top-0 z-[145] flex flex-col bg-admin-surface md:hidden"
+            data-storefront-keyboard-dock=""
             style={{
                 bottom: "calc(var(--storefront-tab-bar-height, 0px) + var(--storefront-keyboard-inset, 0px))",
             }}

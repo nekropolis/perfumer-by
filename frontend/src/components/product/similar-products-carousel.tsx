@@ -122,8 +122,8 @@ export default function SimilarProductsCarousel({ products, title = "Похож�
     }, []);
 
     return (
-        <section className="min-w-0 pt-10" aria-labelledby={scrollerId}>
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <section className="min-w-0 pt-5 md:pt-8" aria-labelledby={scrollerId}>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 md:mb-4">
                 <h2 id={scrollerId} className="text-lg font-semibold text-admin-text">
                     {title}
                 </h2>

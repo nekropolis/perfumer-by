@@ -661,7 +661,7 @@ export default function CheckoutPage() {
 
     if (loading) {
         return (
-            <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+            <main className="mx-auto max-w-7xl px-4 pb-10 pt-[calc(2.5rem+var(--storefront-header-extension-height,0px))] sm:px-6 md:pt-10">
                 {mobileTitleBar}
                 <p className="text-sm text-admin-text-secondary">Загрузка корзины…</p>
             </main>
@@ -673,7 +673,7 @@ export default function CheckoutPage() {
         (cart.items.length === 0 && (cart.gift_certificate_items?.length ?? 0) === 0)
     ) {
         return (
-            <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+            <main className="mx-auto max-w-7xl px-4 pb-10 pt-[calc(2.5rem+var(--storefront-header-extension-height,0px))] sm:px-6 md:pt-10">
                 {mobileTitleBar}
                 <div className="mb-6 hidden items-center justify-between gap-3 md:flex">
                     <h1 className="text-3xl font-semibold">Оформление заказа</h1>
@@ -705,7 +705,7 @@ export default function CheckoutPage() {
         quote?.total && quote.total.trim() !== "" ? quote.total : merchandisePayStr;
 
     return (
-        <main className="mx-auto max-w-7xl px-4 py-3 pb-28 sm:px-6 md:py-10 md:pb-10">
+        <main className="mx-auto max-w-7xl px-4 pb-28 pt-[calc(0.75rem+var(--storefront-header-extension-height,0px))] sm:px-6 md:py-10 md:pb-10">
             {mobileTitleBar}
             <div className="mb-8 hidden items-center justify-between gap-3 md:flex">
                 <h1 className="text-3xl font-semibold">Оформление заказа</h1>
@@ -1547,52 +1547,53 @@ export default function CheckoutPage() {
 
             <div
                 ref={mobileCheckoutBarRef}
-                className="fixed inset-x-0 z-[130] border-t border-admin-border bg-admin-surface/95 backdrop-blur md:hidden"
+                className="storefront-bottom-cta fixed inset-x-0 z-[130] border-t border-admin-border backdrop-blur-md md:hidden"
                 style={{ bottom: "calc(var(--storefront-tab-bar-height, 0px) + var(--storefront-keyboard-inset, 0px))" }}
             >
-                <div className="mx-auto max-w-7xl px-4 py-2">
+                <div className="mx-auto max-w-7xl px-3">
                     <MobileBenefitButtons />
                 </div>
-                <div className="border-t border-admin-border px-4 py-3">
-                    <div className="mx-auto max-w-7xl">
-                        <div className="mb-2 flex items-center gap-1.5">
-                            <label
-                                htmlFor="checkout-consent-terms-mobile"
-                                className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 text-xs text-admin-text"
-                            >
-                                <input
-                                    id="checkout-consent-terms-mobile"
-                                    type="checkbox"
-                                    aria-invalid={showConsentError || undefined}
-                                    checked={consentTerms}
-                                    onChange={(event) => setConsentTerms(event.target.checked)}
-                                    className={`h-3.5 w-3.5 shrink-0 rounded border-admin-border accent-admin-primary ${
-                                        showConsentError ? "outline outline-2 outline-offset-1 outline-red-500" : ""
-                                    }`}
-                                />
-                                <span className={showConsentError ? "text-red-600" : undefined}>Согласие</span>
-                            </label>
-                            <button
-                                type="button"
-                                onClick={() => setConsentInfoOpen(true)}
-                                aria-label="Подробнее о согласии"
-                                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
-                            >
-                                <Info className="h-3.5 w-3.5" aria-hidden />
-                            </button>
+                <div className="border-t border-black/[0.06] px-3 py-2">
+                    <div className="mx-auto flex max-w-7xl items-center gap-2">
+                        <div className="min-w-0 shrink-0 text-[17px] font-semibold leading-none tabular-nums text-admin-text">
+                            {formatMoneyRub(checkoutPayStr)}
                         </div>
-                        <div className="flex items-center gap-3">
-                            <div className="min-w-0 flex-1">
-                                <div className="text-xs text-admin-text-secondary">К оплате</div>
-                                <div className="truncate text-lg font-semibold">{formatMoneyRub(checkoutPayStr)}</div>
+                        <div className="ml-auto flex shrink-0 items-center gap-2">
+                            <div className="inline-flex items-center gap-1">
+                                <label
+                                    htmlFor="checkout-consent-terms-mobile"
+                                    className="inline-flex cursor-pointer items-center gap-1"
+                                >
+                                    <input
+                                        id="checkout-consent-terms-mobile"
+                                        type="checkbox"
+                                        aria-invalid={showConsentError || undefined}
+                                        checked={consentTerms}
+                                        onChange={(event) => setConsentTerms(event.target.checked)}
+                                        className={`h-4 w-4 shrink-0 rounded border-admin-border accent-admin-primary ${
+                                            showConsentError ? "outline outline-2 outline-offset-1 outline-red-500" : ""
+                                        }`}
+                                    />
+                                    <span className={`text-[11px] ${showConsentError ? "text-red-600" : "text-admin-text-secondary"}`}>
+                                        Согласие
+                                    </span>
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => setConsentInfoOpen(true)}
+                                    aria-label="Подробнее о согласии"
+                                    className="-ml-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-admin-text-secondary"
+                                >
+                                    <Info className="h-3.5 w-3.5" aria-hidden />
+                                </button>
                             </div>
                             <button
                                 type="submit"
                                 form="checkout-form"
                                 disabled={isPending || !phoneIsValid || !addressIsValid || !consentsValid}
-                                className={`${siteBtnPrimary} shrink-0 px-4 py-2.5 text-sm`}
+                                className={`${siteBtnPrimary} h-10 shrink-0 px-4 text-sm`}
                             >
-                                {isPending ? "Оформление..." : "Подтвердить"}
+                                {isPending ? "…" : "Подтвердить"}
                             </button>
                         </div>
                     </div>

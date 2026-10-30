@@ -1,7 +1,8 @@
 "use client";
 
-import { Check, ChevronDown, Tag } from "lucide-react";
+import { Check, ChevronRight, Tag } from "lucide-react";
 import { useEffect, useId, useRef, useState, useTransition, type ReactNode, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useCart } from "@/components/cart/cart-provider";
 import {
@@ -23,6 +24,7 @@ export default function MobileBenefitButtons() {
     const { isAuthenticated } = useAuth();
     const [isPending, startTransition] = useTransition();
     const [open, setOpen] = useState(false);
+    const [portalReady, setPortalReady] = useState(false);
     const [giftCode, setGiftCode] = useState("");
     const [giftHoneypot, setGiftHoneypot] = useState("");
     const [giftLastAttemptAt, setGiftLastAttemptAt] = useState(0);
@@ -34,7 +36,7 @@ export default function MobileBenefitButtons() {
     const giftInputRef = useRef<HTMLInputElement>(null);
     const giftInputId = useId();
     const cardInputId = useId();
-    const panelId = useId();
+    const titleId = useId();
 
     const certificate = cart?.gift_certificate ?? null;
     const discountCard = cart?.discount_card ?? null;
@@ -42,18 +44,51 @@ export default function MobileBenefitButtons() {
     const cardValue = cardNumber.trim();
     const canApplyGift = !certificate && giftValue !== "";
     const canApplyCard = !discountCard && cardValue !== "";
+    const hasApplied = Boolean(certificate || discountCard);
+
+    useEffect(() => {
+        setPortalReady(true);
+    }, []);
 
     useEffect(() => {
         if (!open) {
             return;
         }
-        const timer = window.setTimeout(() => giftInputRef.current?.focus(), 50);
-        return () => window.clearTimeout(timer);
-    }, [open]);
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        const timer = window.setTimeout(() => {
+            if (!certificate) {
+                giftInputRef.current?.focus({ preventScroll: true });
+            }
+        }, 320);
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            window.clearTimeout(timer);
+        };
+    }, [open, certificate]);
 
     if (!cart) {
         return null;
     }
+
+    const statusLabel = [
+        certificate
+            ? `Сертификат ${certificate.code}${certificate.amount ? ` · ${formatMoneyRubText(certificate.amount)}` : ""}`
+            : null,
+        discountCard
+            ? `Карта ${discountCard.number}${discountCard.discount_percent ? ` · ${discountCard.discount_percent}%` : ""}`
+            : null,
+    ]
+        .filter(Boolean)
+        .join(" · ");
+
+    const closeSheet = () => {
+        setOpen(false);
+        setConfirmClear(null);
+        setGiftError("");
+        setCardError("");
+        setCardConflict(null);
+    };
 
     const applyFilled = () => {
         if (!canApplyGift && !canApplyCard) {
@@ -81,7 +116,9 @@ export default function MobileBenefitButtons() {
                         setGiftCode("");
                     } catch (error) {
                         setGiftError(
-                            error instanceof GiftCertificateApplyError ? error.message : "Не удалось применить сертификат",
+                            error instanceof GiftCertificateApplyError
+                                ? error.message
+                                : "Не удалось применить сертификат",
                         );
                         failed = true;
                     }
@@ -113,7 +150,7 @@ export default function MobileBenefitButtons() {
             }
 
             if (!failed) {
-                setOpen(false);
+                closeSheet();
             }
         });
     };
@@ -140,142 +177,181 @@ export default function MobileBenefitButtons() {
     };
 
     return (
-        <div>
+        <>
             <button
                 type="button"
+                onClick={() => setOpen(true)}
+                className="flex w-full items-center gap-2 py-1.5 text-left active:opacity-80"
+                aria-haspopup="dialog"
                 aria-expanded={open}
-                aria-controls={panelId}
-                onClick={() => setOpen((value) => !value)}
-                className="flex w-full items-center gap-2.5 py-2 text-left"
             >
-                <Tag className="h-4 w-4 shrink-0 text-amber-700" aria-hidden />
-                <span className="min-w-0 flex-1 truncate text-sm font-medium text-admin-text">
-                    Сертификат или карта лояльности
+                <Tag className="h-3.5 w-3.5 shrink-0 text-amber-700" aria-hidden />
+                <span
+                    className={`min-w-0 flex-1 truncate text-[13px] leading-4 ${
+                        hasApplied ? "font-medium text-emerald-700" : "text-admin-text-secondary"
+                    }`}
+                >
+                    {statusLabel || "Сертификат / карта лояльности"}
                 </span>
-                {certificate || discountCard ? <Check className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden /> : null}
-                <ChevronDown
-                    className={`h-4 w-4 shrink-0 text-admin-text-secondary transition-transform duration-300 ease-out motion-reduce:transition-none ${open ? "rotate-180" : ""}`}
-                    aria-hidden
-                />
+                {hasApplied ? <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden /> : null}
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-admin-text-secondary" aria-hidden />
             </button>
 
-            <div
-                id={panelId}
-                inert={open ? undefined : true}
-                className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
-                    }`}
-            >
-                <div className="min-h-0 overflow-hidden">
-                    <div
-                        className={`space-y-3 px-0.5 pb-1 pt-1 transition-transform duration-300 ease-out motion-reduce:transition-none ${open ? "translate-y-0" : "-translate-y-1"
-                            }`}
-                    >
-                        {certificate ? (
-                            <AppliedRow
-                                label={`Сертификат ${certificate.code}${certificate.amount ? ` · ${formatMoneyRubText(certificate.amount)}` : ""}`}
-                                onRemove={() => setConfirmClear("gift")}
-                            />
-                        ) : (
-                            <Field
-                                id={giftInputId}
-                                label="Номер сертификата"
-                                placeholder="Введите код"
-                                value={giftCode}
-                                inputRef={giftInputRef}
-                                invalid={Boolean(giftError)}
-                                onChange={(value) => {
-                                    setGiftCode(normalizeGiftCertificateCodeInput(value));
-                                    setGiftError("");
-                                }}
-                            />
-                        )}
+            {portalReady && open
+                ? createPortal(
+                      <div className="pointer-events-none fixed inset-0 z-[140] md:hidden" role="presentation">
+                          <button
+                              type="button"
+                              aria-label="Отмена"
+                              className="pointer-events-auto absolute inset-x-0 top-0 bg-slate-900/45"
+                              style={{
+                                  bottom:
+                                      "calc(var(--storefront-tab-bar-height, 0px) + var(--storefront-keyboard-inset, 0px))",
+                              }}
+                              onClick={closeSheet}
+                          />
+                          <div
+                              role="dialog"
+                              aria-modal="true"
+                              aria-labelledby={titleId}
+                              data-storefront-keyboard-dock=""
+                              data-storefront-keep-tab-bar=""
+                              className="storefront-keyboard-sheet pointer-events-auto absolute inset-x-0 flex max-h-[min(78dvh,560px)] flex-col overflow-hidden rounded-t-3xl border border-admin-border bg-admin-surface shadow-2xl"
+                              style={{
+                                  bottom:
+                                      "calc(var(--storefront-tab-bar-height, 0px) + var(--storefront-keyboard-overlap, 0px))",
+                              }}
+                          >
+                              <div className="shrink-0 border-b border-admin-border px-4 py-3">
+                                  <div id={titleId} className="text-base font-semibold text-admin-text">
+                                      Сертификат и карта
+                                  </div>
+                              </div>
 
-                        {discountCard ? (
-                            <AppliedRow
-                                label={`Карта ${discountCard.number}${discountCard.discount_percent ? ` · ${discountCard.discount_percent}%` : ""}`}
-                                onRemove={() => setConfirmClear("card")}
-                            />
-                        ) : (
-                            <Field
-                                id={cardInputId}
-                                label="Карта лояльности"
-                                placeholder="Номер телефона или карты"
-                                value={cardNumber}
-                                invalid={Boolean(cardError)}
-                                onChange={(value) => {
-                                    setCardNumber(value);
-                                    setCardConflict(null);
-                                    setCardError("");
-                                }}
-                            />
-                        )}
+                              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 [-webkit-overflow-scrolling:touch]">
+                                  {certificate ? (
+                                      <AppliedRow
+                                          label={`Сертификат ${certificate.code}${certificate.amount ? ` · ${formatMoneyRubText(certificate.amount)}` : ""}`}
+                                          onRemove={() => setConfirmClear("gift")}
+                                      />
+                                  ) : (
+                                      <Field
+                                          id={giftInputId}
+                                          label="Номер сертификата"
+                                          placeholder="Введите код"
+                                          value={giftCode}
+                                          inputRef={giftInputRef}
+                                          invalid={Boolean(giftError)}
+                                          onChange={(value) => {
+                                              setGiftCode(normalizeGiftCertificateCodeInput(value));
+                                              setGiftError("");
+                                          }}
+                                      />
+                                  )}
 
-                        <input
-                            type="text"
-                            value={giftHoneypot}
-                            onChange={(event) => setGiftHoneypot(event.target.value)}
-                            tabIndex={-1}
-                            autoComplete="off"
-                            aria-hidden="true"
-                            className="hidden"
-                        />
+                                  {discountCard ? (
+                                      <AppliedRow
+                                          label={`Карта ${discountCard.number}${discountCard.discount_percent ? ` · ${discountCard.discount_percent}%` : ""}`}
+                                          onRemove={() => setConfirmClear("card")}
+                                      />
+                                  ) : (
+                                      <Field
+                                          id={cardInputId}
+                                          label="Карта лояльности"
+                                          placeholder="Номер телефона или карты"
+                                          value={cardNumber}
+                                          invalid={Boolean(cardError)}
+                                          onChange={(value) => {
+                                              setCardNumber(value);
+                                              setCardConflict(null);
+                                              setCardError("");
+                                          }}
+                                      />
+                                  )}
 
-                        {giftError ? <Message tone="error">{giftError}</Message> : null}
-                        {cardError ? <Message tone="error">{cardError}</Message> : null}
-                        {cardConflict ? (
-                            <Message tone="warning">
-                                Применить эту карту только к текущему заказу? Карта в профиле не изменится. Нажмите «Применить скидку» ещё раз.
-                            </Message>
-                        ) : null}
-                        {confirmClear === "gift" && certificate ? (
-                            <Message tone="warning">
-                                <span>Убрать сертификат {certificate.code}?</span>
-                                <span className="mt-2 flex gap-2">
-                                    <button type="button" onClick={() => setConfirmClear(null)} className={`${siteBtnSecondary} flex-1`}>
-                                        Отмена
-                                    </button>
-                                    <button
-                                        type="button"
-                                        disabled={isPending}
-                                        onClick={() => clearApplied("gift")}
-                                        className={`${siteBtnPrimary} flex-1`}
-                                    >
-                                        Убрать
-                                    </button>
-                                </span>
-                            </Message>
-                        ) : null}
-                        {confirmClear === "card" && discountCard ? (
-                            <Message tone="warning">
-                                <span>Убрать карту {discountCard.number}?</span>
-                                <span className="mt-2 flex gap-2">
-                                    <button type="button" onClick={() => setConfirmClear(null)} className={`${siteBtnSecondary} flex-1`}>
-                                        Отмена
-                                    </button>
-                                    <button
-                                        type="button"
-                                        disabled={isPending}
-                                        onClick={() => clearApplied("card")}
-                                        className={`${siteBtnPrimary} flex-1`}
-                                    >
-                                        Убрать
-                                    </button>
-                                </span>
-                            </Message>
-                        ) : null}
+                                  <input
+                                      type="text"
+                                      value={giftHoneypot}
+                                      onChange={(event) => setGiftHoneypot(event.target.value)}
+                                      tabIndex={-1}
+                                      autoComplete="off"
+                                      aria-hidden="true"
+                                      className="hidden"
+                                  />
 
-                        <button
-                            type="button"
-                            disabled={isPending || (!canApplyGift && !canApplyCard)}
-                            onClick={applyFilled}
-                            className={`${siteBtnPrimary} w-full`}
-                        >
-                            {isPending ? "Применение..." : "Применить скидку"}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+                                  {giftError ? <Message tone="error">{giftError}</Message> : null}
+                                  {cardError ? <Message tone="error">{cardError}</Message> : null}
+                                  {cardConflict ? (
+                                      <Message tone="warning">
+                                          Применить эту карту только к текущему заказу? Карта в профиле не изменится.
+                                          Нажмите «Применить» ещё раз.
+                                      </Message>
+                                  ) : null}
+                                  {confirmClear === "gift" && certificate ? (
+                                      <Message tone="warning">
+                                          <span>Убрать сертификат {certificate.code}?</span>
+                                          <span className="mt-2 flex gap-2">
+                                              <button
+                                                  type="button"
+                                                  onClick={() => setConfirmClear(null)}
+                                                  className={`${siteBtnSecondary} flex-1`}
+                                              >
+                                                  Отмена
+                                              </button>
+                                              <button
+                                                  type="button"
+                                                  disabled={isPending}
+                                                  onClick={() => clearApplied("gift")}
+                                                  className={`${siteBtnPrimary} flex-1`}
+                                              >
+                                                  Убрать
+                                              </button>
+                                          </span>
+                                      </Message>
+                                  ) : null}
+                                  {confirmClear === "card" && discountCard ? (
+                                      <Message tone="warning">
+                                          <span>Убрать карту {discountCard.number}?</span>
+                                          <span className="mt-2 flex gap-2">
+                                              <button
+                                                  type="button"
+                                                  onClick={() => setConfirmClear(null)}
+                                                  className={`${siteBtnSecondary} flex-1`}
+                                              >
+                                                  Отмена
+                                              </button>
+                                              <button
+                                                  type="button"
+                                                  disabled={isPending}
+                                                  onClick={() => clearApplied("card")}
+                                                  className={`${siteBtnPrimary} flex-1`}
+                                              >
+                                                  Убрать
+                                              </button>
+                                          </span>
+                                      </Message>
+                                  ) : null}
+                              </div>
+
+                              <div className="grid shrink-0 grid-cols-2 gap-3 border-t border-admin-border px-4 py-3">
+                                  <button type="button" onClick={closeSheet} className={`${siteBtnSecondary} w-full`}>
+                                      Отмена
+                                  </button>
+                                  <button
+                                      type="button"
+                                      disabled={isPending || (!canApplyGift && !canApplyCard)}
+                                      onClick={applyFilled}
+                                      className={`${siteBtnPrimary} w-full`}
+                                  >
+                                      {isPending ? "…" : "Применить"}
+                                  </button>
+                              </div>
+                          </div>
+                      </div>,
+                      document.body,
+                  )
+                : null}
+        </>
     );
 }
 
@@ -322,7 +398,11 @@ function AppliedRow({ label, onRemove }: { label: string; onRemove: () => void }
                 <Check className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="truncate">{label}</span>
             </span>
-            <button type="button" onClick={onRemove} className="shrink-0 text-xs font-medium text-emerald-900 underline-offset-2 hover:underline">
+            <button
+                type="button"
+                onClick={onRemove}
+                className="shrink-0 text-xs font-medium text-emerald-900 underline-offset-2 hover:underline"
+            >
                 Убрать
             </button>
         </div>

@@ -129,7 +129,7 @@ export default function RecentlyViewedSection({ excludeSlug = null }: Props) {
 
     return (
         <section
-            className="mx-auto min-w-0 max-w-7xl p-4 sm:px-6"
+            className="mx-auto min-w-0 max-w-7xl px-4 pb-4 pt-2 sm:px-6 sm:pt-4"
             aria-labelledby={headingId}
         >
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">

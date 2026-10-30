@@ -2,7 +2,8 @@
 
 import { ChevronLeft, Heart, Share2, Star } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import type { ProductDetailData, ProductVariantData } from "@/types/catalog";
 import type { ReviewItem } from "@/types/reviews";
 import { addToCart, removeCartItem, updateCartItem } from "@/lib/cart-api";
@@ -60,9 +61,31 @@ export default function ProductDetailInteractive({
     deliveryInfo,
     variantFromQuery = 0,
 }: Props) {
+    const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [activeTab, setActiveTab] = useState<"about" | "description" | "reviews">("about");
     const hasDescription = Boolean(descriptionContent);
+
+    const goBack = useCallback(() => {
+        if (typeof window !== "undefined") {
+            const referrer = document.referrer;
+            if (referrer) {
+                try {
+                    const url = new URL(referrer);
+                    if (
+                        url.origin === window.location.origin &&
+                        `${url.pathname}${url.search}` !== `${window.location.pathname}${window.location.search}`
+                    ) {
+                        router.back();
+                        return;
+                    }
+                } catch {
+                    // ignore invalid referrer
+                }
+            }
+        }
+        router.push("/catalog");
+    }, [router]);
     const reviewsTabCount = initialProductReviewsTotal ?? initialProductReviews?.length ?? 0;
     const reviewsAverage = useMemo(() => {
         if (initialProductReviewsAverage != null && Number.isFinite(initialProductReviewsAverage)) {
@@ -333,9 +356,9 @@ export default function ProductDetailInteractive({
                         product={product}
                         selectedVariantHasPromotion={selectedVariantHasPromotion}
                         mobileBackAction={
-                            <Link href="/catalog" aria-label="В каталог" className={mobileOverlayBtnClass}>
+                            <button type="button" onClick={goBack} aria-label="Назад" className={mobileOverlayBtnClass}>
                                 <ChevronLeft className="h-5 w-5" aria-hidden />
-                            </Link>
+                            </button>
                         }
                         mobileActions={
                             <>
@@ -448,6 +471,7 @@ export default function ProductDetailInteractive({
                             surface="mobile"
                             headerActions={stickyHeaderActions}
                             hideMobileVariantLine
+                            onBackAction={goBack}
                         />
                     </div>
 

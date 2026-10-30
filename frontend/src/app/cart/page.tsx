@@ -486,6 +486,10 @@ export default function CartPage() {
         }
 
         const publishHeight = () => {
+            // Не раздуваем padding страницы, пока бар поднят над клавиатурой.
+            if (root.dataset.storefrontKeyboardDock === "1") {
+                return;
+            }
             const height = Math.ceil(bar.getBoundingClientRect().height);
             if (height > 0) {
                 root.style.setProperty("--storefront-bottom-bar-height", `${height}px`);
@@ -497,8 +501,13 @@ export default function CartPage() {
         publishHeight();
         const observer = new ResizeObserver(publishHeight);
         observer.observe(bar);
+        const onKeyboardMode = () => publishHeight();
+        document.addEventListener("focusin", onKeyboardMode);
+        document.addEventListener("focusout", onKeyboardMode);
         return () => {
             observer.disconnect();
+            document.removeEventListener("focusin", onKeyboardMode);
+            document.removeEventListener("focusout", onKeyboardMode);
             root.style.removeProperty("--storefront-bottom-bar-height");
         };
     }, [hasMobileCheckoutBar]);
@@ -1104,19 +1113,19 @@ export default function CartPage() {
 
             <div
                 ref={mobileCheckoutBarRef}
-                className="fixed inset-x-0 z-[130] border-t border-admin-border bg-admin-surface/95 backdrop-blur md:hidden"
+                className="storefront-bottom-cta fixed inset-x-0 z-[130] border-t border-admin-border backdrop-blur-md md:hidden"
                 style={{ bottom: "calc(var(--storefront-tab-bar-height, 0px) + var(--storefront-keyboard-inset, 0px))" }}
             >
-                <div className="mx-auto max-w-7xl px-4 py-2">
+                <div className="mx-auto max-w-7xl px-3">
                     <MobileBenefitButtons />
                 </div>
-                <div className="border-t border-admin-border">
-                    <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3">
+                <div className="border-t border-black/[0.06]">
+                    <div className="mx-auto flex max-w-7xl items-center gap-3 px-3 py-2">
                         <div className="min-w-0 flex-1">
-                            <div className="text-xs text-admin-text-secondary">
+                            <div className="text-[11px] leading-3 text-admin-text-secondary">
                                 {partialLineSelection ? "К оформлению" : "Итого"}
                             </div>
-                            <div className="truncate text-lg font-semibold">
+                            <div className="truncate text-[15px] font-semibold leading-5 tabular-nums">
                                 {formatMoneyRub(checkoutTotalStr)}
                             </div>
                         </div>
@@ -1125,13 +1134,13 @@ export default function CartPage() {
                             <Link
                                 href="/checkout"
                                 onClick={persistCheckoutSelection}
-                                className={`${siteBtnPrimary} shrink-0 px-4 py-2.5 text-sm`}
+                                className={`${siteBtnPrimary} h-10 shrink-0 px-4 text-sm`}
                             >
                                 Оформить
                             </Link>
                         ) : (
                             <span
-                                className={`${siteBtnPrimary} shrink-0 cursor-not-allowed px-4 py-2.5 text-sm opacity-45`}
+                                className={`${siteBtnPrimary} h-10 shrink-0 cursor-not-allowed px-4 text-sm opacity-45`}
                                 aria-disabled
                             >
                                 Оформить

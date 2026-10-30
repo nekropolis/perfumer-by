@@ -232,21 +232,33 @@ export default function Header() {
 
         const measure = () => {
             const full = el.offsetHeight || 78;
-            setMainRowHeight(full);
             const extension = document.getElementById(HEADER_STICKY_EXTENSION_ID);
-            const row = Math.max(52, full - (extension?.offsetHeight ?? 0));
+            const extensionHeight = extension?.offsetHeight ?? 0;
+            // Spacer excludes ephemeral product sticky-price, but pages with a persistent
+            // title in the extension (checkout) pad via --storefront-header-extension-height.
+            const row = Math.max(52, full - extensionHeight);
+            setMainRowHeight(row);
             document.documentElement.style.setProperty("--storefront-header-row-height", `${row}px`);
+            document.documentElement.style.setProperty(
+                "--storefront-header-extension-height",
+                `${extensionHeight}px`,
+            );
         };
 
         measure();
         const ro = new ResizeObserver(measure);
         ro.observe(el);
+        const extension = document.getElementById(HEADER_STICKY_EXTENSION_ID);
+        if (extension) {
+            ro.observe(extension);
+        }
         window.addEventListener("resize", measure);
 
         return () => {
             ro.disconnect();
             window.removeEventListener("resize", measure);
             document.documentElement.style.removeProperty("--storefront-header-row-height");
+            document.documentElement.style.removeProperty("--storefront-header-extension-height");
         };
     }, []);
 
