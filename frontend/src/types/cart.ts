@@ -11,6 +11,7 @@ export type CartItemData = {
     product_display_name?: string | null;
     product_slug: string | null;
     brand_name: string | null;
+    image?: string | null;
 
     variant: {
         id: number;

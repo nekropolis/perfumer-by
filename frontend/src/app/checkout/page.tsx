@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronLeft, Info, Plus } from "lucide-react";
+import Image from "next/image";
+import { Check, ChevronLeft, ChevronRight, Phone, Plus, Truck, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { HEADER_STICKY_EXTENSION_ID } from "@/components/layout/header/constants";
+import { CHECKOUT_SUCCESS_SUMMARY_KEY } from "@/app/checkout/success/checkout-success-view";
 import {
     CHECKOUT_LINE_SELECTION_STORAGE_KEY,
     createOrder,
@@ -34,10 +36,12 @@ import { lineItemProductTitle } from "@/lib/product-display-name";
 import { useAuth } from "@/components/auth/auth-provider";
 import { authUserCheckoutName } from "@/lib/auth-api";
 import CartPricingBreakdown, { CartPricingPayBar } from "@/components/cart/cart-pricing-breakdown";
-import MobileBenefitButtons from "@/components/cart/mobile-benefit-buttons";
 import LegalHelpIcon from "@/components/legal/legal-help-icon";
 import { LEGAL_PAGE_PATHS } from "@/lib/legal-links";
 import { formatMoneyDisplay, formatMoneyRub, formatMoneyRubText } from "@/lib/format-money-display";
+import { formatMoneyMinorUnits, parseMoneyMinorUnits } from "@/lib/format-byn";
+import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
+import type { CartItemData } from "@/types/cart";
 import { withBynSign, withBynSignReplacingCode } from "@/lib/byn-sign";
 import PhoneInput, {
     isBelarusPhoneComplete,
@@ -46,13 +50,9 @@ import PhoneInput, {
 } from "@/components/ui/phone-input";
 import useDebouncedValue from "@/hooks/use-debounced-value";
 import {
-    cartItemCustomerUnitPrice,
-    cartItemStrikeUnitPrice,
-    countCheckoutLinesQty,
     discountCardForBreakdownFromQuote,
     filterCartLinesForCheckout,
     giftForBreakdownFromQuote,
-    listSubtotalForLines,
     merchandisePayFromQuote,
     parseCheckoutMoney,
     sanitizeCheckoutLineSelectionForCart,
@@ -97,6 +97,68 @@ function CheckoutDeliveryDays({ days }: { days: CheckoutCityHit["delivery_days"]
             })}
         </div>
     );
+}
+
+function deliveryOptionRub(value: number): string {
+    if (!Number.isFinite(value)) {
+        return "6 р.";
+    }
+    const cents = Math.round(value * 100);
+    if (cents % 100 === 0) {
+        return `${cents / 100} р.`;
+    }
+    const rub = Math.trunc(cents / 100);
+    const kop = String(Math.abs(cents % 100)).padStart(2, "0");
+    return `${rub},${kop} р.`;
+}
+
+function checkoutShownUnitPrice(item: CartItemData): string {
+    if (item.waiting_discount && item.base_price) {
+        return item.base_price;
+    }
+    return item.price;
+}
+
+function checkoutDiscountPercent(currentMinor: number, previousMinor: number): number | null {
+    if (previousMinor <= 0 || currentMinor >= previousMinor) {
+        return null;
+    }
+    const pct = Math.round(((previousMinor - currentMinor) * 100) / previousMinor);
+    return pct > 0 ? pct : null;
+}
+
+function checkoutVariantCaption(item: CartItemData): string | null {
+    const variant = item.variant;
+    if (!variant) {
+        return null;
+    }
+    const parts: string[] = [];
+    if (variant.volume != null) {
+        const unit = variant.volume_unit?.trim() || "мл";
+        const vol = Number.isInteger(variant.volume)
+            ? String(variant.volume)
+            : String(variant.volume).replace(".", ",");
+        parts.push(`${vol} ${unit}`);
+    }
+    const kind = variant.type?.trim()
+        || (variant.concentration?.trim() ? variant.concentration.trim().toUpperCase() : "");
+    if (kind) {
+        parts.push(kind);
+    }
+    if (parts.length > 0) {
+        return parts.join(" · ");
+    }
+    return variant.display_name || variant.title || null;
+}
+
+function deliveryOptionBadge(
+    method: CheckoutDeliveryMethod,
+    shopSettings: CheckoutShopSettings | null,
+): { free: true } | { free: false; text: string } {
+    if (method === "belarus_courier") {
+        return { free: false, text: deliveryOptionRub(shopSettings?.delivery_belarus_fee ?? 6) };
+    }
+    return { free: true };
 }
 
 const PICKUP_HINT =
@@ -156,35 +218,59 @@ function CheckoutTermsText() {
     );
 }
 
-function CheckoutTermsConsent({
-    id,
-    checked,
-    showError,
-    onCheckedChange,
-}: {
-    id: string;
-    checked: boolean;
-    showError: boolean;
-    onCheckedChange: (checked: boolean) => void;
-}) {
+type MobileCheckoutStep = "data" | "delivery" | "payment";
+
+const MOBILE_CHECKOUT_STEPS: { id: MobileCheckoutStep; label: string }[] = [
+    { id: "data", label: "Данные" },
+    { id: "delivery", label: "Доставка" },
+    { id: "payment", label: "Оплата" },
+];
+
+function mobileCheckoutStepClass(step: MobileCheckoutStep, current: MobileCheckoutStep): string {
+    return step === current ? "" : "hidden md:block";
+}
+
+function isMobileCheckoutViewport(): boolean {
+    return typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches;
+}
+
+function MobileCheckoutStepper({ step }: { step: MobileCheckoutStep }) {
+    const activeIndex = MOBILE_CHECKOUT_STEPS.findIndex((item) => item.id === step);
+
     return (
-        <label htmlFor={id} className="flex cursor-pointer items-start gap-2.5 text-sm leading-snug text-admin-text">
-            <input
-                id={id}
-                type="checkbox"
-                aria-invalid={showError || undefined}
-                checked={checked}
-                onChange={(event) => onCheckedChange(event.target.checked)}
-                className={`mt-0.5 h-4 w-4 shrink-0 rounded border-admin-border accent-admin-primary ${showError ? "outline outline-2 outline-offset-1 outline-red-500" : ""
-                    }`}
-            />
-            <span>
-                <CheckoutTermsText />
-                {showError ? (
-                    <span className="mt-1 block text-xs text-red-600">Отметьте согласие, чтобы оформить заказ.</span>
-                ) : null}
-            </span>
-        </label>
+        <ol className="mb-4 grid grid-cols-3 md:hidden">
+            {MOBILE_CHECKOUT_STEPS.map((item, index) => {
+                const done = index < activeIndex;
+                const active = index === activeIndex;
+                return (
+                    <li key={item.id} className="relative flex flex-col items-center">
+                        {index > 0 ? (
+                            <span
+                                className={`absolute top-3.5 right-1/2 left-0 h-px ${index <= activeIndex ? "bg-admin-primary" : "bg-admin-border"}`}
+                                aria-hidden
+                            />
+                        ) : null}
+                        {index < MOBILE_CHECKOUT_STEPS.length - 1 ? (
+                            <span
+                                className={`absolute top-3.5 right-0 left-1/2 h-px ${index < activeIndex ? "bg-admin-primary" : "bg-admin-border"}`}
+                                aria-hidden
+                            />
+                        ) : null}
+                        <span
+                            className={`relative z-[1] flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${active || done
+                                    ? "bg-admin-primary text-white"
+                                    : "border border-admin-border bg-admin-surface text-admin-text-secondary"
+                                }`}
+                        >
+                            {done ? <Check className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden /> : index + 1}
+                        </span>
+                        <span className={`mt-1.5 text-xs ${active ? "font-semibold text-admin-primary" : "text-admin-text-secondary"}`}>
+                            {item.label}
+                        </span>
+                    </li>
+                );
+            })}
+        </ol>
     );
 }
 
@@ -232,6 +318,8 @@ export default function CheckoutPage() {
     const [cityLookupFailed, setCityLookupFailed] = useState(false);
     const cityPickerRef = useRef<HTMLDivElement>(null);
     const mobileCheckoutBarRef = useRef<HTMLDivElement | null>(null);
+    const mobileCtaPressed = useRef(false);
+    const ignoreMobileCtaUntil = useRef(0);
     const [deliveryAddress, setDeliveryAddress] = useState("");
     const [deliveryStreetPrefix, setDeliveryStreetPrefix] = useState<string>(DEFAULT_VETER_STREET_PREFIX);
     const [deliveryHouse, setDeliveryHouse] = useState("");
@@ -260,21 +348,32 @@ export default function CheckoutPage() {
     const [phoneTouched, setPhoneTouched] = useState(false);
     const [addressTouched, setAddressTouched] = useState(false);
     const [submitAttempted, setSubmitAttempted] = useState(false);
-    const [consentTerms, setConsentTerms] = useState(false);
-    const [consentInfoOpen, setConsentInfoOpen] = useState(false);
-    const [headerSlotReady, setHeaderSlotReady] = useState(false);
+    const [mobileStep, setMobileStep] = useState<MobileCheckoutStep>("data");
+    const headerSlotReady = useSyncExternalStore(
+        () => () => {},
+        () => true,
+        () => false,
+    );
 
-    useEffect(() => {
-        setHeaderSlotReady(true);
-    }, []);
+    useLayoutEffect(() => {
+        if (!headerSlotReady) {
+            return;
+        }
+        const extension = document.getElementById(HEADER_STICKY_EXTENSION_ID);
+        if (!extension) {
+            return;
+        }
+        const height = extension.offsetHeight;
+        if (height > 0) {
+            document.documentElement.style.setProperty("--storefront-header-extension-height", `${height}px`);
+        }
+    }, [headerSlotReady, mobileStep]);
 
     const phoneIsValid = allowPlainPhone ? isPlainByPhoneComplete(phone) : isBelarusPhoneComplete(phone);
     const addressRequired = deliveryMethod !== "pickup";
     const addressIsValid = !addressRequired || deliveryAddress.trim().length > 0;
-    const consentsValid = consentTerms;
     const showPhoneError = (phoneTouched || submitAttempted) && !phoneIsValid;
     const showAddressError = (addressTouched || submitAttempted) && addressRequired && !addressIsValid;
-    const showConsentError = submitAttempted && !consentsValid;
 
     useEffect(() => {
         try {
@@ -335,20 +434,10 @@ export default function CheckoutPage() {
         [cart, effectiveCheckoutLineSelection],
     );
 
-    const checkoutLinesQty = useMemo(
-        () => countCheckoutLinesQty(checkoutCartLines.items, checkoutCartLines.giftItems),
-        [checkoutCartLines],
-    );
-
     const waitingDiscountAmount = useMemo(
         () => waitingDiscountAmountForLines(checkoutCartLines.items),
         [checkoutCartLines.items],
     );
-
-    const checkoutLineLoyaltyPercent =
-        paymentMethod === "card"
-            ? 0
-            : Number(quote?.loyalty_discount_percent ?? cart?.discount_card?.discount_percent ?? 0) || 0;
 
     const checkoutQuotePayload = useMemo(() => {
         const base = { payment_method: paymentMethod, delivery_method: deliveryMethod };
@@ -525,8 +614,64 @@ export default function CheckoutPage() {
         return () => window.removeEventListener("keydown", onKey);
     }, [cardSampleWarningOpen]);
 
+    const goToMobileStep = (step: MobileCheckoutStep) => {
+        ignoreMobileCtaUntil.current = performance.now() + 450;
+        setErrorMessage("");
+        setMobileStep(step);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    const advanceMobileStep = () => {
+        setErrorMessage("");
+        if (mobileStep === "data") {
+            setPhoneTouched(true);
+            if (!phoneIsValid) {
+                return;
+            }
+            goToMobileStep("delivery");
+            return;
+        }
+        if (mobileStep === "delivery") {
+            if (addressRequired) {
+                setAddressTouched(true);
+            }
+            if (deliveryMethod === "belarus_courier" && !deliveryCityId) {
+                setErrorMessage("Выберите населённый пункт из списка");
+                window.scrollTo({ top: 0, behavior: "smooth" });
+                return;
+            }
+            if (!addressIsValid) {
+                return;
+            }
+            goToMobileStep("payment");
+        }
+    };
+
+    const onMobileCheckoutCta = (event: React.MouseEvent<HTMLButtonElement>) => {
+        const pressed = mobileCtaPressed.current;
+        mobileCtaPressed.current = false;
+        if (performance.now() < ignoreMobileCtaUntil.current) {
+            return;
+        }
+        if (event.detail > 0 && !pressed) {
+            return;
+        }
+        if (mobileStep !== "payment") {
+            advanceMobileStep();
+            return;
+        }
+        const form = document.getElementById("checkout-form");
+        if (form instanceof HTMLFormElement) {
+            form.requestSubmit();
+        }
+    };
+
     const handleSubmit = (event: React.FormEvent) => {
         event.preventDefault();
+        if (isMobileCheckoutViewport() && mobileStep !== "payment") {
+            advanceMobileStep();
+            return;
+        }
         setErrorMessage("");
         setSubmitAttempted(true);
         setPhoneTouched(true);
@@ -550,11 +695,6 @@ export default function CheckoutPage() {
 
         if (deliveryMethod === "belarus_courier" && !deliveryCityId) {
             setErrorMessage("Выберите населённый пункт из списка");
-            return;
-        }
-
-        if (!consentTerms) {
-            setErrorMessage("Примите условия публичной оферты и обработки персональных данных");
             return;
         }
 
@@ -623,6 +763,23 @@ export default function CheckoutPage() {
                     await refreshCart();
                 }
 
+                try {
+                    const summary = {
+                        id: response.data.id,
+                        itemsQty: response.data.items_qty,
+                        subtotal: response.data.subtotal,
+                        waitingDiscount: waitingDiscountAmount,
+                        discountAmount: response.data.discount_amount,
+                        discountPercent: response.data.discount_percent_snapshot,
+                        giftAmount: response.data.gift_certificate_amount,
+                        deliveryFee: response.data.delivery_fee ?? "0",
+                        total: response.data.total,
+                    };
+                    sessionStorage.setItem(CHECKOUT_SUCCESS_SUMMARY_KEY, JSON.stringify(summary));
+                } catch {
+                    // Summary is optional; the success page still shows the order number.
+                }
+
                 router.push(`/checkout/success?order=${response.data.id}`);
             } catch (error) {
                 console.error(error);
@@ -644,13 +801,24 @@ export default function CheckoutPage() {
         headerSlot != null
             ? createPortal(
                   <div className="flex items-center gap-0.5 border-t border-admin-border px-1.5 py-1 md:hidden">
-                      <Link
-                          href="/cart"
-                          aria-label="В корзину"
-                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-admin-text"
-                      >
-                          <ChevronLeft className="h-5 w-5" aria-hidden />
-                      </Link>
+                      {mobileStep === "data" ? (
+                          <Link
+                              href="/cart"
+                              aria-label="В корзину"
+                              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-admin-text"
+                          >
+                              <ChevronLeft className="h-5 w-5" aria-hidden />
+                          </Link>
+                      ) : (
+                          <button
+                              type="button"
+                              aria-label="Назад"
+                              onClick={() => goToMobileStep(mobileStep === "payment" ? "delivery" : "data")}
+                              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-admin-text"
+                          >
+                              <ChevronLeft className="h-5 w-5" aria-hidden />
+                          </button>
+                      )}
                       <div className="min-w-0 truncate text-[15px] font-semibold leading-none text-admin-text">
                           Оформление заказа
                       </div>
@@ -698,14 +866,21 @@ export default function CheckoutPage() {
 
     const giftForBreakdown = giftForBreakdownFromQuote(cart, quote);
 
-    const breakdownSubtotal = listSubtotalForLines(checkoutCartLines.items, checkoutCartLines.giftItems);
+    let orderLinesMinor = 0;
+    for (const item of checkoutCartLines.items) {
+        orderLinesMinor += parseMoneyMinorUnits(checkoutShownUnitPrice(item)) * item.qty;
+    }
+    for (const gift of checkoutCartLines.giftItems) {
+        orderLinesMinor += parseMoneyMinorUnits(gift.total);
+    }
+    const orderLinesSubtotal = formatMoneyMinorUnits(orderLinesMinor);
 
     const merchandisePayStr = quote != null ? merchandisePayFromQuote(quote) : (cart.total ?? cart.subtotal);
     const checkoutPayStr =
         quote?.total && quote.total.trim() !== "" ? quote.total : merchandisePayStr;
 
     return (
-        <main className="mx-auto max-w-7xl px-4 pb-28 pt-[calc(0.75rem+var(--storefront-header-extension-height,0px))] sm:px-6 md:py-10 md:pb-10">
+        <main className="mx-auto max-w-7xl px-4 pt-[calc(0.75rem+var(--storefront-header-extension-height,0px))] sm:px-6 md:py-10">
             {mobileTitleBar}
             <div className="mb-8 hidden items-center justify-between gap-3 md:flex">
                 <h1 className="text-3xl font-semibold">Оформление заказа</h1>
@@ -715,11 +890,23 @@ export default function CheckoutPage() {
                 </Link>
             </div>
             <h1 className="sr-only md:hidden">Оформление заказа</h1>
+            <MobileCheckoutStepper step={mobileStep} />
 
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
-                <form id="checkout-form" onSubmit={handleSubmit} className={`${siteCard} p-5`}>
+                <form id="checkout-form" onSubmit={handleSubmit} className={`${siteCard} p-5 ${mobileStep === "delivery" ? "max-md:mb-8" : ""}`}>
+                    {errorMessage ? (
+                        <div role="alert" className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 md:hidden">
+                            {errorMessage}
+                        </div>
+                    ) : null}
+                    <div className={mobileCheckoutStepClass("data", mobileStep)}>
                     <div className="mb-5">
-                        <label htmlFor={nameId} className="mb-2 block text-sm font-medium text-admin-text">Имя</label>
+                        <label htmlFor={nameId} className="mb-2 flex items-center gap-2 text-sm font-medium text-admin-text">
+                            <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-admin-muted text-admin-primary">
+                                <UserRound className="h-3.5 w-3.5" aria-hidden />
+                            </span>
+                            Имя
+                        </label>
                         <input
                             id={nameId}
                             type="text"
@@ -733,7 +920,12 @@ export default function CheckoutPage() {
 
                     <div className="mb-5">
                         <div className="mb-2 flex items-center justify-between gap-3">
-                            <label htmlFor={phoneId} className="text-sm font-medium text-admin-text">Телефон *</label>
+                            <label htmlFor={phoneId} className="inline-flex items-center gap-2 text-sm font-medium text-admin-text">
+                                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-admin-muted text-admin-primary">
+                                    <Phone className="h-3.5 w-3.5" aria-hidden />
+                                </span>
+                                Телефон *
+                            </label>
                             <label className="inline-flex cursor-pointer items-center">
                                 <input
                                     type="checkbox"
@@ -766,10 +958,18 @@ export default function CheckoutPage() {
                                     : "Введите корректный номер: +375 (25/29/33/44) XXX-XX-XX"}
                             </p>
                         ) : null}
+                        <p className="mt-2 text-xs text-admin-text-secondary">Для уточнения деталей заказа</p>
+                    </div>
                     </div>
 
+                    <div className={mobileCheckoutStepClass("delivery", mobileStep)}>
                     <fieldset className="mb-5">
-                        <legend className="mb-2 text-sm font-medium text-admin-text">Способ доставки *</legend>
+                        <legend className="mb-3 flex items-center gap-2 text-sm font-medium text-admin-text">
+                            <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-admin-muted text-admin-primary">
+                                <Truck className="h-3.5 w-3.5" aria-hidden />
+                            </span>
+                            Способ доставки *
+                        </legend>
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                             {(
                                 [
@@ -779,12 +979,13 @@ export default function CheckoutPage() {
                                 ] as const
                             ).map(([value, label]) => {
                                 const active = deliveryMethod === value;
+                                const badge = deliveryOptionBadge(value, shopSettings);
                                 return (
                                     <label
                                         key={value}
-                                        className={`flex cursor-pointer items-center gap-2 rounded-2xl border px-3 py-2.5 text-sm transition ${active
+                                        className={`flex cursor-pointer items-center gap-3 rounded-2xl border px-3.5 py-3 text-sm transition ${active
                                                 ? "border-admin-primary bg-admin-muted text-admin-text"
-                                                : "border-admin-border bg-admin-surface text-admin-text-secondary hover:bg-admin-muted/70"
+                                                : "border-admin-border bg-admin-surface text-admin-text hover:bg-admin-muted/70"
                                             }`}
                                     >
                                         <input
@@ -793,9 +994,22 @@ export default function CheckoutPage() {
                                             value={value}
                                             checked={active}
                                             onChange={() => handleDeliveryMethodChange(value)}
-                                            className="accent-admin-primary"
+                                            className="sr-only"
                                         />
-                                        <span>{label}</span>
+                                        <span
+                                            className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2 ${active ? "border-admin-primary" : "border-admin-border"}`}
+                                            aria-hidden
+                                        >
+                                            {active ? <span className="h-2 w-2 rounded-full bg-admin-primary" /> : null}
+                                        </span>
+                                        <span className="min-w-0 flex-1 font-medium">{label}</span>
+                                        {badge.free ? (
+                                            <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                                                Бесплатно
+                                            </span>
+                                        ) : (
+                                            <span className="shrink-0 text-sm text-admin-text-secondary">{badge.text}</span>
+                                        )}
                                     </label>
                                 );
                             })}
@@ -808,8 +1022,8 @@ export default function CheckoutPage() {
                     {deliveryMethod === "belarus_courier" ? (
                         <div className="mb-5">
                             <div className="mb-2 text-sm font-medium">Адрес доставки</div>
-                            <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:gap-2">
-                                <div className="relative min-w-0 flex-[1.8]" ref={cityPickerRef}>
+                            <div className="flex flex-col gap-2">
+                                <div className="relative min-w-0" ref={cityPickerRef}>
                                     <label htmlFor={cityId} className="mb-1 block text-xs text-[var(--text-secondary)]">
                                         Населённый пункт *
                                     </label>
@@ -877,68 +1091,72 @@ export default function CheckoutPage() {
                                     ) : null}
                                 </div>
 
-                                <div className="w-full shrink-0 lg:w-[6rem]">
-                                    <span className="mb-1 block text-xs text-[var(--text-secondary)]">Тип</span>
-                                    <StreetPrefixSelect
-                                        value={deliveryStreetPrefix}
-                                        onChange={setDeliveryStreetPrefix}
-                                        variant="site"
-                                    />
+                                <div className="flex items-start gap-2">
+                                    <div className="w-16 shrink-0">
+                                        <span className="mb-1 block text-xs text-[var(--text-secondary)]">Тип</span>
+                                        <StreetPrefixSelect
+                                            value={deliveryStreetPrefix}
+                                            onChange={setDeliveryStreetPrefix}
+                                            variant="site"
+                                        />
+                                    </div>
+
+                                    <div className="min-w-0 flex-1">
+                                        <label htmlFor={addressId} className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                            Адрес *
+                                        </label>
+                                        <input
+                                            id={addressId}
+                                            autoComplete="street-address"
+                                            aria-invalid={showAddressError || undefined}
+                                            aria-describedby={showAddressError ? addressErrorId : undefined}
+                                            value={deliveryAddress}
+                                            onChange={(e) => setDeliveryAddress(e.target.value)}
+                                            onBlur={() => setAddressTouched(true)}
+                                            className={siteInput}
+                                            placeholder="Улица"
+                                            required
+                                        />
+                                        {showAddressError ? (
+                                            <p id={addressErrorId} role="alert" className="mt-1 text-xs text-red-600">Укажите адрес</p>
+                                        ) : null}
+                                    </div>
                                 </div>
 
-                                <div className="min-w-0 flex-1">
-                                    <label htmlFor={addressId} className="mb-1 block text-xs text-[var(--text-secondary)]">
-                                        Адрес *
-                                    </label>
-                                    <input
-                                        id={addressId}
-                                        autoComplete="street-address"
-                                        aria-invalid={showAddressError || undefined}
-                                        aria-describedby={showAddressError ? addressErrorId : undefined}
-                                        value={deliveryAddress}
-                                        onChange={(e) => setDeliveryAddress(e.target.value)}
-                                        onBlur={() => setAddressTouched(true)}
-                                        className={siteInput}
-                                        placeholder="Улица"
-                                        required
-                                    />
-                                    {showAddressError ? (
-                                        <p id={addressErrorId} role="alert" className="mt-1 text-xs text-red-600">Укажите адрес</p>
-                                    ) : null}
-                                </div>
-
-                                <div className="w-full shrink-0 lg:w-14">
-                                    <label htmlFor={houseId} className="mb-1 block text-xs text-[var(--text-secondary)]">Дом</label>
-                                    <input
-                                        id={houseId}
-                                        value={deliveryHouse}
-                                        onChange={(e) => setDeliveryHouse(e.target.value)}
-                                        className={`${siteInput} px-1.5`}
-                                        placeholder="№"
-                                        maxLength={4}
-                                    />
-                                </div>
-                                <div className="w-full shrink-0 lg:w-14">
-                                    <label htmlFor={korpusId} className="mb-1 block text-xs text-[var(--text-secondary)]">Корп.</label>
-                                    <input
-                                        id={korpusId}
-                                        value={deliveryKorpus}
-                                        onChange={(e) => setDeliveryKorpus(e.target.value)}
-                                        className={`${siteInput} px-1.5`}
-                                        placeholder="№"
-                                        maxLength={4}
-                                    />
-                                </div>
-                                <div className="w-full shrink-0 lg:w-14">
-                                    <label htmlFor={apartmentId} className="mb-1 block text-xs text-[var(--text-secondary)]">Кв.</label>
-                                    <input
-                                        id={apartmentId}
-                                        value={deliveryApartment}
-                                        onChange={(e) => setDeliveryApartment(e.target.value)}
-                                        className={`${siteInput} px-1.5`}
-                                        placeholder="№"
-                                        maxLength={4}
-                                    />
+                                <div className="grid grid-cols-3 gap-2">
+                                    <div>
+                                        <label htmlFor={houseId} className="mb-1 block text-xs text-[var(--text-secondary)]">Дом</label>
+                                        <input
+                                            id={houseId}
+                                            value={deliveryHouse}
+                                            onChange={(e) => setDeliveryHouse(e.target.value)}
+                                            className={`${siteInput} px-1.5`}
+                                            placeholder="№"
+                                            maxLength={4}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label htmlFor={korpusId} className="mb-1 block text-xs text-[var(--text-secondary)]">Корп.</label>
+                                        <input
+                                            id={korpusId}
+                                            value={deliveryKorpus}
+                                            onChange={(e) => setDeliveryKorpus(e.target.value)}
+                                            className={`${siteInput} px-1.5`}
+                                            placeholder="№"
+                                            maxLength={4}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label htmlFor={apartmentId} className="mb-1 block text-xs text-[var(--text-secondary)]">Кв.</label>
+                                        <input
+                                            id={apartmentId}
+                                            value={deliveryApartment}
+                                            onChange={(e) => setDeliveryApartment(e.target.value)}
+                                            className={`${siteInput} px-1.5`}
+                                            placeholder="№"
+                                            maxLength={4}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -947,67 +1165,71 @@ export default function CheckoutPage() {
                     {deliveryMethod === "minsk_courier" ? (
                         <div className="mb-5">
                             <div className="mb-2 text-sm font-medium">Адрес доставки</div>
-                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-2">
-                                <div className="w-full shrink-0 sm:w-[6rem]">
-                                    <span className="mb-1 block text-xs text-[var(--text-secondary)]">Тип</span>
-                                    <StreetPrefixSelect
-                                        value={deliveryStreetPrefix}
-                                        onChange={setDeliveryStreetPrefix}
-                                        variant="site"
-                                    />
+                            <div className="flex flex-col gap-2">
+                                <div className="flex items-start gap-2">
+                                    <div className="w-16 shrink-0">
+                                        <span className="mb-1 block text-xs text-[var(--text-secondary)]">Тип</span>
+                                        <StreetPrefixSelect
+                                            value={deliveryStreetPrefix}
+                                            onChange={setDeliveryStreetPrefix}
+                                            variant="site"
+                                        />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <label htmlFor={addressId} className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                            Адрес *
+                                        </label>
+                                        <input
+                                            id={addressId}
+                                            autoComplete="street-address"
+                                            aria-invalid={showAddressError || undefined}
+                                            aria-describedby={showAddressError ? addressErrorId : undefined}
+                                            value={deliveryAddress}
+                                            onChange={(e) => setDeliveryAddress(e.target.value)}
+                                            onBlur={() => setAddressTouched(true)}
+                                            className={siteInput}
+                                            placeholder="Улица"
+                                            required
+                                        />
+                                        {showAddressError ? (
+                                            <p id={addressErrorId} role="alert" className="mt-1 text-xs text-red-600">Укажите адрес</p>
+                                        ) : null}
+                                    </div>
                                 </div>
-                                <div className="min-w-0 flex-1">
-                                    <label htmlFor={addressId} className="mb-1 block text-xs text-[var(--text-secondary)]">
-                                        Адрес *
-                                    </label>
-                                    <input
-                                        id={addressId}
-                                        autoComplete="street-address"
-                                        aria-invalid={showAddressError || undefined}
-                                        aria-describedby={showAddressError ? addressErrorId : undefined}
-                                        value={deliveryAddress}
-                                        onChange={(e) => setDeliveryAddress(e.target.value)}
-                                        onBlur={() => setAddressTouched(true)}
-                                        className={siteInput}
-                                        placeholder="Улица"
-                                        required
-                                    />
-                                    {showAddressError ? (
-                                        <p id={addressErrorId} role="alert" className="mt-1 text-xs text-red-600">Укажите адрес</p>
-                                    ) : null}
-                                </div>
-                                <div className="w-full shrink-0 sm:w-14">
-                                    <label htmlFor={houseId} className="mb-1 block text-xs text-[var(--text-secondary)]">Дом</label>
-                                    <input
-                                        id={houseId}
-                                        value={deliveryHouse}
-                                        onChange={(e) => setDeliveryHouse(e.target.value)}
-                                        className={`${siteInput} px-1.5`}
-                                        placeholder="№"
-                                        maxLength={4}
-                                    />
-                                </div>
-                                <div className="w-full shrink-0 sm:w-14">
-                                    <label htmlFor={korpusId} className="mb-1 block text-xs text-[var(--text-secondary)]">Корп.</label>
-                                    <input
-                                        id={korpusId}
-                                        value={deliveryKorpus}
-                                        onChange={(e) => setDeliveryKorpus(e.target.value)}
-                                        className={`${siteInput} px-1.5`}
-                                        placeholder="№"
-                                        maxLength={4}
-                                    />
-                                </div>
-                                <div className="w-full shrink-0 sm:w-14">
-                                    <label htmlFor={apartmentId} className="mb-1 block text-xs text-[var(--text-secondary)]">Кв.</label>
-                                    <input
-                                        id={apartmentId}
-                                        value={deliveryApartment}
-                                        onChange={(e) => setDeliveryApartment(e.target.value)}
-                                        className={`${siteInput} px-1.5`}
-                                        placeholder="№"
-                                        maxLength={4}
-                                    />
+                                <div className="grid grid-cols-3 gap-2">
+                                    <div>
+                                        <label htmlFor={houseId} className="mb-1 block text-xs text-[var(--text-secondary)]">Дом</label>
+                                        <input
+                                            id={houseId}
+                                            value={deliveryHouse}
+                                            onChange={(e) => setDeliveryHouse(e.target.value)}
+                                            className={`${siteInput} px-1.5`}
+                                            placeholder="№"
+                                            maxLength={4}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label htmlFor={korpusId} className="mb-1 block text-xs text-[var(--text-secondary)]">Корп.</label>
+                                        <input
+                                            id={korpusId}
+                                            value={deliveryKorpus}
+                                            onChange={(e) => setDeliveryKorpus(e.target.value)}
+                                            className={`${siteInput} px-1.5`}
+                                            placeholder="№"
+                                            maxLength={4}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label htmlFor={apartmentId} className="mb-1 block text-xs text-[var(--text-secondary)]">Кв.</label>
+                                        <input
+                                            id={apartmentId}
+                                            value={deliveryApartment}
+                                            onChange={(e) => setDeliveryApartment(e.target.value)}
+                                            className={`${siteInput} px-1.5`}
+                                            placeholder="№"
+                                            maxLength={4}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1044,67 +1266,71 @@ export default function CheckoutPage() {
                                             Убрать
                                         </button>
                                     </div>
-                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-2">
-                                        <div className="w-full shrink-0 sm:w-[6rem]">
-                                            <span className="mb-1 block text-xs text-[var(--text-secondary)]">
-                                                Тип
-                                            </span>
-                                            <StreetPrefixSelect
-                                                value={additionalDeliveryStreetPrefix}
-                                                onChange={setAdditionalDeliveryStreetPrefix}
-                                                variant="site"
-                                            />
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex items-start gap-2">
+                                            <div className="w-16 shrink-0">
+                                                <span className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                                    Тип
+                                                </span>
+                                                <StreetPrefixSelect
+                                                    value={additionalDeliveryStreetPrefix}
+                                                    onChange={setAdditionalDeliveryStreetPrefix}
+                                                    variant="site"
+                                                />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <label htmlFor={extraAddressId} className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                                    Адрес *
+                                                </label>
+                                                <input
+                                                    id={extraAddressId}
+                                                    value={additionalDeliveryAddress}
+                                                    onChange={(e) => setAdditionalDeliveryAddress(e.target.value)}
+                                                    className={siteInput}
+                                                    placeholder="Улица"
+                                                />
+                                            </div>
                                         </div>
-                                        <div className="min-w-0 flex-1">
-                                            <label htmlFor={extraAddressId} className="mb-1 block text-xs text-[var(--text-secondary)]">
-                                                Адрес *
-                                            </label>
-                                            <input
-                                                id={extraAddressId}
-                                                value={additionalDeliveryAddress}
-                                                onChange={(e) => setAdditionalDeliveryAddress(e.target.value)}
-                                                className={siteInput}
-                                                placeholder="Улица"
-                                            />
-                                        </div>
-                                        <div className="w-full shrink-0 sm:w-14">
-                                            <label htmlFor={extraHouseId} className="mb-1 block text-xs text-[var(--text-secondary)]">
-                                                Дом
-                                            </label>
-                                            <input
-                                                id={extraHouseId}
-                                                value={additionalDeliveryHouse}
-                                                onChange={(e) => setAdditionalDeliveryHouse(e.target.value)}
-                                                className={`${siteInput} px-1.5`}
-                                                placeholder="№"
-                                                maxLength={4}
-                                            />
-                                        </div>
-                                        <div className="w-full shrink-0 sm:w-14">
-                                            <label htmlFor={extraKorpusId} className="mb-1 block text-xs text-[var(--text-secondary)]">
-                                                Корп.
-                                            </label>
-                                            <input
-                                                id={extraKorpusId}
-                                                value={additionalDeliveryKorpus}
-                                                onChange={(e) => setAdditionalDeliveryKorpus(e.target.value)}
-                                                className={`${siteInput} px-1.5`}
-                                                placeholder="№"
-                                                maxLength={4}
-                                            />
-                                        </div>
-                                        <div className="w-full shrink-0 sm:w-14">
-                                            <label htmlFor={extraApartmentId} className="mb-1 block text-xs text-[var(--text-secondary)]">
-                                                Кв.
-                                            </label>
-                                            <input
-                                                id={extraApartmentId}
-                                                value={additionalDeliveryApartment}
-                                                onChange={(e) => setAdditionalDeliveryApartment(e.target.value)}
-                                                className={`${siteInput} px-1.5`}
-                                                placeholder="№"
-                                                maxLength={4}
-                                            />
+                                        <div className="grid grid-cols-3 gap-2">
+                                            <div>
+                                                <label htmlFor={extraHouseId} className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                                    Дом
+                                                </label>
+                                                <input
+                                                    id={extraHouseId}
+                                                    value={additionalDeliveryHouse}
+                                                    onChange={(e) => setAdditionalDeliveryHouse(e.target.value)}
+                                                    className={`${siteInput} px-1.5`}
+                                                    placeholder="№"
+                                                    maxLength={4}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label htmlFor={extraKorpusId} className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                                    Корп.
+                                                </label>
+                                                <input
+                                                    id={extraKorpusId}
+                                                    value={additionalDeliveryKorpus}
+                                                    onChange={(e) => setAdditionalDeliveryKorpus(e.target.value)}
+                                                    className={`${siteInput} px-1.5`}
+                                                    placeholder="№"
+                                                    maxLength={4}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label htmlFor={extraApartmentId} className="mb-1 block text-xs text-[var(--text-secondary)]">
+                                                    Кв.
+                                                </label>
+                                                <input
+                                                    id={extraApartmentId}
+                                                    value={additionalDeliveryApartment}
+                                                    onChange={(e) => setAdditionalDeliveryApartment(e.target.value)}
+                                                    className={`${siteInput} px-1.5`}
+                                                    placeholder="№"
+                                                    maxLength={4}
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="mt-3">
@@ -1131,7 +1357,9 @@ export default function CheckoutPage() {
                             )}
                         </div>
                     ) : null}
+                    </div>
 
+                    <div className={mobileCheckoutStepClass("payment", mobileStep)}>
                     <fieldset className="mb-5">
                         <legend className="mb-2 text-sm font-medium text-admin-text">Способ оплаты *</legend>
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -1207,19 +1435,15 @@ export default function CheckoutPage() {
                         />
                     </div>
 
-                    <div className="mb-5 hidden space-y-3 rounded-2xl border border-admin-border bg-admin-muted/40 p-4 md:block">
-                        <CheckoutTermsConsent
-                            id="checkout-consent-terms"
-                            checked={consentTerms}
-                            showError={showConsentError}
-                            onCheckedChange={setConsentTerms}
-                        />
+                    <p className="mb-5 text-sm leading-snug text-admin-text">
+                        <CheckoutTermsText />
+                    </p>
                     </div>
 
                     <div className="hidden md:block">
                         <button
                             type="submit"
-                            disabled={isPending || !phoneIsValid || !addressIsValid || !consentsValid}
+                            disabled={isPending || !phoneIsValid || !addressIsValid}
                             className={`${siteBtnPrimary} w-full px-5 py-3 text-base sm:w-auto`}
                         >
                             {isPending ? "Оформление..." : "Подтвердить заказ"}
@@ -1233,62 +1457,92 @@ export default function CheckoutPage() {
                     </div>
                 </form>
 
-                <aside className={`${siteCard} overflow-hidden`}>
-                    <div className="p-5">
-                    <div className="mb-4 text-lg font-medium text-admin-text">Ваш заказ</div>
+                <aside className={`${siteCard} overflow-hidden max-md:mb-8 ${mobileStep === "payment" ? "" : "hidden md:block"}`}>
+                    <div className="p-4">
+                    <div className="mb-3 text-base font-semibold text-admin-text">Ваш заказ</div>
 
                     <div className="space-y-4">
                         {effectiveCheckoutLineSelection ? (
-                            <p className="mb-3 text-xs leading-5 text-[var(--text-secondary)]">
+                            <p className="text-xs leading-5 text-admin-text-secondary">
                                 К оформлению выбраны не все позиции из корзины.
                             </p>
                         ) : null}
                         {checkoutCartLines.giftItems.map((item) => (
-                            <div
-                                key={`gift-template-${item.id}`}
-                                className="border-b border-[var(--line)] pb-4 last:border-b-0"
-                            >
-                                <div className="text-sm text-[var(--text-secondary)]">Сертификат</div>
-                                <div className="font-medium">{withBynSignReplacingCode(item.title)}</div>
-                                <div className="mt-1 text-sm text-[var(--text-secondary)]">
-                                    {item.qty} × {formatMoneyRub(item.amount)}
+                            <div key={`gift-template-${item.id}`} className="flex gap-3">
+                                <span className="h-14 w-14 shrink-0 rounded-full bg-admin-muted" aria-hidden />
+                                <div className="min-w-0 flex-1">
+                                    <div className="text-sm font-semibold leading-snug text-admin-text">Сертификат</div>
+                                    <div className="mt-0.5 text-xs text-admin-text-secondary">
+                                        {withBynSignReplacingCode(item.title)}
+                                    </div>
+                                    <div className="mt-1.5 flex items-center gap-2">
+                                        <span className="text-sm font-bold tabular-nums text-admin-text">
+                                            {formatMoneyRub(item.total)}
+                                        </span>
+                                        <span className="ml-auto shrink-0 text-sm text-admin-text-secondary">
+                                            {item.qty} шт.
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         ))}
                         {checkoutCartLines.items.map((item) => {
-                            const unitPrice = cartItemCustomerUnitPrice(item, checkoutLineLoyaltyPercent);
-                            const strikePrice = cartItemStrikeUnitPrice(item, checkoutLineLoyaltyPercent);
+                            const title = lineItemProductTitle(item);
+                            const caption = checkoutVariantCaption(item);
+                            const unitMinor = parseMoneyMinorUnits(checkoutShownUnitPrice(item));
+                            const oldMinor = item.old_price ? parseMoneyMinorUnits(item.old_price) : 0;
+                            const percent = checkoutDiscountPercent(unitMinor, oldMinor);
+                            const image = item.image ? normalizeProductImageUrl(item.image) : "";
                             return (
-                                <div key={item.id} className="border-b border-[var(--line)] pb-4 last:border-b-0">
-                                    <div className="font-medium">{lineItemProductTitle(item)}</div>
-                                    <div className="text-sm text-[var(--text-secondary)]">
-                                        {item.variant?.display_name || item.variant?.title}
-                                    </div>
-                                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--text-secondary)]">
-                                        <span>
-                                            {item.qty} × {formatMoneyRub(unitPrice)}
-                                            {strikePrice ? (
-                                                <span className="ml-2 line-through">
-                                                    {formatMoneyRub(strikePrice)}
+                                <div key={item.id} className="flex gap-3">
+                                    {image ? (
+                                        <span className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-admin-muted">
+                                            <Image
+                                                src={image}
+                                                loader={productImageLoader}
+                                                alt=""
+                                                fill
+                                                sizes="56px"
+                                                className="object-cover"
+                                            />
+                                        </span>
+                                    ) : (
+                                        <span className="h-14 w-14 shrink-0 rounded-full bg-admin-muted" aria-hidden />
+                                    )}
+                                    <div className="min-w-0 flex-1">
+                                        <div className="text-sm font-semibold leading-snug text-admin-text">{title}</div>
+                                        {caption ? (
+                                            <div className="mt-0.5 text-xs text-admin-text-secondary">{caption}</div>
+                                        ) : null}
+                                        <div className="mt-1.5 flex items-center gap-2">
+                                            <span className="text-sm font-bold tabular-nums text-admin-text">
+                                                {formatMoneyRub(formatMoneyMinorUnits(unitMinor * item.qty))}
+                                            </span>
+                                            {percent ? (
+                                                <span className="text-xs text-admin-text-secondary line-through tabular-nums">
+                                                    {formatMoneyRub(formatMoneyMinorUnits(oldMinor * item.qty))}
                                                 </span>
                                             ) : null}
-                                        </span>
-                                        {item.waiting_discount && item.waiting_discount_percent !== null && (
-                                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-                                                -{item.waiting_discount_percent}% за ожидание
+                                            {percent ? (
+                                                <span className="inline-flex shrink-0 items-center rounded-md bg-[#D23C6A] px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white">
+                                                    -{percent}%
+                                                </span>
+                                            ) : null}
+                                            <span className="ml-auto shrink-0 text-sm text-admin-text-secondary">
+                                                {item.qty} шт.
                                             </span>
-                                        )}
+                                        </div>
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
 
-                    <div className="mt-6 border-t border-[var(--line)] pt-4">
+                    <div className="mt-4 border-t border-admin-border pt-3">
                         {quoteError ? <p role="status" className="mb-2 text-xs text-amber-700">{quoteError}</p> : null}
                         <CartPricingBreakdown
-                            itemsQty={checkoutLinesQty}
-                            subtotal={breakdownSubtotal}
+                            appearance="order"
+                            subtotal={orderLinesSubtotal}
                             total={merchandisePayStr}
                             discountCard={discountCardForBreakdown}
                             giftCertificate={giftForBreakdown}
@@ -1299,12 +1553,6 @@ export default function CheckoutPage() {
                             hidePayBar
                         />
                     </div>
-
-                    {errorMessage ? (
-                        <div role="alert" className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 md:hidden">
-                            {errorMessage}
-                        </div>
-                    ) : null}
 
                     <div className="mt-5 hidden space-y-3 border-t border-[var(--line)] pt-4 md:block">
                         <div>
@@ -1541,7 +1789,9 @@ export default function CheckoutPage() {
                         </p>
                     ) : null}
                     </div>
-                    <CartPricingPayBar total={merchandisePayStr} grandTotal={quote?.total} />
+                    <div className="hidden md:block">
+                        <CartPricingPayBar total={merchandisePayStr} grandTotal={quote?.total} />
+                    </div>
                 </aside>
             </div>
 
@@ -1550,91 +1800,35 @@ export default function CheckoutPage() {
                 className="storefront-bottom-cta fixed inset-x-0 z-[130] border-t border-admin-border backdrop-blur-md md:hidden"
                 style={{ bottom: "calc(var(--storefront-tab-bar-height, 0px) + var(--storefront-keyboard-inset, 0px))" }}
             >
-                <div className="mx-auto max-w-7xl px-3">
-                    <MobileBenefitButtons />
-                </div>
-                <div className="border-t border-black/[0.06] px-3 py-2">
-                    <div className="mx-auto flex max-w-7xl items-center gap-2">
-                        <div className="min-w-0 shrink-0 text-[17px] font-semibold leading-none tabular-nums text-admin-text">
+                <div className="px-3 py-2.5">
+                    <div className="mx-auto flex max-w-7xl items-center gap-3">
+                        <div className="min-w-0 text-2xl font-semibold leading-none tabular-nums text-admin-text">
                             {formatMoneyRub(checkoutPayStr)}
                         </div>
-                        <div className="ml-auto flex shrink-0 items-center gap-2">
-                            <div className="inline-flex items-center gap-1">
-                                <label
-                                    htmlFor="checkout-consent-terms-mobile"
-                                    className="inline-flex cursor-pointer items-center gap-1"
-                                >
-                                    <input
-                                        id="checkout-consent-terms-mobile"
-                                        type="checkbox"
-                                        aria-invalid={showConsentError || undefined}
-                                        checked={consentTerms}
-                                        onChange={(event) => setConsentTerms(event.target.checked)}
-                                        className={`h-4 w-4 shrink-0 rounded border-admin-border accent-admin-primary ${
-                                            showConsentError ? "outline outline-2 outline-offset-1 outline-red-500" : ""
-                                        }`}
-                                    />
-                                    <span className={`text-[11px] ${showConsentError ? "text-red-600" : "text-admin-text-secondary"}`}>
-                                        Согласие
-                                    </span>
-                                </label>
-                                <button
-                                    type="button"
-                                    onClick={() => setConsentInfoOpen(true)}
-                                    aria-label="Подробнее о согласии"
-                                    className="-ml-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-admin-text-secondary"
-                                >
-                                    <Info className="h-3.5 w-3.5" aria-hidden />
-                                </button>
-                            </div>
-                            <button
-                                type="submit"
-                                form="checkout-form"
-                                disabled={isPending || !phoneIsValid || !addressIsValid || !consentsValid}
-                                className={`${siteBtnPrimary} h-10 shrink-0 px-4 text-sm`}
-                            >
-                                {isPending ? "…" : "Подтвердить"}
-                            </button>
-                        </div>
+                        <button
+                            type="button"
+                            disabled={mobileStep === "payment" && (isPending || !phoneIsValid || !addressIsValid)}
+                            onPointerDown={() => {
+                                mobileCtaPressed.current = true;
+                            }}
+                            onPointerCancel={() => {
+                                mobileCtaPressed.current = false;
+                            }}
+                            onClick={onMobileCheckoutCta}
+                            className={`${siteBtnPrimary} ml-auto h-12 shrink-0 gap-1 px-6 text-base`}
+                        >
+                            {mobileStep === "payment" ? (
+                                isPending ? "…" : "Подтвердить"
+                            ) : (
+                                <>
+                                    Далее
+                                    <ChevronRight className="h-4 w-4" aria-hidden />
+                                </>
+                            )}
+                        </button>
                     </div>
                 </div>
             </div>
-
-            {consentInfoOpen && typeof document !== "undefined"
-                ? createPortal(
-                    <div
-                        className="fixed inset-x-0 top-0 z-[140] flex items-end justify-center bg-slate-900/40 p-0"
-                        style={{
-                            bottom: "calc(var(--storefront-tab-bar-height, 0px) + var(--storefront-keyboard-inset, 0px))",
-                        }}
-                        onClick={() => setConsentInfoOpen(false)}
-                        role="presentation"
-                    >
-                        <div
-                            className="w-full rounded-t-2xl border border-admin-border bg-admin-surface p-4 shadow-2xl"
-                            onClick={(event) => event.stopPropagation()}
-                            role="dialog"
-                            aria-modal="true"
-                            aria-labelledby="checkout-consent-info-title"
-                        >
-                            <div id="checkout-consent-info-title" className="mb-2 text-base font-semibold text-admin-text">
-                                Согласие
-                            </div>
-                            <p className="text-sm leading-relaxed text-admin-text-secondary">
-                                <CheckoutTermsText />
-                            </p>
-                            <button
-                                type="button"
-                                onClick={() => setConsentInfoOpen(false)}
-                                className={`${siteBtnPrimary} mt-4 w-full`}
-                            >
-                                Понятно
-                            </button>
-                        </div>
-                    </div>,
-                    document.body,
-                )
-                : null}
 
             {cardSampleWarningOpen && typeof document !== "undefined"
                 ? createPortal(

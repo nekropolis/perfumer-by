@@ -9,7 +9,6 @@ import PhoneInput, {
     normalizePlainByDigitsInput,
 } from "@/components/ui/phone-input";
 import { createStockNotificationRequest } from "@/lib/stock-notifications-api";
-import PrivacyConsentCheckbox from "@/components/legal/privacy-consent-checkbox";
 import { siteBtnPrimary, siteBtnSecondary, siteTextarea } from "@/lib/site-ui-classes";
 
 type Props = {
@@ -57,8 +56,6 @@ export default function StockNotificationModal({
     const [errorMessage, setErrorMessage] = useState("");
     const [successMessage, setSuccessMessage] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [consentPrivacy, setConsentPrivacy] = useState(false);
-    const [consentAttempted, setConsentAttempted] = useState(false);
     const formRef = useRef<HTMLFormElement | null>(null);
 
     useEffect(() => {
@@ -95,8 +92,6 @@ export default function StockNotificationModal({
             setErrorMessage("");
             setSuccessMessage("");
             setIsSubmitting(false);
-            setConsentPrivacy(false);
-            setConsentAttempted(false);
         }
     }, [open]);
 
@@ -134,12 +129,6 @@ export default function StockNotificationModal({
             return;
         }
 
-        setConsentAttempted(true);
-        if (!consentPrivacy) {
-            setErrorMessage("Подтвердите согласие на обработку персональных данных");
-            return;
-        }
-
         setIsSubmitting(true);
 
         try {
@@ -149,7 +138,6 @@ export default function StockNotificationModal({
                 phone,
                 phone_plain_digits: allowPlainPhone,
                 comment: cleanedComment || undefined,
-                consent_privacy: true,
             });
 
             setSuccessMessage(
@@ -304,13 +292,6 @@ export default function StockNotificationModal({
                             </div>
                         </div>
 
-                        <PrivacyConsentCheckbox
-                            id="stock-consent-privacy"
-                            checked={consentPrivacy}
-                            onChange={setConsentPrivacy}
-                            invalid={consentAttempted && !consentPrivacy}
-                        />
-
                         {errorMessage && (
                             <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                                 {errorMessage}
@@ -327,7 +308,7 @@ export default function StockNotificationModal({
                             </button>
                             <button
                                 type="submit"
-                                disabled={isSubmitting || !phoneIsValid || !consentPrivacy}
+                                disabled={isSubmitting || !phoneIsValid}
                                 className={`${siteBtnPrimary} w-full sm:w-auto`}
                             >
                                 {isSubmitting ? "Отправка..." : "Отправить"}

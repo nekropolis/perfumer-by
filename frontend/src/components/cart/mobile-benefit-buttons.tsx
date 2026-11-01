@@ -1,7 +1,7 @@
 "use client";
 
-import { Check, ChevronRight, Tag } from "lucide-react";
-import { useEffect, useId, useRef, useState, useTransition, type ReactNode, type RefObject } from "react";
+import { Check, ChevronRight, Gift, Tag } from "lucide-react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore, useTransition, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useCart } from "@/components/cart/cart-provider";
@@ -19,12 +19,20 @@ import { siteBtnPrimary, siteBtnSecondary, siteInput } from "@/lib/site-ui-class
 
 type ClearTarget = "gift" | "card" | null;
 
-export default function MobileBenefitButtons() {
+type Props = {
+    variant?: "inline" | "field" | "block";
+};
+
+export default function MobileBenefitButtons({ variant = "inline" }: Props) {
     const { cart, setCartState } = useCart();
     const { isAuthenticated } = useAuth();
     const [isPending, startTransition] = useTransition();
     const [open, setOpen] = useState(false);
-    const [portalReady, setPortalReady] = useState(false);
+    const portalReady = useSyncExternalStore(
+        () => () => {},
+        () => true,
+        () => false,
+    );
     const [giftCode, setGiftCode] = useState("");
     const [giftHoneypot, setGiftHoneypot] = useState("");
     const [giftLastAttemptAt, setGiftLastAttemptAt] = useState(0);
@@ -47,10 +55,6 @@ export default function MobileBenefitButtons() {
     const hasApplied = Boolean(certificate || discountCard);
 
     useEffect(() => {
-        setPortalReady(true);
-    }, []);
-
-    useEffect(() => {
         if (!open) {
             return;
         }
@@ -71,16 +75,13 @@ export default function MobileBenefitButtons() {
         return null;
     }
 
-    const statusLabel = [
-        certificate
-            ? `Сертификат ${certificate.code}${certificate.amount ? ` · ${formatMoneyRubText(certificate.amount)}` : ""}`
-            : null,
-        discountCard
-            ? `Карта ${discountCard.number}${discountCard.discount_percent ? ` · ${discountCard.discount_percent}%` : ""}`
-            : null,
-    ]
-        .filter(Boolean)
-        .join(" · ");
+    const certificateLabel = certificate
+        ? `Сертификат ${certificate.code}${certificate.amount ? ` · ${formatMoneyRubText(certificate.amount)}` : ""}`
+        : null;
+    const cardLabel = discountCard
+        ? `Карта ${discountCard.number}${discountCard.discount_percent ? ` · ${discountCard.discount_percent}%` : ""}`
+        : null;
+    const statusLabel = [certificateLabel, cardLabel].filter(Boolean).join(" · ");
 
     const closeSheet = () => {
         setOpen(false);
@@ -181,20 +182,59 @@ export default function MobileBenefitButtons() {
             <button
                 type="button"
                 onClick={() => setOpen(true)}
-                className="flex w-full items-center gap-2 py-1.5 text-left active:opacity-80"
+                className={
+                    variant === "block"
+                        ? "flex w-full items-center gap-3 rounded-2xl border border-admin-border bg-admin-surface px-3.5 py-3 text-left shadow-sm active:bg-admin-muted"
+                        : variant === "field"
+                        ? "flex w-full items-center gap-2.5 rounded-2xl border border-admin-border bg-admin-surface px-3.5 py-3 text-left active:bg-admin-muted"
+                        : "flex w-full items-center gap-2 py-1.5 text-left active:opacity-80"
+                }
                 aria-haspopup="dialog"
                 aria-expanded={open}
             >
-                <Tag className="h-3.5 w-3.5 shrink-0 text-amber-700" aria-hidden />
+                {variant === "block" ? (
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-50">
+                        <Gift className="h-4 w-4 text-orange-500" aria-hidden />
+                    </span>
+                ) : (
+                    <Tag
+                        className={
+                            variant === "field"
+                                ? "h-5 w-5 shrink-0 text-[#E15B45]"
+                                : "h-3.5 w-3.5 shrink-0 text-amber-700"
+                        }
+                        aria-hidden
+                    />
+                )}
+                {variant === "block" ? (
+                    <span className="min-w-0 flex-1">
+                        <span className={`block text-sm font-semibold leading-5 ${hasApplied ? "text-emerald-700" : "text-admin-text"}`}>
+                            {statusLabel || "Сертификат или карта лояльности"}
+                        </span>
+                        <span className="mt-0.5 block text-xs leading-4 text-admin-text-secondary">
+                            {hasApplied ? "Нажмите, чтобы изменить" : "Нажмите, чтобы применить"}
+                        </span>
+                    </span>
+                ) : (
                 <span
-                    className={`min-w-0 flex-1 truncate text-[13px] leading-4 ${
-                        hasApplied ? "font-medium text-emerald-700" : "text-admin-text-secondary"
+                    className={`min-w-0 flex-1 ${
+                        variant === "field"
+                            ? `text-sm leading-snug ${hasApplied ? "font-medium text-emerald-700" : "text-admin-text"}`
+                            : `truncate text-[13px] leading-4 ${hasApplied ? "font-medium text-emerald-700" : "text-admin-text-secondary"}`
                     }`}
                 >
                     {statusLabel || "Сертификат / карта лояльности"}
                 </span>
-                {hasApplied ? <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden /> : null}
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-admin-text-secondary" aria-hidden />
+                )}
+                {hasApplied && variant !== "block" ? <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden /> : null}
+                {variant === "field" && !hasApplied ? (
+                    <span className="inline-flex shrink-0 items-center gap-0.5 text-sm text-admin-text-secondary">
+                        Применить
+                        <ChevronRight className="h-4 w-4" aria-hidden />
+                    </span>
+                ) : (
+                    <ChevronRight className={`shrink-0 text-admin-text-secondary ${variant === "block" ? "h-5 w-5" : "h-3.5 w-3.5"}`} aria-hidden />
+                )}
             </button>
 
             {portalReady && open
@@ -231,7 +271,7 @@ export default function MobileBenefitButtons() {
                               <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 [-webkit-overflow-scrolling:touch]">
                                   {certificate ? (
                                       <AppliedRow
-                                          label={`Сертификат ${certificate.code}${certificate.amount ? ` · ${formatMoneyRubText(certificate.amount)}` : ""}`}
+                                          label={certificateLabel ?? ""}
                                           onRemove={() => setConfirmClear("gift")}
                                       />
                                   ) : (
@@ -251,7 +291,7 @@ export default function MobileBenefitButtons() {
 
                                   {discountCard ? (
                                       <AppliedRow
-                                          label={`Карта ${discountCard.number}${discountCard.discount_percent ? ` · ${discountCard.discount_percent}%` : ""}`}
+                                          label={cardLabel ?? ""}
                                           onRemove={() => setConfirmClear("card")}
                                       />
                                   ) : (

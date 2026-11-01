@@ -33,7 +33,6 @@ export type CreateStockNotificationPayload = {
     phone: string;
     phone_plain_digits?: boolean;
     comment?: string;
-    consent_privacy: boolean;
 };
 
 export type CreateCallbackRequestPayload = {
@@ -42,7 +41,6 @@ export type CreateCallbackRequestPayload = {
     phone: string;
     phone_plain_digits?: boolean;
     comment?: string;
-    consent_privacy: boolean;
 };
 
 export type CreateStockNotificationResponse = {

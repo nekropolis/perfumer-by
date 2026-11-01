@@ -1,5 +1,6 @@
 "use client";
 
+import { Gift, Package, Percent, Star, Ticket } from "lucide-react";
 import { formatMoneyDisplay, formatMoneyRub } from "@/lib/format-money-display";
 import { formatMoneyMinorUnits, parseMoneyMinorUnits } from "@/lib/format-byn";
 import { withBynSign } from "@/lib/byn-sign";
@@ -30,6 +31,8 @@ type Props = {
     sampleGift?: boolean;
     /** Скрыть полосу «К оплате» — вынести футером карточки «Ваш заказ». */
     hidePayBar?: boolean;
+    /** Плоские строки заказа на шаге оплаты или иконки в корзине. */
+    appearance?: "default" | "order" | "cart";
     className?: string;
 };
 
@@ -65,6 +68,7 @@ export default function CartPricingBreakdown({
     waitingDiscountAmount,
     sampleGift = false,
     hidePayBar = false,
+    appearance = "default",
     className = "",
 }: Props) {
     const sub = parseMoneyMinorUnits(subtotal);
@@ -76,6 +80,132 @@ export default function CartPricingBreakdown({
     const hasCard = discountCard && cardAmt > 0;
     const hasCert = giftCertificate && certAmt > 0;
     const hasWaiting = waitingAmt > 0;
+
+    if (appearance === "order") {
+        return (
+            <div className={`space-y-2.5 text-sm ${className}`}>
+                <div className="flex items-center justify-between gap-3 text-admin-text-secondary">
+                    <span>Сумма товаров</span>
+                    <span className="text-admin-text">{formatMoneyRub(subtotal)}</span>
+                </div>
+
+                {hasWaiting ? (
+                    <div className="flex items-center justify-between gap-3 text-[#E07A2F]">
+                        <span>Скидка 3% за ожидание доставки</span>
+                        <span className="shrink-0 font-medium">
+                            −{withBynSign(formatMoneyDisplay(waitingDiscountAmount!) ?? waitingDiscountAmount!)}
+                        </span>
+                    </div>
+                ) : null}
+
+                {hasCard ? (
+                    <div className="flex items-center justify-between gap-3 text-admin-text-secondary">
+                        <span>
+                            Скидка по карте {discountCard!.discount_percent}%
+                        </span>
+                        <span className="shrink-0 text-admin-text">
+                            −{withBynSign(formatMoneyDisplay(discountCard!.discount_amount) ?? discountCard!.discount_amount)}
+                        </span>
+                    </div>
+                ) : null}
+
+                {hasCert ? (
+                    <div className="flex items-center justify-between gap-3 text-admin-text-secondary">
+                        <span>Сертификат {giftCertificate!.code || giftCertificate!.number}</span>
+                        <span className="shrink-0 text-admin-text">
+                            −{withBynSign(formatMoneyDisplay(giftCertificate!.amount) ?? giftCertificate!.amount)}
+                        </span>
+                    </div>
+                ) : null}
+
+                {savings > 0 ? (
+                    <div className="flex items-center justify-between gap-3 text-admin-text-secondary">
+                        <span>Выгода по скидкам</span>
+                        <span className="text-admin-text">−{formatMoneyRub(formatMoneyMinorUnits(savings))}</span>
+                    </div>
+                ) : null}
+
+                {deliveryFee != null ? (
+                    <div className="flex items-center justify-between gap-3 text-admin-text-secondary">
+                        <span>Доставка</span>
+                        <span>
+                            {parseMoneyMinorUnits(deliveryFee) < 1 ? (
+                                <span className="font-medium text-emerald-600">Бесплатно</span>
+                            ) : (
+                                <span className="text-admin-text">{formatMoneyRub(deliveryFee)}</span>
+                            )}
+                        </span>
+                    </div>
+                ) : null}
+
+                {sampleGift ? (
+                    <div className="flex items-center justify-between gap-3 text-emerald-600">
+                        <span className="inline-flex items-center gap-1.5">
+                            <Gift className="h-4 w-4 shrink-0" aria-hidden />
+                            Пробник в подарок
+                        </span>
+                        <span className="font-medium">Бесплатно</span>
+                    </div>
+                ) : null}
+            </div>
+        );
+    }
+
+    if (appearance === "cart") {
+        return (
+            <div className={`space-y-3 text-sm ${className}`}>
+                <div className="flex items-center justify-between gap-3 text-admin-text-secondary">
+                    <span className="inline-flex items-center gap-2">
+                        <Package className="h-4 w-4 shrink-0" aria-hidden />
+                        Сумма товаров
+                    </span>
+                    <span className="text-admin-text">{formatMoneyRub(subtotal)}</span>
+                </div>
+                {hasWaiting ? (
+                    <div className="flex items-center justify-between gap-3 text-[#E07A2F]">
+                        <span className="inline-flex items-center gap-2">
+                            <Percent className="h-4 w-4 shrink-0" aria-hidden />
+                            Скидка за ожидание доставки
+                        </span>
+                        <span className="shrink-0 font-medium">
+                            −{withBynSign(formatMoneyDisplay(waitingDiscountAmount!) ?? waitingDiscountAmount!)}
+                        </span>
+                    </div>
+                ) : null}
+                {hasCard ? (
+                    <div className="flex items-center justify-between gap-3 text-admin-text-secondary">
+                        <span className="inline-flex items-center gap-2">
+                            <Ticket className="h-4 w-4 shrink-0" aria-hidden />
+                            Скидка по карте {discountCard!.discount_percent}%
+                        </span>
+                        <span className="shrink-0 text-admin-text">
+                            −{withBynSign(formatMoneyDisplay(discountCard!.discount_amount) ?? discountCard!.discount_amount)}
+                        </span>
+                    </div>
+                ) : null}
+                {hasCert ? (
+                    <div className="flex items-center justify-between gap-3 text-admin-text-secondary">
+                        <span className="inline-flex items-center gap-2">
+                            <Ticket className="h-4 w-4 shrink-0" aria-hidden />
+                            Сертификат {giftCertificate!.code || giftCertificate!.number}
+                        </span>
+                        <span className="shrink-0 text-admin-text">
+                            −{withBynSign(formatMoneyDisplay(giftCertificate!.amount) ?? giftCertificate!.amount)}
+                        </span>
+                    </div>
+                ) : null}
+                {savings > 0 ? (
+                    <div className="flex items-center justify-between gap-3">
+                        <span className="inline-flex items-center gap-2 text-admin-text-secondary">
+                            <Star className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+                            Выгода по скидкам
+                        </span>
+                        <span className="font-medium text-emerald-600">−{formatMoneyRub(formatMoneyMinorUnits(savings))}</span>
+                    </div>
+                ) : null}
+            </div>
+        );
+    }
 
     return (
         <div className={`space-y-2 text-sm text-admin-text-secondary ${className}`}>

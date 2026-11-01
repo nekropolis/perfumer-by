@@ -42,8 +42,6 @@ export default function OneClickOrderModal({
     const [customerName, setCustomerName] = useState("");
     const [phone, setPhone] = useState("");
     const [allowPlainPhone, setAllowPlainPhone] = useState(false);
-    const [consentTerms, setConsentTerms] = useState(false);
-    const [consentAttempted, setConsentAttempted] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
     const [successMessage, setSuccessMessage] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -56,8 +54,6 @@ export default function OneClickOrderModal({
         setCustomerName(authUserCheckoutName(user) || "");
         setPhone(user?.phone?.trim() || "");
         setAllowPlainPhone(false);
-        setConsentTerms(false);
-        setConsentAttempted(false);
         setIsSubmitting(false);
 
         const previousOverflow = document.body.style.overflow;
@@ -82,7 +78,7 @@ export default function OneClickOrderModal({
 
     const phoneIsValid = allowPlainPhone ? isPlainByPhoneComplete(phone) : isBelarusPhoneComplete(phone);
     const nameIsValid = customerName.trim().length > 0;
-    const canSubmit = nameIsValid && phoneIsValid && consentTerms && variantId !== null;
+    const canSubmit = nameIsValid && phoneIsValid && variantId !== null;
 
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
@@ -107,12 +103,6 @@ export default function OneClickOrderModal({
 
         if (variantId === null) {
             setErrorMessage("Выберите вариант товара");
-            return;
-        }
-
-        setConsentAttempted(true);
-        if (!consentTerms) {
-            setErrorMessage("Примите условия публичной оферты и обработки персональных данных");
             return;
         }
 
@@ -268,55 +258,32 @@ export default function OneClickOrderModal({
                             <PhoneInput value={phone} onChangeAction={setPhone} plainDigitsMode={allowPlainPhone} />
                         </div>
 
-                        <label
-                            htmlFor="one-click-consent-terms"
-                            className="flex cursor-pointer items-start gap-2.5 text-sm leading-snug text-admin-text"
-                        >
-                            <input
-                                id="one-click-consent-terms"
-                                type="checkbox"
-                                checked={consentTerms}
-                                onChange={(e) => setConsentTerms(e.target.checked)}
-                                className={`mt-0.5 h-4 w-4 shrink-0 rounded border-admin-border accent-admin-primary ${
-                                    consentAttempted && !consentTerms
-                                        ? "outline outline-2 outline-offset-1 outline-red-500"
-                                        : ""
-                                }`}
+                        <p className="text-sm leading-snug text-admin-text">
+                            Нажимая «Заказать», я принимаю условия{" "}
+                            <Link
+                                href={LEGAL_PAGE_PATHS.offer}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-medium text-admin-primary underline-offset-2 hover:underline"
+                            >
+                                публичной оферты
+                            </Link>
+                            <LegalHelpIcon href={LEGAL_PAGE_PATHS.offer} label="Открыть публичную оферту" /> и
+                            согласен(а) на обработку персональных данных согласно{" "}
+                            <Link
+                                href={LEGAL_PAGE_PATHS.privacy}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-medium text-admin-primary underline-offset-2 hover:underline"
+                            >
+                                политике
+                            </Link>
+                            <LegalHelpIcon
+                                href={LEGAL_PAGE_PATHS.privacy}
+                                label="Открыть политику обработки персональных данных"
                             />
-                            <span>
-                                Нажимая «Заказать», я принимаю условия{" "}
-                                <Link
-                                    href={LEGAL_PAGE_PATHS.offer}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="font-medium text-admin-primary underline-offset-2 hover:underline"
-                                    onClick={(e) => e.stopPropagation()}
-                                >
-                                    публичной оферты
-                                </Link>
-                                <LegalHelpIcon href={LEGAL_PAGE_PATHS.offer} label="Открыть публичную оферту" /> и
-                                согласен(а) на обработку персональных данных согласно{" "}
-                                <Link
-                                    href={LEGAL_PAGE_PATHS.privacy}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="font-medium text-admin-primary underline-offset-2 hover:underline"
-                                    onClick={(e) => e.stopPropagation()}
-                                >
-                                    политике
-                                </Link>
-                                <LegalHelpIcon
-                                    href={LEGAL_PAGE_PATHS.privacy}
-                                    label="Открыть политику обработки персональных данных"
-                                />
-                                .
-                                {consentAttempted && !consentTerms ? (
-                                    <span className="mt-1 block text-xs text-red-600">
-                                        Отметьте согласие, чтобы оформить заказ.
-                                    </span>
-                                ) : null}
-                            </span>
-                        </label>
+                            .
+                        </p>
 
                         {errorMessage ? (
                             <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

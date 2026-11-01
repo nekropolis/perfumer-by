@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Trash2 } from "lucide-react";
+import Image from "next/image";
+import { Check, Trash2 } from "lucide-react";
 import { lineItemProductTitle } from "@/lib/product-display-name";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import {
@@ -38,8 +39,11 @@ import { useAuth } from "@/components/auth/auth-provider";
 import CartPricingBreakdown, { CartPricingPayBar } from "@/components/cart/cart-pricing-breakdown";
 import SiteConfirmDialog from "@/components/ui/site-confirm-dialog";
 import { withBynSignReplacingCode, withBynSignReplacingCodeText } from "@/lib/byn-sign";
+import { parseMoneyMinorUnits } from "@/lib/format-byn";
 import { formatMoneyRub } from "@/lib/format-money-display";
+import { normalizeProductImageUrl, productImageLoader } from "@/lib/product-image-url";
 import { siteBtnPrimary, siteBtnSecondary, siteCard, siteInput } from "@/lib/site-ui-classes";
+import type { CartItemData } from "@/types/cart";
 
 type PendingDelete =
     | { type: "product"; id: number; title: string }
@@ -94,16 +98,18 @@ function SwipeToDelete({
     };
 
     return (
-        <div className="relative overflow-hidden rounded-xl md:overflow-visible">
+        <div className={`relative md:overflow-visible ${offset === 0 ? "overflow-visible" : "overflow-hidden"}`}>
+            {offset !== 0 ? (
+                <div
+                    className="absolute inset-y-0 right-0 flex items-center justify-center bg-red-600 text-white md:hidden"
+                    style={{ width: DELETE_ACTION_WIDTH_PX }}
+                    aria-hidden
+                >
+                    <Trash2 className="h-5 w-5" />
+                </div>
+            ) : null}
             <div
-                className="absolute inset-y-0 right-0 flex items-center justify-center bg-red-600 text-white md:hidden"
-                style={{ width: DELETE_ACTION_WIDTH_PX }}
-                aria-hidden
-            >
-                <Trash2 className="h-5 w-5" />
-            </div>
-            <div
-                className={dragging ? "relative bg-admin-surface" : "relative bg-admin-surface transition-transform duration-200 ease-out"}
+                className={dragging ? "relative bg-admin-surface max-md:pr-4" : "relative bg-admin-surface max-md:pr-4 transition-transform duration-200 ease-out"}
                 style={{ transform: offset === 0 ? undefined : `translateX(${offset}px)`, touchAction: "pan-y" }}
                 onClickCapture={(event) => {
                     if (!suppressClick.current) {
@@ -174,6 +180,70 @@ function SwipeToDelete({
     );
 }
 
+function cartVariantCaption(item: CartItemData): string | null {
+    const variant = item.variant;
+    if (!variant) {
+        return null;
+    }
+    const parts: string[] = [];
+    if (variant.volume != null) {
+        const unit = variant.volume_unit?.trim() || "мл";
+        const vol = Number.isInteger(variant.volume)
+            ? String(variant.volume)
+            : String(variant.volume).replace(".", ",");
+        parts.push(`${vol} ${unit}`);
+    }
+    const kind = variant.type?.trim()
+        || (variant.concentration?.trim() ? variant.concentration.trim().toUpperCase() : "");
+    if (kind) {
+        parts.push(kind);
+    }
+    if (parts.length > 0) {
+        return parts.join(" · ");
+    }
+    return variant.display_name || variant.title || null;
+}
+
+function cartPricePercent(current: string, previous: string | null): number | null {
+    if (!previous) {
+        return null;
+    }
+    const currentMinor = parseMoneyMinorUnits(current);
+    const previousMinor = parseMoneyMinorUnits(previous);
+    if (previousMinor <= 0 || currentMinor >= previousMinor) {
+        return null;
+    }
+    const pct = Math.round(((previousMinor - currentMinor) * 100) / previousMinor);
+    return pct > 0 ? pct : null;
+}
+
+function cartProductName(item: CartItemData): string {
+    const brand = item.brand_name?.trim() ?? "";
+    const name = (item.product_name ?? item.product_display_name ?? "").trim();
+    if (!brand || !name) {
+        return name || lineItemProductTitle(item);
+    }
+    const lowerName = name.toLocaleLowerCase("ru");
+    const lowerBrand = brand.toLocaleLowerCase("ru");
+    if (lowerName === lowerBrand) {
+        return name;
+    }
+    if (lowerName.startsWith(`${lowerBrand} `)) {
+        return name.slice(brand.length).trim();
+    }
+    return name;
+}
+
+function shortPercentLabel(raw: string): string {
+    const trimmed = raw.trim().replace(",", ".");
+    if (!/^\d+(\.\d+)?$/.test(trimmed)) {
+        return raw.trim();
+    }
+    const [whole, frac = ""] = trimmed.split(".");
+    const fracTrim = frac.replace(/0+$/, "");
+    return fracTrim ? `${whole},${fracTrim}` : whole;
+}
+
 function CartLineSelectControl({ checked, onToggle, ariaLabel }: CartLineSelectControlProps) {
     return (
         <label className="relative flex h-5 w-5 shrink-0 cursor-pointer select-none items-center justify-center self-start pt-0.5">
@@ -209,6 +279,7 @@ export default function CartPage() {
     const { isAuthenticated } = useAuth();
     const [isPending, startTransition] = useTransition();
     const [pendingDelete, setPendingDelete] = useState<PendingDelete>(null);
+    const [confirmClearCart, setConfirmClearCart] = useState(false);
     const [giftCertificateCode, setGiftCertificateCode] = useState("");
     const [giftCertificateHoneypot, setGiftCertificateHoneypot] = useState("");
     const [giftCertificateLastAttemptAt, setGiftCertificateLastAttemptAt] = useState(0);
@@ -454,6 +525,25 @@ export default function CartPage() {
         });
     };
 
+    const clearWholeCart = () => {
+        if (!cart) {
+            return;
+        }
+        const productIds = cart.items.map((item) => item.id);
+        const giftIds = (cart.gift_certificate_items ?? []).map((item) => item.id);
+        startTransition(async () => {
+            let latest = cart;
+            for (const id of productIds) {
+                latest = (await removeCartItem(id)).data;
+            }
+            for (const id of giftIds) {
+                latest = (await removeGiftCertificateTemplateCartItem(id)).data;
+            }
+            setCartState(latest);
+            setConfirmClearCart(false);
+        });
+    };
+
     const changeGiftTemplateQty = (itemId: number, qty: number) => {
         if (qty < 1) return;
         startTransition(async () => {
@@ -559,11 +649,11 @@ export default function CartPage() {
     }
 
     return (
-        <main className="mx-auto max-w-7xl px-4 py-4 pb-28 sm:px-6 md:py-8 lg:px-8 lg:pb-8">
+        <main className="mx-auto max-w-7xl px-4 py-4 pb-8 sm:px-6 md:py-8 lg:px-8">
             <div className="mb-4 flex flex-col gap-3 md:mb-8 md:flex-row md:items-end md:justify-between">
                 <div>
                     <h1 className="hidden text-3xl font-semibold md:block md:text-4xl">Корзина</h1>
-                    <p className="text-sm text-admin-text-secondary md:mt-2">
+                    <p className="hidden text-sm text-admin-text-secondary md:mt-2 md:block">
                         {cart.qty} {cart.qty === 1 ? "товар" : cart.qty < 5 ? "товара" : "товаров"} в корзине
                         {partialLineSelection ? (
                             <>
@@ -656,142 +746,171 @@ export default function CartPage() {
                         </SwipeToDelete>
                     ))}
 
+                    <div className={`${siteCard} p-4`}>
+                        <div className="mb-4 flex items-center justify-between gap-3">
+                            <h2 className="text-lg font-semibold text-admin-text">Корзина ({cart.qty})</h2>
+                            <button
+                                type="button"
+                                onClick={() => setConfirmClearCart(true)}
+                                disabled={isPending || (cart.items.length === 0 && (cart.gift_certificate_items ?? []).length === 0)}
+                                className="inline-flex items-center gap-1.5 text-sm text-admin-text-secondary transition hover:text-admin-text disabled:opacity-40"
+                            >
+                                <Trash2 className="h-4 w-4" aria-hidden />
+                                Очистить
+                            </button>
+                        </div>
+                        <div className="space-y-5">
                     {cart.items.map((item) => {
                         const loyaltyPercent = Number(cart.discount_card?.discount_percent ?? 0) || 0;
                         const unitPrice = cartItemCustomerUnitPrice(item, loyaltyPercent);
                         const strikePrice = cartItemStrikeUnitPrice(item, loyaltyPercent);
+                        const title = lineItemProductTitle(item);
+                        const productName = cartProductName(item);
+                        const caption = cartVariantCaption(item);
+                        const image = item.image ? normalizeProductImageUrl(item.image) : "";
+                        const productHref = item.product_slug ? `/${item.product_slug}` : null;
+                        const percent = cartPricePercent(unitPrice, strikePrice);
+                        const selected = selectedCartItemIds.has(item.id);
+                        const cardPercent = cart.discount_card?.discount_percent
+                            ? shortPercentLabel(cart.discount_card.discount_percent)
+                            : "";
                         return (
                         <SwipeToDelete
                             key={item.id}
                             disabled={isPending}
-                            onDelete={() => requestDeleteProduct(item.id, lineItemProductTitle(item))}
+                            onDelete={() => requestDeleteProduct(item.id, title)}
                         >
-                        <article
-                            className={`${siteCard} p-4 sm:p-5`}
-                        >
-                            <div className="flex gap-3 sm:gap-4">
-                                <CartLineSelectControl
-                                    checked={selectedCartItemIds.has(item.id)}
-                                    onToggle={() => toggleCartItemSelected(item.id)}
-                                    ariaLabel="Включить товар в оформление заказа"
-                                />
-                                <div className="min-w-0 flex-1">
-                            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                                <div className="min-w-0 flex-1">
-                                    <Link
-                                        href={`/${item.product_slug}`}
-                                        className="block text-base font-medium leading-snug text-[var(--foreground)] transition hover:opacity-80 md:hidden"
-                                    >
-                                        {lineItemProductTitle(item)}
-                                    </Link>
-                                    {(item.variant?.display_name || item.variant?.title || item.variant?.type) ? (
-                                        <p className="mt-0.5 text-sm leading-snug text-[var(--text-secondary)] md:hidden">
-                                            {[item.variant?.display_name || item.variant?.title, item.variant?.type]
-                                                .map((part) => part?.trim())
-                                                .filter(Boolean)
-                                                .join(" - ")}
-                                        </p>
-                                    ) : null}
-                                    <Link
-                                        href={`/${item.product_slug}`}
-                                        className="hidden text-lg font-medium leading-6 text-[var(--foreground)] transition hover:opacity-80 md:block"
-                                    >
-                                        {lineItemProductTitle(item)}
-                                    </Link>
-
-                                    <div className="mt-1 hidden text-sm text-[var(--text-secondary)] md:block">
-                                        {item.variant?.display_name || item.variant?.title}
-                                    </div>
-
-                                    {item.variant?.type && (
-                                        <div className="mt-1 hidden text-xs text-[var(--text-secondary)] md:block">
-                                            {item.variant.type}
-                                        </div>
-                                    )}
-
-                                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-                                        <div className="font-medium text-[var(--foreground)]">
-                                            {formatMoneyRub(unitPrice)}
-                                            {strikePrice ? (
-                                                <span className="ml-2 font-normal text-[var(--text-secondary)] line-through">
-                                                    {formatMoneyRub(strikePrice)}
-                                                </span>
-                                            ) : null}
-                                        </div>
-
-                                        {item.waiting_discount && item.waiting_discount_percent !== null && (
-                                            <div className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-                                                -{item.waiting_discount_percent}% за ожидание
-                                            </div>
-                                        )}
-
-                                        {!item.is_available ? (
-                                            <div className="text-red-600">Нет в наличии</div>
-                                        ) : item.waiting_discount ? (
-                                            <div className="text-amber-600">
-                                                Отправка с{" "}
-                                                {cart?.waiting_discount_delivery_date || "xx.xx.xxxx"}
-                                            </div>
-                                        ) : item.is_preorder ? (
-                                            <div className="text-amber-600">Под заказ</div>
+                        <article>
+                            <div className="relative flex items-start gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => toggleCartItemSelected(item.id)}
+                                    aria-pressed={selected}
+                                    aria-label="Включить товар в оформление заказа"
+                                    className={`absolute -left-1 top-0 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white shadow-sm ${selected ? "bg-admin-primary text-white" : "bg-white/90 text-transparent"}`}
+                                >
+                                    <Check className="h-3 w-3" strokeWidth={3} aria-hidden />
+                                </button>
+                                <div className="relative h-[5.5rem] w-[5.5rem] shrink-0 overflow-hidden rounded-2xl">
+                                    {image ? (
+                                        productHref ? (
+                                            <Link href={productHref} className="absolute inset-0">
+                                                <Image
+                                                    src={image}
+                                                    loader={productImageLoader}
+                                                    alt=""
+                                                    fill
+                                                    sizes="88px"
+                                                    className="object-contain"
+                                                />
+                                            </Link>
                                         ) : (
-                                            <div className="text-emerald-600">Товар в наличии в магазине</div>
-                                        )}
-                                    </div>
+                                            <Image
+                                                src={image}
+                                                loader={productImageLoader}
+                                                alt=""
+                                                fill
+                                                sizes="88px"
+                                                className="object-contain"
+                                            />
+                                        )
+                                    ) : null}
                                 </div>
-
-                                <div className="flex w-full items-center gap-2 sm:w-auto">
-                                    <div className="flex items-center rounded-2xl border border-[var(--line)] bg-[var(--background)]">
-                                        <button
-                                            type="button"
-                                            onClick={() => changeQty(item.id, item.qty - 1)}
-                                            disabled={isPending || item.qty <= 1}
-                                            aria-label="Уменьшить количество"
-                                            className="inline-flex h-10 w-10 items-center justify-center rounded-l-2xl text-base text-[var(--foreground)] transition hover:bg-[var(--surface)] disabled:opacity-40"
-                                        >
-                                            −
-                                        </button>
-
-                                        <span
-                                            aria-live="polite"
-                                            aria-atomic="true"
-                                            className="inline-flex min-w-[36px] items-center justify-center text-sm font-medium"
-                                        >
-                                            {item.qty}
+                                <div className="min-w-0 flex-1">
+                                    {item.brand_name ? (
+                                        <div className="text-xs text-admin-text-secondary">{item.brand_name}</div>
+                                    ) : null}
+                                    {productHref ? (
+                                        <Link href={productHref} className="block text-sm font-semibold leading-snug text-admin-text transition hover:opacity-80">
+                                            {productName}
+                                        </Link>
+                                    ) : (
+                                        <div className="text-sm font-semibold leading-snug text-admin-text">{productName}</div>
+                                    )}
+                                    {caption ? (
+                                        <p className="mt-0.5 text-xs text-admin-text-secondary">{caption}</p>
+                                    ) : null}
+                                    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                                        <span className="text-sm font-bold tabular-nums text-admin-text">{formatMoneyRub(unitPrice)}</span>
+                                        {strikePrice ? (
+                                            <span className="text-xs text-admin-text-secondary line-through tabular-nums">
+                                                {formatMoneyRub(strikePrice)}
+                                            </span>
+                                        ) : null}
+                                        {percent ? (
+                                            <span className="inline-flex shrink-0 items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-amber-700">
+                                                -{percent}%
+                                            </span>
+                                        ) : null}
+                                    </div>
+                                    {loyaltyPercent > 0 && cardPercent ? (
+                                        <div className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                                            <Check className="h-3 w-3" strokeWidth={3} aria-hidden />
+                                            Скидка {cardPercent}% по карте
+                                        </div>
+                                    ) : null}
+                                    {!item.is_available ? (
+                                        <p className="mt-1 text-xs text-red-600">Нет в наличии</p>
+                                    ) : item.waiting_discount ? (
+                                        <span className="mt-1.5 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                                            Отправка с {cart.waiting_discount_delivery_date || "xx.xx.xxxx"}
                                         </span>
-
+                                    ) : item.is_preorder ? (
+                                        <p className="mt-1 text-xs text-amber-600">Под заказ</p>
+                                    ) : null}
+                                    <div className="mt-2 flex items-center gap-2">
+                                        <div className="flex items-center rounded-full border border-[var(--line)] bg-[var(--background)]">
+                                            <button
+                                                type="button"
+                                                onClick={() => changeQty(item.id, item.qty - 1)}
+                                                disabled={isPending || item.qty <= 1}
+                                                aria-label="Уменьшить количество"
+                                                className="inline-flex h-8 w-8 items-center justify-center rounded-l-full text-base text-[var(--foreground)] transition hover:bg-[var(--surface)] disabled:opacity-40"
+                                            >
+                                                −
+                                            </button>
+                                            <span
+                                                aria-live="polite"
+                                                aria-atomic="true"
+                                                className="inline-flex min-w-6 items-center justify-center text-sm font-medium"
+                                            >
+                                                {item.qty}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => changeQty(item.id, item.qty + 1)}
+                                                disabled={isPending}
+                                                aria-label="Увеличить количество"
+                                                className="inline-flex h-8 w-8 items-center justify-center rounded-r-full text-base text-[var(--foreground)] transition hover:bg-[var(--surface)] disabled:opacity-40"
+                                            >
+                                                +
+                                            </button>
+                                        </div>
                                         <button
                                             type="button"
-                                            onClick={() => changeQty(item.id, item.qty + 1)}
+                                            onClick={() => requestDeleteProduct(item.id, title)}
                                             disabled={isPending}
-                                            aria-label="Увеличить количество"
-                                            className="inline-flex h-10 w-10 items-center justify-center rounded-r-2xl text-base text-[var(--foreground)] transition hover:bg-[var(--surface)] disabled:opacity-40"
+                                            aria-label="Удалить"
+                                            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-secondary)] transition hover:text-[var(--foreground)] disabled:opacity-40"
                                         >
-                                            +
+                                            <Trash2 className="h-4 w-4" aria-hidden />
                                         </button>
+                                        <div className="ml-auto text-sm font-semibold tabular-nums text-admin-text">
+                                            {formatMoneyRub(cartItemCustomerLineTotal(item, loyaltyPercent))}
+                                        </div>
                                     </div>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => requestDeleteProduct(item.id, lineItemProductTitle(item))}
-                                        disabled={isPending}
-                                        aria-label="Удалить"
-                                        className="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-[var(--text-secondary)] transition hover:text-[var(--foreground)] disabled:opacity-40"
-                                    >
-                                        <Trash2 className="h-5 w-5" aria-hidden />
-                                    </button>
-
-                                    <div className="ml-auto text-right text-xl font-semibold text-[var(--foreground)] sm:ml-4">
-                                        {formatMoneyRub(cartItemCustomerLineTotal(item, loyaltyPercent))}
-                                    </div>
-                                </div>
-                            </div>
                                 </div>
                             </div>
                         </article>
                         </SwipeToDelete>
                         );
                     })}
+                        </div>
+                    </div>
+
+                    <div className="md:hidden">
+                        <MobileBenefitButtons variant="block" />
+                    </div>
 
                     <button
                         type="button"
@@ -831,15 +950,33 @@ export default function CartPage() {
                             </div>
                         </article>
                     ) : null}
+
+                    <div className={`${siteCard} p-4 xl:hidden`}>
+                        <CartPricingBreakdown
+                            appearance="cart"
+                            subtotal={pricingBreakdown.subtotal}
+                            total={pricingBreakdown.total}
+                            discountCard={pricingBreakdown.discountCard}
+                            giftCertificate={pricingBreakdown.giftCertificate}
+                            waitingDiscountAmount={selectedWaitingDiscountAmount}
+                            hidePayBar
+                        />
+                        <div className="mt-3 flex items-center justify-between gap-3 border-t border-admin-border pt-3">
+                            <span className="text-base font-semibold text-admin-text">Итого</span>
+                            <span className="text-base font-semibold tabular-nums text-admin-text">
+                                {formatMoneyRub(checkoutTotalStr)}
+                            </span>
+                        </div>
+                    </div>
                 </section>
 
-                <aside className="self-start xl:sticky xl:top-24">
+                <aside className="hidden self-start xl:sticky xl:top-24 xl:block">
                     <div className={`${siteCard} overflow-hidden`}>
                         <div className="p-5 sm:p-6">
-                        <div className="mb-5 text-xl font-semibold text-admin-text">Ваш заказ</div>
+                        <div className="mb-3 text-base font-semibold text-admin-text">Ваш заказ</div>
 
                         <CartPricingBreakdown
-                            itemsQty={pricingBreakdown.itemsQty}
+                            appearance="cart"
                             subtotal={pricingBreakdown.subtotal}
                             total={pricingBreakdown.total}
                             discountCard={pricingBreakdown.discountCard}
@@ -1116,40 +1253,39 @@ export default function CartPage() {
                 className="storefront-bottom-cta fixed inset-x-0 z-[130] border-t border-admin-border backdrop-blur-md md:hidden"
                 style={{ bottom: "calc(var(--storefront-tab-bar-height, 0px) + var(--storefront-keyboard-inset, 0px))" }}
             >
-                <div className="mx-auto max-w-7xl px-3">
-                    <MobileBenefitButtons />
-                </div>
-                <div className="border-t border-black/[0.06]">
-                    <div className="mx-auto flex max-w-7xl items-center gap-3 px-3 py-2">
-                        <div className="min-w-0 flex-1">
-                            <div className="text-[11px] leading-3 text-admin-text-secondary">
-                                {partialLineSelection ? "К оформлению" : "Итого"}
-                            </div>
-                            <div className="truncate text-[15px] font-semibold leading-5 tabular-nums">
-                                {formatMoneyRub(checkoutTotalStr)}
-                            </div>
+                <div className="mx-auto flex max-w-7xl items-center gap-3 px-3 py-2.5">
+                        <div className="min-w-0 text-2xl font-semibold leading-none tabular-nums text-admin-text">
+                            {formatMoneyRub(checkoutTotalStr)}
                         </div>
 
                         {hasCheckoutSelection ? (
                             <Link
                                 href="/checkout"
                                 onClick={persistCheckoutSelection}
-                                className={`${siteBtnPrimary} h-10 shrink-0 px-4 text-sm`}
+                                className={`${siteBtnPrimary} ml-auto h-12 shrink-0 px-6 text-base`}
                             >
                                 Оформить
                             </Link>
                         ) : (
                             <span
-                                className={`${siteBtnPrimary} h-10 shrink-0 cursor-not-allowed px-4 text-sm opacity-45`}
+                                className={`${siteBtnPrimary} ml-auto h-12 shrink-0 cursor-not-allowed px-6 text-base opacity-45`}
                                 aria-disabled
                             >
                                 Оформить
                             </span>
                         )}
-                    </div>
                 </div>
             </div>
 
+            <SiteConfirmDialog
+                open={confirmClearCart}
+                title="Очистить корзину?"
+                message="Убрать все товары из корзины?"
+                confirmText="Очистить"
+                loading={isPending}
+                onCloseAction={() => setConfirmClearCart(false)}
+                onConfirmAction={clearWholeCart}
+            />
             <SiteConfirmDialog
                 open={pendingDelete !== null}
                 title="Удалить из корзины?"
