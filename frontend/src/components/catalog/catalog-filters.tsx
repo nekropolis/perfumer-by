@@ -628,7 +628,7 @@ export default function CatalogFilters({
                     )}
                     {renderCheckboxOption(
                         "in_store",
-                        "В магазине",
+                        "В наличии",
                         isFlagSelected("in_store"),
                         () => toggleFlag("in_store"),
                     )}

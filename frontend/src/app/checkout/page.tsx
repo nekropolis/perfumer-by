@@ -800,28 +800,33 @@ export default function CheckoutPage() {
     const mobileTitleBar =
         headerSlot != null
             ? createPortal(
-                  <div className="flex items-center gap-0.5 border-t border-admin-border px-1.5 py-1 md:hidden">
+                  <div className="border-t border-admin-border px-1.5 py-1 md:hidden">
                       {mobileStep === "data" ? (
                           <Link
                               href="/cart"
-                              aria-label="В корзину"
-                              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-admin-text"
+                              className="flex min-w-0 items-center gap-0.5 text-admin-text"
                           >
-                              <ChevronLeft className="h-5 w-5" aria-hidden />
+                              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
+                                  <ChevronLeft className="h-5 w-5" aria-hidden />
+                              </span>
+                              <span className="min-w-0 truncate text-[15px] font-semibold leading-none">
+                                  Оформление заказа
+                              </span>
                           </Link>
                       ) : (
                           <button
                               type="button"
-                              aria-label="Назад"
                               onClick={() => goToMobileStep(mobileStep === "payment" ? "delivery" : "data")}
-                              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-admin-text"
+                              className="flex min-w-0 items-center gap-0.5 text-left text-admin-text"
                           >
-                              <ChevronLeft className="h-5 w-5" aria-hidden />
+                              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
+                                  <ChevronLeft className="h-5 w-5" aria-hidden />
+                              </span>
+                              <span className="min-w-0 truncate text-[15px] font-semibold leading-none">
+                                  Оформление заказа
+                              </span>
                           </button>
                       )}
-                      <div className="min-w-0 truncate text-[15px] font-semibold leading-none text-admin-text">
-                          Оформление заказа
-                      </div>
                   </div>,
                   headerSlot,
               )

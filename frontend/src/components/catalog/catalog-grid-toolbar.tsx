@@ -176,7 +176,7 @@ export default function CatalogGridToolbar({
             { key: "tester", label: "Тестер" },
             { key: "miniature", label: "Миниатюра" },
             { key: "set", label: "Набор" },
-            { key: "in_store", label: "В магазине" },
+            { key: "in_store", label: "В наличии" },
         ];
         for (const flag of typeFlags) {
             if (searchParams.get(flag.key) !== "1") {

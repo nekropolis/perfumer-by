@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { BellRing, ChevronLeft, ChevronRight, CirclePercent, Package, Store } from "lucide-react";
+import { BellRing, ChevronLeft, ChevronRight, CirclePercent, Package, Store, Trash2 } from "lucide-react";
 import StockNotificationModal from "@/components/product/stock-notification-modal";
 import OneClickOrderTrigger from "@/components/product/one-click-order-trigger";
 import type { ProductReplacementData, ProductVariantData } from "@/types/catalog";
@@ -195,7 +195,7 @@ export default function ProductBuyBox({
 
         if (hasStoreStock) {
             return {
-                status: "Наличие в магазине",
+                status: "В наличии",
                 shipping: null as string | null,
                 className: "text-emerald-600",
             };
@@ -509,14 +509,19 @@ export default function ProductBuyBox({
             if (isSelectedVariantInCart) {
                 if (compact) {
                     return (
-                        <button
-                            type="button"
-                            onClick={onRemoveFromCartAction}
-                            disabled={isPending || !onRemoveFromCartAction}
-                            className={`${siteBtnSecondary} h-12 w-full shrink-0 px-3 text-base disabled:cursor-not-allowed disabled:opacity-50`}
+                        <Link
+                            href="/cart"
+                            className={`inline-flex min-w-0 flex-1 flex-col items-center justify-center gap-0 rounded-2xl border border-admin-primary bg-admin-primary/10 px-2 text-admin-primary ${compactCartHint ? "h-14 py-1 leading-none" : "h-12 text-base"}`}
                         >
-                            {isPending ? "..." : "Убрать"}
-                        </button>
+                            {compactCartHint ? (
+                                <>
+                                    <span className="text-base font-semibold leading-tight">В корзине</span>
+                                    <span className="text-[11px] font-medium leading-tight text-admin-primary/70">{compactCartHint}</span>
+                                </>
+                            ) : (
+                                <span className="text-base font-semibold">В корзине</span>
+                            )}
+                        </Link>
                     );
                 }
 
@@ -536,7 +541,7 @@ export default function ProductBuyBox({
                     type="button"
                     onClick={onAddToCartAction}
                     disabled={isPending}
-                    className={`${siteBtnPrimary} shrink-0 disabled:cursor-not-allowed disabled:opacity-50 ${compact ? "h-11 px-4 text-sm" : "flex-1 px-5 py-3.5 text-base"}`}
+                    className={`${siteBtnPrimary} disabled:cursor-not-allowed disabled:opacity-50 ${compact ? (compactCartHint ? "h-14 min-w-0 flex-1 flex-col gap-0 px-3 py-1 leading-none" : "h-12 min-w-0 flex-1 px-3 text-base") : "flex-1 shrink-0 px-5 py-3.5 text-base"}`}
                 >
                     {!compact && (
                         <svg
@@ -555,10 +560,19 @@ export default function ProductBuyBox({
                             />
                         </svg>
                     )}
-                    <span>
-                        {compact ? "" : "\u00A0"}
-                        {isPending ? (compact ? "..." : "Добавление...") : compact ? "В корзину" : "Добавить в корзину"}
-                    </span>
+                    {compact && compactCartHint ? (
+                        <>
+                            <span className="text-base font-semibold leading-tight">{isPending ? "..." : "В корзину"}</span>
+                            {isPending ? null : (
+                                <span className="text-[11px] font-medium leading-tight text-white/80">{compactCartHint}</span>
+                            )}
+                        </>
+                    ) : (
+                        <span>
+                            {compact ? "" : "\u00A0"}
+                            {isPending ? (compact ? "..." : "Добавление...") : compact ? "В корзину" : "Добавить в корзину"}
+                        </span>
+                    )}
                 </button>
             );
         }
@@ -590,15 +604,16 @@ export default function ProductBuyBox({
                 .filter((part) => part.trim().length > 0)
                 .join(" · ");
 
+    const compactCartHint = availability?.shipping
+        ? `С ${deliveryDateText}`
+        : availability?.status === "В наличии"
+            ? "В наличии"
+            : null;
     const loyaltyPercentLabel = formatDiscountPercentSnapshot(String(loyaltyPercent)) ?? String(loyaltyPercent);
     const loyaltyDiscountLabel = hasLoyaltyDiscount ? `Скидка ${loyaltyPercentLabel}% по карте` : null;
     const waitingDiscountLabel = hasWaitingDiscount
         ? `Скидка ${waitingDiscountPercent}% за ожидание доставки`
         : null;
-    const pinnedConditionText = availability
-        ? [availability.status, availability.shipping].filter(Boolean).join(" · ")
-        : null;
-
     const priceStatusBadges = loyaltyDiscountLabel || waitingDiscountLabel || availability ? (
         <div className="flex flex-col items-start gap-1.5">
             {loyaltyDiscountLabel ? <PinnedInfoBadge tone="green">{loyaltyDiscountLabel}</PinnedInfoBadge> : null}
@@ -608,7 +623,7 @@ export default function ProductBuyBox({
                     <PinnedInfoBadge tone="orange">
                         {[availability.status, availability.shipping].filter(Boolean).join(" · ")}
                     </PinnedInfoBadge>
-                ) : availability.status === "Наличие в магазине" ? (
+                ) : availability.status === "В наличии" ? (
                     <PinnedInfoBadge tone="store">{availability.status}</PinnedInfoBadge>
                 ) : (
                     <div className={`text-sm font-medium ${availability.className}`}>
@@ -646,7 +661,12 @@ export default function ProductBuyBox({
                     {!hideMobileVariantLine && selectedVariantLine ? (
                         <div className="mt-1.5 text-sm font-medium text-admin-text-secondary">{selectedVariantLine}</div>
                     ) : null}
-                    {priceStatusBadges ? <div className="mt-2">{priceStatusBadges}</div> : null}
+                    {loyaltyDiscountLabel || waitingDiscountLabel ? (
+                        <div className="mt-2 flex flex-col items-start gap-1.5">
+                            {loyaltyDiscountLabel ? <PinnedInfoBadge tone="green">{loyaltyDiscountLabel}</PinnedInfoBadge> : null}
+                            {waitingDiscountLabel ? <PinnedInfoBadge tone="green">{waitingDiscountLabel}</PinnedInfoBadge> : null}
+                        </div>
+                    ) : null}
                 </>
             ) : showReplacementCta ? (
                 <div ref={priceDetailsRef} className="flex min-w-0 items-center gap-2.5">
@@ -674,7 +694,7 @@ export default function ProductBuyBox({
         >
             <div className="mx-auto w-full max-w-7xl">
                 {showWaitingCheckbox ? <div className="mb-2">{renderWaitingDiscountRow(true)}</div> : null}
-                <div className={`grid gap-2 ${canAddToCart ? "grid-cols-2" : "grid-cols-1"}`}>
+                <div className="flex items-stretch gap-2">
                     {canAddToCart ? (
                         <OneClickOrderTrigger
                             productId={productId}
@@ -683,10 +703,21 @@ export default function ProductBuyBox({
                             variantTitle={selectedVariantTitle}
                             label="Заказать"
                             appearance="button"
-                            className={`${siteBtnSecondary} h-12 w-full px-3 text-base`}
+                            className={`${siteBtnSecondary} min-w-0 flex-1 px-3 text-base ${compactCartHint || isSelectedVariantInCart ? "h-14" : "h-12"}`}
                         />
                     ) : null}
                     {renderCartAction(true)}
+                    {canAddToCart && isSelectedVariantInCart ? (
+                        <button
+                            type="button"
+                            aria-label="Убрать из корзины"
+                            onClick={onRemoveFromCartAction}
+                            disabled={isPending || !onRemoveFromCartAction}
+                            className={`inline-flex w-12 shrink-0 items-center justify-center rounded-2xl border border-admin-primary bg-admin-primary/10 text-admin-primary disabled:opacity-50 ${compactCartHint ? "h-14" : "h-12"}`}
+                        >
+                            <Trash2 className="h-5 w-5" aria-hidden />
+                        </button>
+                    ) : null}
                 </div>
             </div>
         </div>
@@ -749,21 +780,10 @@ export default function ProductBuyBox({
                             </span>
                         ) : null}
                     </div>
-                    {loyaltyDiscountLabel || waitingDiscountLabel || pinnedConditionText ? (
+                    {loyaltyDiscountLabel || waitingDiscountLabel ? (
                         <div className="mt-2 flex flex-wrap items-center gap-1.5">
                             {loyaltyDiscountLabel ? <PinnedInfoBadge tone="green">{loyaltyDiscountLabel}</PinnedInfoBadge> : null}
                             {waitingDiscountLabel ? <PinnedInfoBadge tone="green">{waitingDiscountLabel}</PinnedInfoBadge> : null}
-                            {pinnedConditionText ? (
-                                availability?.shipping ? (
-                                    <PinnedInfoBadge tone="orange">{pinnedConditionText}</PinnedInfoBadge>
-                                ) : availability?.status === "Наличие в магазине" ? (
-                                    <PinnedInfoBadge tone="store">{pinnedConditionText}</PinnedInfoBadge>
-                                ) : (
-                                    <div className={`truncate text-xs ${availability?.className ?? "text-admin-text-secondary"}`}>
-                                        {pinnedConditionText}
-                                    </div>
-                                )
-                            ) : null}
                         </div>
                     ) : null}
                 </div>
