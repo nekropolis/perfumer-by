@@ -18,7 +18,7 @@ import ProductServiceInfo, {
 } from "@/components/product/product-service-info";
 import ProductReviewsTab from "@/components/product/product-reviews-tab";
 import ProductDetailGallery from "@/components/product/product-detail-gallery";
-import { productDisplayName } from "@/lib/product-display-name";
+import { lineItemProductTitle, productDisplayName } from "@/lib/product-display-name";
 import {
     isVariantEligibleForLoyaltyCardDiscount,
     isVariantEligibleForWaitingDiscount,
@@ -205,6 +205,10 @@ export default function ProductDetailInteractive({
     const productTitle = product.h1 || productDisplayName(product);
     const brandName = product.brand?.name?.trim() || "";
     const productNameOnly = product.name.trim() || productTitle;
+    const mobileProductName = lineItemProductTitle({
+        product_name: productNameOnly,
+        brand_name: brandName,
+    });
 
     const openReviewsTab = () => {
         setActiveTab("reviews");
@@ -433,7 +437,8 @@ export default function ProductDetailInteractive({
                             className="mt-0.5 text-[22px] font-bold leading-tight tracking-tight text-admin-text md:mt-1.5 md:font-display md:text-4xl md:font-semibold md:tracking-normal"
                             aria-hidden="true"
                         >
-                            {productNameOnly}
+                            <span className="md:hidden">{mobileProductName}</span>
+                            <span className="hidden md:inline">{productNameOnly}</span>
                         </p>
                         {selectedVariantLine ? (
                             <div className="mt-0.5 text-sm font-medium text-admin-text-secondary md:hidden">

@@ -558,13 +558,14 @@ class CatalogProductLinkSearchService
         // Проверяем спецсимволы в исходном запросе $search, а не в $rest
         // (потому что splitLeadingBrand может распознать "T" как бренд и $rest = "mat" без дефиса)
         $searchHasSpecialChars = str_contains($search, '-') || str_contains($search, '"') || preg_match('/[\(\)]/', $search) !== 0;
+        $slugLike = self::adminSlugLikeNeedle($search);
 
         // Если rest содержит спец-символы, то токенизация ломает поиск — используем только legacy.
         $tokensLostSignificance = ($rest !== '' && $distinguishingTokens)
             && (str_contains($rest, '-') || str_contains($rest, '"') || preg_match('/[\(\)]/', $rest) !== 0);
         $useTokenizedPath = !$tokensLostSignificance && !$searchHasSpecialChars && ($brandFilter !== null || $significant !== [] || $hasGender);
 
-        $query->where(function ($outer) use ($search, $stem, $isNumericIdSearch, $brandFilter, $significant, $hasGender, $tokens, $useTokenizedPath, $rest, $tokensLostSignificance, $searchHasSpecialChars): void {
+        $query->where(function ($outer) use ($search, $stem, $isNumericIdSearch, $brandFilter, $significant, $hasGender, $tokens, $useTokenizedPath, $rest, $tokensLostSignificance, $searchHasSpecialChars, $slugLike): void {
             if ($useTokenizedPath) {
                 $outer->where(function ($tokenized) use ($brandFilter, $significant, $hasGender, $tokens): void {
                     if ($brandFilter !== null && $brandFilter > 0) {
@@ -586,7 +587,7 @@ class CatalogProductLinkSearchService
                 });
             }
 
-            $outer->orWhere(function ($legacy) use ($search, $stem, $isNumericIdSearch, $brandFilter, $rest, $tokensLostSignificance, $searchHasSpecialChars): void {
+            $outer->orWhere(function ($legacy) use ($search, $stem, $isNumericIdSearch, $brandFilter, $rest, $tokensLostSignificance, $searchHasSpecialChars, $slugLike): void {
                 $legacy->where('name', 'like', "%{$search}%")
                     ->orWhereHas('brand', function ($brandQuery) use ($search, $stem): void {
                         $brandQuery->where('name', 'like', "%{$search}%");
@@ -606,9 +607,12 @@ class CatalogProductLinkSearchService
                     ["%{$search}%"]
                 );
 
-                // Слаг не ищем, если в запросе спецсимволы — иначе дефисные slugs дают cross-boundary ложные совпадения.
+                // Слаг не ищем по произвольной строке со спецсимволами — иначе дефис в названии
+                // даёт ложные совпадения по чужим slug. Запрос вида slug (без пробелов) ищем всегда.
                 if (!$searchHasSpecialChars) {
                     $legacy->orWhere('slug', 'like', "%{$search}%");
+                } elseif ($slugLike !== null) {
+                    $legacy->orWhere('slug', 'like', $slugLike);
                 }
 
                 if (mb_strtolower($stem, 'UTF-8') !== mb_strtolower($search, 'UTF-8')) {
@@ -707,6 +711,22 @@ class CatalogProductLinkSearchService
             ELSE 12 END)';
 
         $query->orderByRaw($relevanceCase, $bindings);
+    }
+
+    /**
+     * «calvin-klein-obsessed» — поиск по slug. Строка с пробелами или кавычками не slug.
+     */
+    private static function adminSlugLikeNeedle(string $search): ?string
+    {
+        $slug = trim($search, " \t\n\r\0\x0B/");
+        if ($slug === '' || preg_match('/\s/u', $slug) === 1) {
+            return null;
+        }
+        if (preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)+$/i', $slug) !== 1) {
+            return null;
+        }
+
+        return '%'.CatalogSearchScoring::escapeLikeValue($slug).'%';
     }
 
     /**

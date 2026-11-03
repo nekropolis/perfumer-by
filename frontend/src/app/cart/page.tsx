@@ -217,23 +217,6 @@ function cartPricePercent(current: string, previous: string | null): number | nu
     return pct > 0 ? pct : null;
 }
 
-function cartProductName(item: CartItemData): string {
-    const brand = item.brand_name?.trim() ?? "";
-    const name = (item.product_name ?? item.product_display_name ?? "").trim();
-    if (!brand || !name) {
-        return name || lineItemProductTitle(item);
-    }
-    const lowerName = name.toLocaleLowerCase("ru");
-    const lowerBrand = brand.toLocaleLowerCase("ru");
-    if (lowerName === lowerBrand) {
-        return name;
-    }
-    if (lowerName.startsWith(`${lowerBrand} `)) {
-        return name.slice(brand.length).trim();
-    }
-    return name;
-}
-
 function shortPercentLabel(raw: string): string {
     const trimmed = raw.trim().replace(",", ".");
     if (!/^\d+(\.\d+)?$/.test(trimmed)) {
@@ -765,7 +748,6 @@ export default function CartPage() {
                         const unitPrice = cartItemCustomerUnitPrice(item, loyaltyPercent);
                         const strikePrice = cartItemStrikeUnitPrice(item, loyaltyPercent);
                         const title = lineItemProductTitle(item);
-                        const productName = cartProductName(item);
                         const caption = cartVariantCaption(item);
                         const image = item.image ? normalizeProductImageUrl(item.image) : "";
                         const productHref = item.product_slug ? `/${item.product_slug}` : null;
@@ -822,10 +804,10 @@ export default function CartPage() {
                                     ) : null}
                                     {productHref ? (
                                         <Link href={productHref} className="block text-sm font-semibold leading-snug text-admin-text transition hover:opacity-80">
-                                            {productName}
+                                            {title}
                                         </Link>
                                     ) : (
-                                        <div className="text-sm font-semibold leading-snug text-admin-text">{productName}</div>
+                                        <div className="text-sm font-semibold leading-snug text-admin-text">{title}</div>
                                     )}
                                     {caption ? (
                                         <p className="mt-0.5 text-xs text-admin-text-secondary">{caption}</p>

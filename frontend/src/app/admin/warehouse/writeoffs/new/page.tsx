@@ -36,7 +36,7 @@ function NewWriteoffPageContent() {
         };
     }, [searchParams]);
 
-    return <WriteoffEditorPage prefillItem={prefillItem} />;
+    return <WriteoffEditorPage key={searchParams.toString()} prefillItem={prefillItem} />;
 }
 
 export default function NewWriteoffPage() {

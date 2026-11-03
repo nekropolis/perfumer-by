@@ -389,17 +389,6 @@ export default function ProductDetailGallery({
                     <div className="relative z-20 flex shrink-0 items-center justify-between px-3 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
                         <button
                             type="button"
-                            onClick={() => setIsImageLightboxOpen(false)}
-                            className="inline-flex h-10 w-10 items-center justify-center text-white transition active:opacity-70"
-                            aria-label="Закрыть полноразмерное изображение"
-                        >
-                            <X className="h-6 w-6" strokeWidth={2} aria-hidden />
-                        </button>
-                        <p className="text-sm font-medium tabular-nums text-white" aria-live="polite">
-                            {activeImageIndex + 1}/{images.length || 1}
-                        </p>
-                        <button
-                            type="button"
                             onClick={() => void toggleWishlist(product.id)}
                             aria-pressed={inWishlist}
                             aria-label={inWishlist ? "Убрать из избранного" : "Добавить в избранное"}
@@ -410,6 +399,17 @@ export default function ProductDetailGallery({
                                 strokeWidth={2}
                                 aria-hidden
                             />
+                        </button>
+                        <p className="text-sm font-medium tabular-nums text-white" aria-live="polite">
+                            {activeImageIndex + 1}/{images.length || 1}
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => setIsImageLightboxOpen(false)}
+                            className="inline-flex h-10 w-10 items-center justify-center text-white transition active:opacity-70"
+                            aria-label="Закрыть полноразмерное изображение"
+                        >
+                            <X className="h-6 w-6" strokeWidth={2} aria-hidden />
                         </button>
                     </div>
 

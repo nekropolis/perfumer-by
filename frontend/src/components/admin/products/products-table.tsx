@@ -8,6 +8,7 @@ import { resolveProductStatuses } from "@/lib/product-statuses";
 
 type Props = {
     items: ProductAdminItem[];
+    listQuery?: string;
     searchQuery?: string;
     onDeleteAction: (item: ProductAdminItem) => void;
     onVariantsAction: (item: ProductAdminItem) => void;
@@ -59,6 +60,7 @@ function ProductStatusChips({
 
 export default function ProductsTable({
     items,
+    listQuery = "",
     searchQuery = "",
     onDeleteAction,
     onVariantsAction,
@@ -206,7 +208,7 @@ export default function ProductsTable({
                         <td className="px-3 py-3">
                             <div className="flex justify-end gap-1.5">
                                 <Link
-                                    href={`/admin/products/${item.id}/edit`}
+                                    href={`/admin/products/${item.id}/edit${listQuery ? `?return=${encodeURIComponent(listQuery)}` : ""}`}
                                     className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-admin-border text-admin-text transition hover:bg-admin-muted"
                                     aria-label={`Редактировать товар ${item.name}`}
                                     title="Редактировать"
