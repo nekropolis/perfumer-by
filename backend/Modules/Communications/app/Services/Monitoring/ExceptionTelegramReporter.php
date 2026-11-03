@@ -63,8 +63,10 @@ class ExceptionTelegramReporter
             $message = $this->truncate($this->scrub((string) ($payload['message'] ?? '')), 300);
             $signature = implode('|', [$routePath, $name, sha1($message)]);
 
+            $title = ($payload['routeType'] ?? '') === 'client' ? 'Frontend client' : 'Frontend SSR';
+
             $this->sendDeduplicated('frontend|'.$signature, implode("\n", [
-                '🚨 Frontend SSR',
+                '🚨 '.$title,
                 'env: '.app()->environment(),
                 'type: '.$name,
                 'message: '.$message,

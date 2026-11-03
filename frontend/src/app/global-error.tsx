@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import { reportClientError } from "@/lib/report-client-error";
 import "./globals.css";
 
 type GlobalErrorProps = {
@@ -13,6 +14,7 @@ type GlobalErrorProps = {
 export default function GlobalError({ error, reset }: GlobalErrorProps) {
     useEffect(() => {
         console.error("[app/global-error]", error.digest ? { digest: error.digest, error } : error);
+        reportClientError(error, "global");
     }, [error]);
 
     return (
