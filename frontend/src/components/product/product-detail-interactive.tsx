@@ -205,7 +205,7 @@ export default function ProductDetailInteractive({
     const productTitle = product.h1 || productDisplayName(product);
     const brandName = product.brand?.name?.trim() || "";
     const productNameOnly = product.name.trim() || productTitle;
-    const mobileProductName = lineItemProductTitle({
+    const productHeading = lineItemProductTitle({
         product_name: productNameOnly,
         brand_name: brandName,
     });
@@ -437,8 +437,7 @@ export default function ProductDetailInteractive({
                             className="mt-0.5 text-[22px] font-bold leading-tight tracking-tight text-admin-text md:mt-1.5 md:font-display md:text-4xl md:font-semibold md:tracking-normal"
                             aria-hidden="true"
                         >
-                            <span className="md:hidden">{mobileProductName}</span>
-                            <span className="hidden md:inline">{productNameOnly}</span>
+                            {productHeading}
                         </p>
                         {selectedVariantLine ? (
                             <div className="mt-0.5 text-sm font-medium text-admin-text-secondary md:hidden">
