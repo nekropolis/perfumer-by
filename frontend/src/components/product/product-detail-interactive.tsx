@@ -531,7 +531,7 @@ export default function ProductDetailInteractive({
                                                     key={`variant-${variant.id}`}
                                                     type="button"
                                                     onClick={() => setSelectedVariantId(variant.id)}
-                                                    className={`flex h-full w-full cursor-pointer overflow-hidden rounded-2xl border text-left transition-colors ${isSelected
+                                                    className={`flex h-full w-full min-w-0 cursor-pointer overflow-hidden rounded-2xl border text-left transition-colors ${isSelected
                                                         ? "border-[#159B6A] bg-[#F3FBF7]"
                                                         : "border-[#E2E6EB] bg-white active:scale-[0.98]"
                                                         }`}
@@ -560,11 +560,11 @@ export default function ProductDetailInteractive({
                                                                 Акция
                                                             </span>
                                                         ) : null}
-                                                        <span className="mt-2 flex flex-wrap items-center justify-between gap-x-1.5 gap-y-1">
+                                                        <span className="mt-2 flex flex-nowrap items-center justify-between gap-x-1">
                                                             <span className="whitespace-nowrap text-[15px] font-bold leading-none text-[#141C2E] min-[393px]:text-[17px] lg:text-[16px]">
                                                                 {gridPrice ? formatProductDetailPrice(gridPrice) : "—"}
                                                             </span>
-                                                            <span className={`ml-auto inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium leading-4 lg:px-1 lg:py-px lg:text-[10px] lg:leading-3 ${badgeClass}`}>
+                                                            <span className={`ml-auto inline-flex shrink-0 items-center rounded-full px-1 py-0.5 text-[10px] font-medium leading-3 min-[400px]:px-1.5 min-[400px]:text-[11px] min-[400px]:leading-4 lg:px-1 lg:py-px lg:text-[10px] lg:leading-3 ${badgeClass}`}>
                                                                 {availability.text}
                                                             </span>
                                                         </span>

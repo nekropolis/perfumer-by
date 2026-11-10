@@ -97,6 +97,8 @@ class ExceptionTelegramReporter
         // Null-byte / encoded probes and other scanner junk → nginx 400, not our bug.
         if (str_contains($haystack, "\0")
             || str_contains($haystack, '%00')
+            || str_contains($haystack, '%3f')
+            || str_contains($haystack, 'pp=env')
             || str_contains($haystack, '400 bad request')
             || preg_match('/\bAPI error:\s*400\b/i', $haystack) === 1) {
             return true;

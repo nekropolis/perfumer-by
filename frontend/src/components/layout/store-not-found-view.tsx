@@ -15,21 +15,21 @@ export default function StoreNotFoundView() {
             <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)] md:text-base">
                 Ссылка неверная или страница снята с публикации. Перейдите в каталог или выберите раздел ниже.
             </p>
-            <div className="mt-10 flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-3">
+            <div className="mt-10 flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-4">
                 <Link
-                    className="inline-flex min-h-[2.75rem] items-center justify-center rounded-2xl border border-[var(--accent)] bg-[var(--accent)] px-5 text-sm font-semibold text-[var(--background)] transition hover:border-[var(--accent-hover)] hover:bg-[var(--accent-hover)] sm:min-h-0"
+                    className="inline-flex min-h-12 items-center justify-center rounded-full border border-[var(--accent)] bg-[var(--accent)] px-7 text-base font-semibold text-[var(--background)] transition hover:border-[var(--accent-hover)] hover:bg-[var(--accent-hover)]"
                     href="/"
                 >
                     На главную
                 </Link>
                 <Link
-                    className="inline-flex min-h-[2.75rem] items-center justify-center rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)] sm:min-h-0"
+                    className="inline-flex min-h-12 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)] px-7 text-base font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
                     href="/catalog"
                 >
                     Каталог
                 </Link>
                 <Link
-                    className="inline-flex min-h-[2.75rem] items-center justify-center rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)] sm:min-h-0"
+                    className="inline-flex min-h-12 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)] px-7 text-base font-medium text-[var(--foreground)] transition hover:border-[var(--accent-soft)] hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
                     href="/brands"
                 >
                     Бренды
