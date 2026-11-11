@@ -50,7 +50,7 @@ export default function StreetPrefixSelect({
 
     const triggerClass =
         variant === "site"
-            ? "flex min-h-10 w-full items-center justify-between gap-1 rounded-2xl border border-admin-border bg-admin-surface px-2 py-2 text-left text-sm text-admin-text outline-none transition hover:border-admin-border-strong focus-visible:border-admin-primary focus-visible:ring-2 focus-visible:ring-admin-primary/15"
+            ? "flex min-h-10 w-full items-center justify-between gap-0.5 rounded-2xl border border-admin-border bg-admin-surface px-1.5 py-2 text-left text-xs text-admin-text outline-none transition hover:border-admin-border-strong focus-visible:border-admin-primary focus-visible:ring-2 focus-visible:ring-admin-primary/15"
             : "flex min-h-10 w-full items-center justify-between gap-1 rounded-lg border border-admin-border bg-admin-surface px-1.5 text-left text-sm leading-5 text-admin-text outline-none transition hover:bg-admin-muted focus-visible:border-admin-primary focus-visible:ring-2 focus-visible:ring-admin-primary/15";
 
     const menuRadius = variant === "site" ? "rounded-2xl" : "rounded-lg";

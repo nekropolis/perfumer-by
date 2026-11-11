@@ -67,25 +67,22 @@ class SyncVeterTicketStatusesCommand extends Command
      */
     private function notifyFailureSummary(array $failed, int $total): void
     {
-        $lines = [
-            '⚠️ ветерОК getStatus: ошибки синхронизации',
-            'Команда: veter:sync-ticket-statuses',
-            'Время: '.now('Europe/Minsk')->format('Y-m-d H:i:s').' (Europe/Minsk)',
-            'Всего заказов в выборке: '.$total,
-            'Ошибок: '.count($failed),
-        ];
+        $ids = [];
+        $reasons = [];
+        foreach ($failed as $row) {
+            $orderId = (int) ($row['order_id'] ?? 0);
+            $ids[] = $orderId > 0 ? '#'.$orderId : '—';
+            $reasons[$this->briefFailureReason((string) ($row['reason'] ?? ''))] = true;
+        }
 
-        $shown = array_slice($failed, 0, 8);
-        foreach ($shown as $row) {
-            $orderPart = ($row['order_id'] ?? 0) > 0 ? '#'.$row['order_id'] : '—';
-            $shipPart = trim((string) ($row['shipment_id'] ?? ''));
-            $lines[] = $orderPart
-                .($shipPart !== '' ? ' ('.$shipPart.')' : '')
-                .': '.mb_substr((string) ($row['reason'] ?? ''), 0, 180);
-        }
-        if (count($failed) > count($shown)) {
-            $lines[] = '… и ещё '.(count($failed) - count($shown));
-        }
+        $shown = array_slice($ids, 0, 20);
+        $lines = [
+            '⚠️ ветерОК getStatus: '.count($failed).' ошибок из '.$total,
+            now('Europe/Minsk')->format('Y-m-d H:i:s'),
+            implode(', ', array_keys($reasons)),
+            implode(', ', $shown).(count($ids) > count($shown) ? ' … и ещё '.(count($ids) - count($shown)) : ''),
+            'Подробности в laravel.log',
+        ];
 
         $message = implode("\n", $lines);
 
@@ -97,5 +94,19 @@ class SyncVeterTicketStatusesCommand extends Command
         } catch (Throwable $e) {
             $this->warn('Не удалось отправить уведомление в Telegram: '.$e->getMessage());
         }
+    }
+
+    private function briefFailureReason(string $reason): string
+    {
+        if (preg_match('/HTTP (\d{3})/', $reason, $matches) === 1) {
+            return 'HTTP '.$matches[1];
+        }
+
+        $flat = trim((string) preg_replace('/\s+/', ' ', strip_tags($reason)));
+        if ($flat === '' || str_contains($reason, '<html') || str_contains($reason, '<!DOCTYPE')) {
+            return 'ошибка API';
+        }
+
+        return mb_substr($flat, 0, 80);
     }
 }

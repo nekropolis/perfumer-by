@@ -1,17 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useOptimistic, useState, type MouseEvent, type RefObject } from "react";
+import { useEffect, useMemo, useOptimistic, useRef, useState, type MouseEvent, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { useCatalogSearchParams } from "@/components/catalog/catalog-search-params";
 import type { CatalogBrandItem, CatalogFilterAttribute } from "@/types/catalog";
 import { groupBrandsByFirstLetter, orderedLettersWithBrands } from "@/lib/brand-letter-groups";
 import { useCatalogNavigation } from "@/components/catalog/catalog-navigation";
 import { useSiteContent } from "@/components/layout/site-content-context";
+import { apiFetch } from "@/lib/api";
 
 import { siteBtnPrimary, siteBtnSecondary, siteFilterChip, siteFilterChipActive, siteFilterChipInactive, siteInput, siteCheckbox } from "@/lib/site-ui-classes";
 import BynSign from "@/components/ui/byn-sign";
 import {
+    buildBrandProductsQuery,
     buildCatalogFacetedFiltersResetPath,
+    buildCatalogProductsQuery,
     CATALOG_GENDER_ATTRIBUTE_ID,
     CATALOG_SECTION_CHIPS,
     getActiveCatalogGender,
@@ -56,6 +60,7 @@ type Props = {
     hideReset?: boolean;
     variant?: "default" | "modal";
     priceApplyRef?: RefObject<(() => void) | null>;
+    onPriceMatchCountAction?: (count: number | null) => void;
 };
 
 export default function CatalogFilters({
@@ -68,6 +73,7 @@ export default function CatalogFilters({
     hideReset = false,
     variant = "default",
     priceApplyRef,
+    onPriceMatchCountAction,
 }: Props) {
     const { navigate, isNavigating } = useCatalogNavigation();
     const searchParams = useCatalogSearchParams();
@@ -75,12 +81,20 @@ export default function CatalogFilters({
 
     const [priceMinDraft, setPriceMinDraft] = useState(searchParams.get("price_min") ?? "");
     const [priceMaxDraft, setPriceMaxDraft] = useState(searchParams.get("price_max") ?? "");
+    const [priceMatchCount, setPriceMatchCount] = useState<number | null>(null);
     const [brandQuery, setBrandQuery] = useState("");
     const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
+    const [activeBrandLetter, setActiveBrandLetter] = useState<string | null>(null);
+    const [portalReady, setPortalReady] = useState(false);
+    const brandListRef = useRef<HTMLDivElement | null>(null);
     const safeAttributes = Array.isArray(attributes) ? attributes : [];
     const safeVolumeOptions = Array.isArray(volumeOptions) ? volumeOptions : [];
     const [popupAttributeId, setPopupAttributeId] = useState<number | null>(null);
     const [attributeOptionQuery, setAttributeOptionQuery] = useState("");
+
+    useEffect(() => {
+        setPortalReady(true);
+    }, []);
 
     const selectedBrandIds = useMemo(
         () =>
@@ -202,6 +216,53 @@ export default function CatalogFilters({
         }
     });
 
+    const hasPriceDraft = priceMinDraft.trim() !== "" || priceMaxDraft.trim() !== "";
+
+    useEffect(() => {
+        if (!hasPriceDraft) {
+            setPriceMatchCount(null);
+            onPriceMatchCountAction?.(null);
+            return;
+        }
+
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => {
+            const record: Record<string, string | undefined> = {};
+            searchParams.forEach((value, key) => {
+                record[key] = value;
+            });
+            record.page = "1";
+            record.price_min = priceMinDraft.trim() || undefined;
+            record.price_max = priceMaxDraft.trim() || undefined;
+
+            const brandSlug = basePath.match(/^\/brands\/([^/]+)/)?.[1];
+            const query = brandSlug
+                ? buildBrandProductsQuery(decodeURIComponent(brandSlug), record)
+                : buildCatalogProductsQuery(record);
+
+            void apiFetch<{ meta?: { total?: number } }>(`/catalog/products?${query.toString()}`, {
+                signal: controller.signal,
+                cache: "no-store",
+            })
+                .then((response) => {
+                    const total = response.meta?.total;
+                    const count = typeof total === "number" ? total : null;
+                    setPriceMatchCount(count);
+                    onPriceMatchCountAction?.(count);
+                })
+                .catch((error: unknown) => {
+                    if (error instanceof DOMException && error.name === "AbortError") {
+                        return;
+                    }
+                });
+        }, 350);
+
+        return () => {
+            window.clearTimeout(timeoutId);
+            controller.abort();
+        };
+    }, [basePath, hasPriceDraft, onPriceMatchCountAction, priceMaxDraft, priceMinDraft, searchParams]);
+
     const isOptionSelected = (attributeId: number, optionId: number) => {
         if (attributeId === CATALOG_GENDER_ATTRIBUTE_ID) {
             const genderBucket = getCatalogGenderBucketByOptionId(optionId);
@@ -247,9 +308,9 @@ export default function CatalogFilters({
         });
     };
 
-    const isFlagSelected = (key: "tester" | "miniature" | "set") => searchParams.get(key) === "1";
+    const isFlagSelected = (key: "tester" | "miniature" | "set" | "in_store") => searchParams.get(key) === "1";
 
-    const toggleFlag = (key: "tester" | "miniature" | "set") => {
+    const toggleFlag = (key: "tester" | "miniature" | "set" | "in_store") => {
         pushParams((params) => {
             if (params.get(key) === "1") {
                 params.delete(key);
@@ -302,8 +363,60 @@ export default function CatalogFilters({
     }, [brandQuery, filteredBrands, previewBrands]);
     const brandGroups = useMemo(() => groupBrandsByFirstLetter(filteredBrands), [filteredBrands]);
     const brandSectionLetters = useMemo(() => orderedLettersWithBrands(brandGroups), [brandGroups]);
+    const lettersWithSelection = useMemo(() => {
+        const selected = new Set(optimisticBrandIds);
+        const result = new Set<string>();
+        for (const letter of brandSectionLetters) {
+            if ((brandGroups.get(letter) ?? []).some((brand) => selected.has(brand.id))) {
+                result.add(letter);
+            }
+        }
+        return result;
+    }, [brandGroups, brandSectionLetters, optimisticBrandIds]);
 
     const isBrandSelected = (brandId: number) => optimisticBrandIds.includes(brandId);
+
+    useEffect(() => {
+        if (!isBrandModalOpen) {
+            setActiveBrandLetter(null);
+            return;
+        }
+        setActiveBrandLetter(brandSectionLetters[0] ?? null);
+    }, [isBrandModalOpen, brandSectionLetters]);
+
+    useEffect(() => {
+        if (!isBrandModalOpen) {
+            return;
+        }
+        const root = brandListRef.current;
+        if (!root) {
+            return;
+        }
+
+        const sections = Array.from(root.querySelectorAll<HTMLElement>("[data-brand-letter]"));
+        if (sections.length === 0) {
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                const visible = entries
+                    .filter((entry) => entry.isIntersecting)
+                    .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+                const letter = visible[0]?.target.getAttribute("data-brand-letter");
+                if (letter) {
+                    setActiveBrandLetter(letter);
+                }
+            },
+            { root, rootMargin: "0px 0px -65% 0px", threshold: [0, 0.25, 1] },
+        );
+
+        for (const section of sections) {
+            observer.observe(section);
+        }
+
+        return () => observer.disconnect();
+    }, [isBrandModalOpen, brandSectionLetters, brandQuery]);
 
     const toggleBrand = (brandId: number) => {
         const next = new Set(optimisticBrandIds);
@@ -326,8 +439,14 @@ export default function CatalogFilters({
         );
     };
     const scrollToBrandLetter = (letter: string) => {
-        const target = document.getElementById(`brand-letter-${letter}`);
-        target?.scrollIntoView({ block: "start" });
+        setActiveBrandLetter(letter);
+        const root = brandListRef.current;
+        const target = root?.querySelector<HTMLElement>(`#brand-letter-${letter}`);
+        if (!root || !target) {
+            return;
+        }
+        const delta = target.getBoundingClientRect().top - root.getBoundingClientRect().top;
+        root.scrollTo({ top: Math.max(0, root.scrollTop + delta - 4), behavior: "smooth" });
     };
 
     const isModal = variant === "modal";
@@ -476,6 +595,11 @@ export default function CatalogFilters({
                             className={siteInput}
                         />
                     </div>
+                    {hasPriceDraft ? (
+                        <div className="text-sm text-admin-text-secondary">
+                            {priceMatchCount === null ? "Считаем…" : `Найдено: ${priceMatchCount}`}
+                        </div>
+                    ) : null}
                     {!isModal ? (
                         <button type="button" onClick={applyPrice} className={`${siteBtnPrimary} w-full`}>
                             Применить
@@ -501,6 +625,12 @@ export default function CatalogFilters({
                         "Набор",
                         isFlagSelected("set"),
                         () => toggleFlag("set"),
+                    )}
+                    {renderCheckboxOption(
+                        "in_store",
+                        "В наличии",
+                        isFlagSelected("in_store"),
+                        () => toggleFlag("in_store"),
                     )}
                 </section>
 
@@ -594,143 +724,169 @@ export default function CatalogFilters({
                 ))}
             </div>
 
-            {popupAttribute ? (
-                <div className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-900/40 p-0 sm:items-center sm:p-4">
-                    <div className="flex max-h-[min(88dvh,640px)] w-full flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface p-4 shadow-2xl sm:max-w-lg sm:rounded-xl">
-                        <div className="mb-3 flex items-center justify-between">
-                            <div className="text-sm font-semibold text-admin-text">{popupAttribute.name}</div>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setAttributeOptionQuery("");
-                                    setPopupAttributeId(null);
-                                }}
-                                className="rounded-2xl px-2 py-1 text-sm text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
-                            >
-                                Закрыть
-                            </button>
-                        </div>
-                        <input
-                            type="text"
-                            value={attributeOptionQuery}
-                            onChange={(e) => setAttributeOptionQuery(e.target.value)}
-                            placeholder="Поиск в фильтре"
-                            autoComplete="off"
-                            autoCorrect="off"
-                            autoCapitalize="off"
-                            spellCheck={false}
-                            data-lpignore="true"
-                            data-1p-ignore="true"
-                            data-form-type="other"
-                            suppressHydrationWarning
-                            className={`${siteInput} mb-3`}
-                        />
-                        <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
-                            {filteredPopupOptions.map((option) => (
-                                <label
-                                    key={option.id}
-                                    className="flex cursor-pointer items-center rounded-2xl border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text transition hover:bg-admin-muted"
-                                >
-                                    <span className="inline-flex items-center gap-2">
-                                        <input
-                                            type="checkbox"
-                                            checked={isOptionSelected(popupAttribute.id, option.id)}
-                                            onChange={() => toggleAttributeOption(popupAttribute.id, option.id)}
-                                            suppressHydrationWarning
-                                            className="h-4 w-4 rounded border-admin-border accent-admin-primary"
-                                        />
-                                        {option.name}
-                                    </span>
-                                </label>
-                            ))}
-                            {filteredPopupOptions.length === 0 ? (
-                                <div className="px-2 py-4 text-sm text-admin-text-secondary">Ничего не найдено</div>
-                            ) : null}
-                        </div>
-                    </div>
-                </div>
-            ) : null}
-
-            {isBrandModalOpen ? (
-                <div
-                    className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-900/40 p-0 sm:items-center sm:p-4"
-                    onClick={() => setIsBrandModalOpen(false)}
-                >
-                    <div
-                        className="flex max-h-[min(92dvh,720px)] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface p-4 shadow-2xl sm:rounded-xl"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="mb-3 flex items-center justify-between">
-                            <div className="text-sm font-semibold text-admin-text">Бренд</div>
-                            <button
-                                type="button"
-                                onClick={() => setIsBrandModalOpen(false)}
-                                className="rounded-2xl px-2 py-1 text-sm text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
-                            >
-                                Закрыть
-                            </button>
-                        </div>
-
-                        <input
-                            type="text"
-                            value={brandQuery}
-                            onChange={(e) => setBrandQuery(e.target.value)}
-                            placeholder="Поиск бренда"
-                            autoComplete="off"
-                            autoCorrect="off"
-                            autoCapitalize="off"
-                            spellCheck={false}
-                            data-lpignore="true"
-                            data-1p-ignore="true"
-                            data-form-type="other"
-                            suppressHydrationWarning
-                            className={`${siteInput} mb-3`}
-                        />
-
-                        <div className="mb-3 flex flex-wrap gap-1 border-b border-[var(--line)] pb-3">
-                            {brandSectionLetters.map((letter) => (
+            {portalReady && popupAttribute
+                ? createPortal(
+                    <div className="fixed inset-0 z-[220] flex items-end justify-center bg-slate-900/40 p-0 sm:items-center sm:p-4">
+                        <div className="flex max-h-[min(88dvh,640px)] w-full flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface p-4 shadow-2xl sm:max-w-lg sm:rounded-xl">
+                            <div className="mb-3 flex items-center justify-between">
+                                <div className="text-sm font-semibold text-admin-text">{popupAttribute.name}</div>
                                 <button
-                                    key={`anchor-${letter}`}
                                     type="button"
-                                    onClick={() => scrollToBrandLetter(letter)}
-                                    className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--foreground)] transition hover:bg-[var(--background)]"
+                                    onClick={() => {
+                                        setAttributeOptionQuery("");
+                                        setPopupAttributeId(null);
+                                    }}
+                                    className="rounded-2xl px-2 py-1 text-sm text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
                                 >
-                                    {letter}
+                                    Закрыть
                                 </button>
-                            ))}
+                            </div>
+                            <input
+                                type="text"
+                                value={attributeOptionQuery}
+                                onChange={(e) => setAttributeOptionQuery(e.target.value)}
+                                placeholder="Поиск в фильтре"
+                                autoComplete="off"
+                                autoCorrect="off"
+                                autoCapitalize="off"
+                                spellCheck={false}
+                                data-lpignore="true"
+                                data-1p-ignore="true"
+                                data-form-type="other"
+                                suppressHydrationWarning
+                                className={`${siteInput} mb-3`}
+                            />
+                            <div className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] pr-1">
+                                {filteredPopupOptions.map((option) => (
+                                    <label
+                                        key={option.id}
+                                        className="flex cursor-pointer items-center rounded-2xl border border-admin-border bg-admin-surface px-3 py-2 text-sm text-admin-text transition hover:bg-admin-muted"
+                                    >
+                                        <span className="inline-flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={isOptionSelected(popupAttribute.id, option.id)}
+                                                onChange={() => toggleAttributeOption(popupAttribute.id, option.id)}
+                                                suppressHydrationWarning
+                                                className="h-4 w-4 rounded border-admin-border accent-admin-primary"
+                                            />
+                                            {option.name}
+                                        </span>
+                                    </label>
+                                ))}
+                                {filteredPopupOptions.length === 0 ? (
+                                    <div className="px-2 py-4 text-sm text-admin-text-secondary">Ничего не найдено</div>
+                                ) : null}
+                            </div>
                         </div>
+                    </div>,
+                    document.body,
+                )
+                : null}
 
-                        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
-                            {brandSectionLetters.map((letter) => (
-                                <div key={`group-${letter}`} id={`brand-letter-${letter}`} className="space-y-1">
-                                    <div className="sticky top-0 z-10 bg-[var(--surface)] py-1 text-xs font-semibold text-[var(--text-secondary)]">
-                                        {letter}
+            {portalReady && isBrandModalOpen
+                ? createPortal(
+                    <div
+                        className="fixed inset-0 z-[220] flex items-end justify-center bg-slate-900/40 p-0 sm:items-center sm:p-4"
+                        onClick={() => setIsBrandModalOpen(false)}
+                    >
+                        <div
+                            className="flex max-h-[min(92dvh,720px)] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface p-4 shadow-2xl sm:rounded-xl"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="mb-3 flex shrink-0 items-center justify-between">
+                                <div className="text-sm font-semibold text-admin-text">Бренд</div>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsBrandModalOpen(false)}
+                                    className="rounded-2xl px-2 py-1 text-sm text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
+                                >
+                                    Закрыть
+                                </button>
+                            </div>
+
+                            <input
+                                type="text"
+                                value={brandQuery}
+                                onChange={(e) => setBrandQuery(e.target.value)}
+                                placeholder="Поиск бренда"
+                                autoComplete="off"
+                                autoCorrect="off"
+                                autoCapitalize="off"
+                                spellCheck={false}
+                                data-lpignore="true"
+                                data-1p-ignore="true"
+                                data-form-type="other"
+                                suppressHydrationWarning
+                                className={`${siteInput} mb-3 shrink-0`}
+                            />
+
+                            <div className="mb-3 flex shrink-0 flex-wrap gap-1 border-b border-admin-border pb-3">
+                                {brandSectionLetters.map((letter) => {
+                                    const isActive = activeBrandLetter === letter;
+                                    const hasSelection = lettersWithSelection.has(letter);
+                                    return (
+                                        <button
+                                            key={`anchor-${letter}`}
+                                            type="button"
+                                            onClick={() => scrollToBrandLetter(letter)}
+                                            aria-current={isActive ? "true" : undefined}
+                                            className={[
+                                                "rounded-2xl border px-2.5 py-1.5 text-xs font-semibold transition",
+                                                isActive
+                                                    ? "border-admin-primary bg-admin-primary text-white"
+                                                    : hasSelection
+                                                        ? "border-admin-primary bg-admin-primary/10 text-admin-primary"
+                                                        : "border-admin-border bg-admin-surface text-admin-text hover:bg-admin-muted",
+                                            ].join(" ")}
+                                        >
+                                            {letter}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            <div
+                                ref={brandListRef}
+                                className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] touch-pan-y pr-1"
+                            >
+                                {brandSectionLetters.map((letter) => (
+                                    <div
+                                        key={`group-${letter}`}
+                                        id={`brand-letter-${letter}`}
+                                        data-brand-letter={letter}
+                                        className="space-y-1"
+                                    >
+                                        <div className="sticky top-0 z-10 bg-admin-surface py-1 text-xs font-semibold text-admin-text-secondary">
+                                            {letter}
+                                        </div>
+                                        <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2 lg:grid-cols-3">
+                                            {(brandGroups.get(letter) ?? []).map((brand) => (
+                                                <label
+                                                    key={`brand-modal-${brand.id}`}
+                                                    className="flex cursor-pointer items-center rounded-2xl px-2 py-1.5 text-sm text-admin-text transition hover:bg-admin-muted"
+                                                >
+                                                    <span className="inline-flex items-center gap-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isBrandSelected(brand.id)}
+                                                            onChange={() => toggleBrand(brand.id)}
+                                                            suppressHydrationWarning
+                                                            className="h-4 w-4 rounded border-admin-border accent-admin-primary"
+                                                        />
+                                                        {brand.name}
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
                                     </div>
-                                    <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2 lg:grid-cols-3">
-                                        {(brandGroups.get(letter) ?? []).map((brand) => (
-                                            <label
-                                                key={`brand-modal-${brand.id}`}
-                                                className="flex cursor-pointer items-center rounded-2xl px-2 py-1.5 text-sm text-[var(--foreground)] transition hover:bg-[var(--background)]"
-                                            >
-                                                <span className="inline-flex items-center gap-2">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isBrandSelected(brand.id)}
-                                                        onChange={() => toggleBrand(brand.id)}
-                                                        suppressHydrationWarning
-                                                        className="h-4 w-4 rounded border-[var(--line)] accent-[var(--accent)]"
-                                                    />
-                                                    {brand.name}
-                                                </span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                </div>
-            ) : null}
+                    </div>,
+                    document.body,
+                )
+                : null}
         </div>
     );
 }

@@ -13,6 +13,12 @@ class CartResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $this->resource->loadMissing([
+            'items.product.images' => static function ($query): void {
+                $query->orderByDesc('is_main')->orderBy('sort_order');
+            },
+        ]);
+
         $items = $this->items;
         $giftCertificateItems = $this->giftCertificateItems;
         $client = $request->user() ?? Auth::guard('sanctum')->user();

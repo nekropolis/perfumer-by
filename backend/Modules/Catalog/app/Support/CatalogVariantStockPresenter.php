@@ -10,6 +10,7 @@ use Modules\Catalog\Models\SupplierProduct;
 use Modules\Catalog\Models\SupplierVariantOffer;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarehouseVariantStock;
+use Modules\Warehouse\Services\StockLotService;
 
 /**
  * Остаток для витрины и корзины: основной склад — физика + резерв;
@@ -349,6 +350,53 @@ final class CatalogVariantStockPresenter
     }
 
     /**
+     * Чекбокс «хочу скидку за ожидание» (канал склад+офер) не показываем,
+     * если минимальный вход офера выше минимального входа лотов на складе.
+     *
+     * @param  list<SupplierVariantOffer>|null  $preloadedEligibleOffers
+     */
+    public static function optionalWaitingDiscountBlocked(
+        ProductVariantLink $variant,
+        string $availabilitySource,
+        ?array $preloadedEligibleOffers = null,
+    ): bool {
+        if ($availabilitySource !== 'main+supplier' || (bool) $variant->is_promotion) {
+            return false;
+        }
+
+        return WaitingDiscountPricing::offerPurchaseExceedsWarehousePurchase(
+            self::mainWarehouseMinPurchasePrice((int) $variant->id),
+            self::minListingPurchasePrice($variant, $preloadedEligibleOffers),
+        );
+    }
+
+    /**
+     * Минимальная входная цена остатка на основном складе (как «мин.» в админке).
+     */
+    private static function mainWarehouseMinPurchasePrice(int $variantId): ?float
+    {
+        if ($variantId <= 0) {
+            return null;
+        }
+
+        $mainWarehouseId = (int) Cache::remember('catalog:warehouse:main-id', 3600, static function (): int {
+            return (int) Warehouse::query()->where('code', Warehouse::CODE_MAIN)->value('id');
+        });
+        if ($mainWarehouseId <= 0) {
+            return null;
+        }
+
+        $raw = app(StockLotService::class)->minPurchaseByVariant([$variantId], $mainWarehouseId)[$variantId] ?? null;
+        if ($raw === null || ! is_numeric((string) $raw)) {
+            return null;
+        }
+
+        $price = (float) $raw;
+
+        return $price > 0 ? $price : null;
+    }
+
+    /**
      * Офферы поставщика, участвующие в канале прайса (как в {@see Product::activeVariants()}).
      *
      * @param  Builder<SupplierVariantOffer>  $query
@@ -397,12 +445,14 @@ final class CatalogVariantStockPresenter
 
     /**
      * Минимальная закупочная цена среди офферов, участвующих в канале прайса на витрине.
+     *
+     * @param  list<SupplierVariantOffer>|null  $preloadedEligibleOffers
      */
-    public static function minListingPurchasePrice(ProductVariantLink $variant): ?float
+    public static function minListingPurchasePrice(ProductVariantLink $variant, ?array $preloadedEligibleOffers = null): ?float
     {
         $min = null;
 
-        foreach (self::listingEligibleOffers($variant, null) as $offer) {
+        foreach (self::listingEligibleOffers($variant, $preloadedEligibleOffers) as $offer) {
             $purchase = self::resolveListingPurchasePrice($offer);
             if ($purchase === null || $purchase <= 0) {
                 continue;

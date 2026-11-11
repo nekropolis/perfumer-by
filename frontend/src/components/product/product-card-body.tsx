@@ -92,7 +92,7 @@ export default function ProductCardBody({
                 <div
                     className={
                         isCatalog
-                            ? "absolute right-0 top-0 z-10 origin-top-right scale-[0.88] sm:right-0.5 sm:top-0.5 sm:scale-100 [&_button]:static"
+                            ? "absolute right-0.5 top-0.5 z-10 [&_button]:static"
                             : undefined
                     }
                 >
@@ -205,7 +205,7 @@ export default function ProductCardBody({
                             aria-hidden
                             className={`flex shrink-0 items-center justify-center rounded-full border border-admin-border bg-admin-muted text-admin-primary transition-all duration-150 lg:group-hover:border-admin-primary lg:group-hover:bg-admin-primary lg:group-hover:text-white ${
                                 isCatalog
-                                    ? "hidden h-7 w-7 lg:flex"
+                                    ? "flex h-6 w-6 sm:h-7 sm:w-7"
                                     : "h-8 w-8 sm:h-9 sm:w-9"
                             }`}
                             title="Перейти к товару"

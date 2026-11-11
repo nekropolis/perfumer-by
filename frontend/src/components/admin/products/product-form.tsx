@@ -29,6 +29,7 @@ type Props = {
     submitting?: boolean;
     onChangeAction: (value: ProductFormState) => void;
     onSubmitAction: () => void;
+    onApplyAction?: () => void;
 };
 
 export default function ProductForm({
@@ -37,6 +38,7 @@ export default function ProductForm({
                                         submitting = false,
                                         onChangeAction,
                                         onSubmitAction,
+                                        onApplyAction,
                                     }: Props) {
     return (
         <div className="space-y-6 rounded-xl border border-admin-border bg-admin-surface p-5 shadow-admin-card sm:p-6">
@@ -192,6 +194,16 @@ export default function ProductForm({
             </div>
 
             <div className="flex flex-col-reverse gap-2 border-t border-admin-border pt-4 sm:flex-row sm:justify-end">
+                {onApplyAction ? (
+                    <button
+                        type="button"
+                        onClick={onApplyAction}
+                        disabled={submitting}
+                        className="inline-flex min-h-10 w-full items-center justify-center rounded-lg border border-admin-border bg-admin-surface px-4 py-2 text-sm font-semibold text-admin-text transition hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                    >
+                        {submitting ? "Сохранение..." : "Применить"}
+                    </button>
+                ) : null}
                 <button
                     type="button"
                     onClick={onSubmitAction}

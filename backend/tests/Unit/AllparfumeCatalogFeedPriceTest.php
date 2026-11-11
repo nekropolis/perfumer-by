@@ -22,6 +22,11 @@ class AllparfumeCatalogFeedPriceTest extends TestCase
         $this->assertSame(100.0, $this->price(100.0, ['availability_source' => 'main'], false));
     }
 
+    public function test_main_plus_supplier_skips_waiting_discount_when_offer_is_higher(): void
+    {
+        $this->assertSame(50.0, $this->price(50.0, ['availability_source' => 'main+supplier'], false, true));
+    }
+
     public function test_promotion_skips_waiting_discount(): void
     {
         $this->assertSame(
@@ -33,10 +38,20 @@ class AllparfumeCatalogFeedPriceTest extends TestCase
     /**
      * @param  array{availability_source?: string}  $presented
      */
-    private function price(float $storefrontPrice, array $presented, bool $isPromotion): float
-    {
+    private function price(
+        float $storefrontPrice,
+        array $presented,
+        bool $isPromotion,
+        bool $skipWaitingDiscount = false,
+    ): float {
         $method = new ReflectionMethod(AllparfumeCatalogFeedService::class, 'variantFeedPrice');
 
-        return $method->invoke(new AllparfumeCatalogFeedService(), $storefrontPrice, $presented, $isPromotion);
+        return $method->invoke(
+            new AllparfumeCatalogFeedService(),
+            $storefrontPrice,
+            $presented,
+            $isPromotion,
+            $skipWaitingDiscount,
+        );
     }
 }

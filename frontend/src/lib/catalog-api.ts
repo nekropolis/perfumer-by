@@ -42,7 +42,10 @@ export function fetchCatalogBrands(): Promise<CatalogBrandsResponse> {
 }
 
 export function fetchCatalogBrandDetail(slug: string): Promise<CatalogBrandDetailResponse> {
-    return catalogApiFetch<CatalogBrandDetailResponse>(`/catalog/brands/${slug}`, "brandDetail");
+    return catalogApiFetch<CatalogBrandDetailResponse>(
+        `/catalog/brands/${encodeURIComponent(slug)}`,
+        "brandDetail",
+    );
 }
 
 export function fetchCatalogFilters(filtersQueryString: string): Promise<CatalogFiltersResponse> {
@@ -53,7 +56,10 @@ export function fetchCatalogFilters(filtersQueryString: string): Promise<Catalog
 }
 
 export function fetchCatalogProductDetail(slug: string): Promise<ProductDetailResponse> {
-    return catalogApiFetch<ProductDetailResponse>(`/catalog/products/${slug}`, "productDetail");
+    return catalogApiFetch<ProductDetailResponse>(
+        `/catalog/products/${encodeURIComponent(slug)}`,
+        "productDetail",
+    );
 }
 
 export function fetchHomeRecommendedProducts(): Promise<{

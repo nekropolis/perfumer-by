@@ -23,4 +23,14 @@ class WaitingDiscountPricingTest extends TestCase
             'zero price' => [0.0, 0.0],
         ];
     }
+
+    public function test_offer_above_warehouse_blocks_optional_waiting_discount(): void
+    {
+        self::assertTrue(WaitingDiscountPricing::offerPurchaseExceedsWarehousePurchase(50.0, 50.01));
+        self::assertTrue(WaitingDiscountPricing::offerPurchaseExceedsWarehousePurchase(50.0, 55.0));
+        self::assertFalse(WaitingDiscountPricing::offerPurchaseExceedsWarehousePurchase(50.0, 50.0));
+        self::assertFalse(WaitingDiscountPricing::offerPurchaseExceedsWarehousePurchase(50.0, 48.0));
+        self::assertFalse(WaitingDiscountPricing::offerPurchaseExceedsWarehousePurchase(50.0, null));
+        self::assertFalse(WaitingDiscountPricing::offerPurchaseExceedsWarehousePurchase(null, 60.0));
+    }
 }

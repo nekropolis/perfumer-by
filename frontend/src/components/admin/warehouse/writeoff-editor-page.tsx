@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminCrudHeader from "@/components/admin/ui/admin-crud-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminFeedbackMessage from "@/components/admin/ui/admin-feedback-message";
@@ -108,6 +108,19 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
     const [lotOptions, setLotOptions] = useState<StockBalanceVariantSupplierRow[]>([]);
     const [lotsLoading, setLotsLoading] = useState(false);
     const debouncedProductQuery = useDebouncedValue(draftItem.product_query, 350);
+    const prefillKey = prefillItem
+        ? [
+            prefillItem.warehouse_id ?? "",
+            prefillItem.product_id,
+            prefillItem.variant_id,
+            prefillItem.stock_lot_id ?? "",
+            prefillItem.product_name,
+            prefillItem.variant_title,
+            prefillItem.available_qty ?? "",
+            prefillItem.reserved_qty ?? "",
+            prefillItem.price ?? "",
+        ].join("|")
+        : "";
 
     const totalWriteoffAmount = useMemo(
         () => form.items.reduce((sum, item) => sum + Number(item.qty || 0) * Number(item.price || 0), 0),
@@ -177,6 +190,8 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
         },
         [form.warehouse_id],
     );
+    const loadLotsRef = useRef(loadLotsForDraft);
+    loadLotsRef.current = loadLotsForDraft;
 
     useEffect(() => {
         if (!isAddModalOpen || !draftItem.variant_id) {
@@ -263,6 +278,11 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
         const reservedQty = Math.max(0, Number(prefillItem.reserved_qty ?? 0));
         const stockSource = availableQty > 0 ? "available" : reservedQty > 0 ? "reserved" : "available";
 
+        setForm((prev) => ({
+            ...prev,
+            items: [],
+            warehouse_id: prefillItem.warehouse_id ?? prev.warehouse_id,
+        }));
         setDraftItem({
             product_id: prefillItem.product_id,
             variant_id: prefillItem.variant_id,
@@ -280,8 +300,10 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
             reserved_qty: reservedQty,
         });
         setIsAddModalOpen(true);
-        void loadLotsForDraft(prefillItem.variant_id, stockSource, prefillItem.stock_lot_id);
-    }, [prefillItem, loadLotsForDraft]);
+        void loadLotsRef.current(prefillItem.variant_id, stockSource, prefillItem.stock_lot_id);
+        // Сбрасываем черновик только при смене позиции из остатков, не при пересчёте лотов.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [prefillKey]);
 
     const selectedDraftLot = useMemo(
         () => lotOptions.find((row) => row.lot_id === draftItem.stock_lot_id) ?? null,
@@ -441,6 +463,9 @@ export default function WriteoffEditorPage({ prefillItem }: Props) {
             };
 
             await createStockWriteoff(payload);
+            setForm(emptyForm());
+            setDraftItem(emptyDraftItem());
+            setIsAddModalOpen(false);
             router.push("/admin/warehouse/writeoffs");
         } catch (e) {
             setError(e instanceof Error ? e.message : "Не удалось создать списание");

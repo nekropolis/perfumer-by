@@ -1,9 +1,10 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCart } from "@/components/cart/cart-provider";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useWishlist } from "@/components/wishlist/wishlist-provider";
 import MobileTabBar from "@/components/layout/mobile-tab-bar";
 import HeaderMainRow from "@/components/layout/header/header-main-row";
 import HeaderNav, { HeaderNavFallback } from "@/components/layout/header/header-nav";
@@ -27,6 +28,31 @@ import {
 
 function readLocation(): string {
     return window.location.pathname + window.location.search;
+}
+
+function SearchRouteArrival({
+    pendingHref,
+    onArrivedAction,
+}: {
+    pendingHref: string | null;
+    onArrivedAction: () => void;
+}) {
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+
+    useEffect(() => {
+        if (!pendingHref) {
+            return;
+        }
+
+        const query = searchParams.toString();
+        const current = query ? `${pathname}?${query}` : pathname;
+        if (current === pendingHref) {
+            onArrivedAction();
+        }
+    }, [pendingHref, pathname, searchParams, onArrivedAction]);
+
+    return null;
 }
 
 function formatMinskFreeDeliveryPromo(threshold: number): string {
@@ -64,6 +90,7 @@ export default function Header() {
     const mainRowRef = useRef<HTMLDivElement | null>(null);
     const mainRowSentinelRef = useRef<HTMLDivElement | null>(null);
     const { cartQty } = useCart();
+    const { wishlistQty } = useWishlist();
     const { user, isAuthenticated, logout } = useAuth();
 
     const accountRef = useRef<HTMLDivElement | null>(null);
@@ -76,6 +103,9 @@ export default function Header() {
         setSearchOpen,
         searchQuery,
         searchLoading,
+        searchNavigating,
+        pendingHref,
+        completeNavigation,
         searchResults,
         searchBrandResults,
         suggestedQuery,
@@ -126,15 +156,19 @@ export default function Header() {
             }
         };
 
+        if (searchNavigating) {
+            return;
+        }
+
         document.addEventListener("mousedown", handleClickOutside);
 
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
-    }, [setSearchOpen]);
+    }, [searchNavigating, setSearchOpen]);
 
     useEffect(() => {
-        if (!isAccountOpen && !isBurgerOpen && !isPhoneDropdownOpen && !searchOpen) {
+        if (searchNavigating || (!isAccountOpen && !isBurgerOpen && !isPhoneDropdownOpen && !searchOpen)) {
             return;
         }
 
@@ -173,7 +207,7 @@ export default function Header() {
 
         document.addEventListener("keydown", handleEscape);
         return () => document.removeEventListener("keydown", handleEscape);
-    }, [isAccountOpen, isBurgerOpen, isPhoneDropdownOpen, searchOpen, setSearchOpen]);
+    }, [isAccountOpen, isBurgerOpen, isPhoneDropdownOpen, searchNavigating, searchOpen, setSearchOpen]);
 
     useEffect(() => {
         if (!isPhoneDropdownOpen) {
@@ -198,21 +232,33 @@ export default function Header() {
 
         const measure = () => {
             const full = el.offsetHeight || 78;
-            setMainRowHeight(full);
             const extension = document.getElementById(HEADER_STICKY_EXTENSION_ID);
-            const row = Math.max(52, full - (extension?.offsetHeight ?? 0));
+            const extensionHeight = extension?.offsetHeight ?? 0;
+            // Spacer excludes ephemeral product sticky-price, but pages with a persistent
+            // title in the extension (checkout) pad via --storefront-header-extension-height.
+            const row = Math.max(52, full - extensionHeight);
+            setMainRowHeight(row);
             document.documentElement.style.setProperty("--storefront-header-row-height", `${row}px`);
+            document.documentElement.style.setProperty(
+                "--storefront-header-extension-height",
+                `${extensionHeight}px`,
+            );
         };
 
         measure();
         const ro = new ResizeObserver(measure);
         ro.observe(el);
+        const extension = document.getElementById(HEADER_STICKY_EXTENSION_ID);
+        if (extension) {
+            ro.observe(extension);
+        }
         window.addEventListener("resize", measure);
 
         return () => {
             ro.disconnect();
             window.removeEventListener("resize", measure);
             document.documentElement.style.removeProperty("--storefront-header-row-height");
+            document.documentElement.style.removeProperty("--storefront-header-extension-height");
         };
     }, []);
 
@@ -281,15 +327,24 @@ export default function Header() {
     };
 
     const toggleMobileSearch = () => {
+        if (searchNavigating) {
+            return;
+        }
         setProfileMenuPath(null);
         setSearchOpen((current) => !current);
     };
 
     const closeMobileSearch = () => {
+        if (searchNavigating) {
+            return;
+        }
         setSearchOpen(false);
     };
 
     const toggleProfileMenu = () => {
+        if (searchNavigating) {
+            return;
+        }
         setSearchOpen(false);
         setProfileMenuPath((current) => (current ? null : readLocation()));
     };
@@ -347,6 +402,7 @@ export default function Header() {
                     suggestedQuery={suggestedQuery}
                     recentSearches={recentSearches}
                     popularSearches={popularSearches}
+                    wishlistQty={wishlistQty ?? 0}
                     cartQty={cartQty}
                     isAuthenticated={isAuthenticated}
                     isAccountOpen={isAccountOpen}
@@ -413,10 +469,30 @@ export default function Header() {
                 onSuggestedQueryAction={selectSuggestion}
             />
             <MobileProfileSheet open={profileMenuOpen} onCloseAction={closeProfileMenu} />
+            <Suspense fallback={null}>
+                <SearchRouteArrival pendingHref={pendingHref} onArrivedAction={completeNavigation} />
+            </Suspense>
+            {searchNavigating ? (
+                <div
+                    className="fixed inset-0 z-[180] flex items-center justify-center bg-admin-surface/80 backdrop-blur-sm"
+                    role="status"
+                    aria-live="polite"
+                >
+                    <div className="flex items-center gap-3 rounded-2xl border border-admin-border bg-admin-surface px-4 py-3 text-sm font-medium text-admin-text shadow-xl">
+                        <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-admin-primary border-t-transparent" />
+                        Открываем…
+                    </div>
+                </div>
+            ) : null}
             <MobileTabBar
                 cartQty={cartQty}
                 searchOpen={searchOpen}
                 menuOpen={profileMenuOpen}
+                profileLabel={
+                    isAuthenticated
+                        ? user?.first_name?.trim() || user?.name?.trim()?.split(/\s+/)[0] || "Профиль"
+                        : "Профиль"
+                }
                 onOpenSearchAction={toggleMobileSearch}
                 onToggleMenuAction={toggleProfileMenu}
                 onDismissMenuAction={(href) => {

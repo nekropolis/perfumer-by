@@ -9,7 +9,7 @@ import AttachLoyaltyCardModal from "@/components/account/attach-loyalty-card-mod
 import { resolveActiveLoyaltyCard } from "@/lib/loyalty-pricing";
 import { formatBelarusPhoneSpaced } from "@/lib/site-contact";
 import type { AuthUserProfile } from "@/lib/auth-api";
-import { siteBtnPrimary, siteBtnSecondary, siteCard } from "@/lib/site-ui-classes";
+import { siteBtnSecondary, siteCard } from "@/lib/site-ui-classes";
 
 type UserAccountProps = {
     user: AuthUserProfile | null;

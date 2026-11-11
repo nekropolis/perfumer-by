@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import { reportClientError } from "@/lib/report-client-error";
 
 type ErrorPageProps = {
     error: Error & { digest?: string };
@@ -12,6 +13,7 @@ type ErrorPageProps = {
 export default function ErrorPage({ error, reset }: ErrorPageProps) {
     useEffect(() => {
         console.error("[app/error]", error.digest ? { digest: error.digest, error } : error);
+        reportClientError(error, "segment");
     }, [error]);
 
     return (

@@ -257,12 +257,19 @@ class CheckoutController extends Controller
                     continue;
                 }
                 $basePrice = (float) ($cartItem->variant?->price ?? 0);
+                $availabilitySource = $cartItemAvailabilitySource($cartItem);
                 $waitingDiscount = (bool) $cartItem->waiting_discount && !(bool) ($cartItem->variant?->is_promotion ?? false);
+                if (
+                    $waitingDiscount
+                    && $cartItem->variant
+                    && CatalogVariantStockPresenter::optionalWaitingDiscountBlocked($cartItem->variant, $availabilitySource)
+                ) {
+                    $waitingDiscount = false;
+                }
                 $price = $waitingDiscount && $basePrice > 0
                     ? WaitingDiscountPricing::apply($basePrice)
                     : $basePrice;
                 $lineTotal = round($price * $cartItem->qty, 2);
-                $availabilitySource = $cartItemAvailabilitySource($cartItem);
 
                 $supplierVariantOfferId = null;
                 $supplierPurchasePrice = null;

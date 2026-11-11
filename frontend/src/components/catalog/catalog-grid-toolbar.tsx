@@ -172,10 +172,11 @@ export default function CatalogGridToolbar({
             });
         }
 
-        const typeFlags: Array<{ key: "tester" | "miniature" | "set"; label: string }> = [
+        const typeFlags: Array<{ key: "tester" | "miniature" | "set" | "in_store"; label: string }> = [
             { key: "tester", label: "Тестер" },
             { key: "miniature", label: "Миниатюра" },
             { key: "set", label: "Набор" },
+            { key: "in_store", label: "В наличии" },
         ];
         for (const flag of typeFlags) {
             if (searchParams.get(flag.key) !== "1") {
@@ -246,16 +247,16 @@ export default function CatalogGridToolbar({
     const hasChips = activeChips.length > 0;
 
     const sortControl = (
-        <div className="relative shrink-0" ref={sortMenuRef}>
+        <div className="relative min-w-0 w-full lg:w-auto lg:shrink-0" ref={sortMenuRef}>
             <button
                 type="button"
                 onClick={() => setIsSortOpen((prev) => !prev)}
-                className={`${siteFilterChip} ${siteFilterChipInactive} h-10 shrink-0 gap-1.5 rounded-full px-3 text-sm sm:gap-2 sm:px-4`}
+                className={`${siteFilterChip} ${siteFilterChipInactive} h-10 w-full justify-center gap-1.5 rounded-full px-3 text-sm lg:w-auto lg:shrink-0 lg:justify-start sm:gap-2 sm:px-4`}
                 aria-haspopup="listbox"
                 aria-expanded={isSortOpen}
                 aria-label="Сортировка"
             >
-                <span className="whitespace-nowrap">{currentSortOption.menuLabel}</span>
+                <span className="min-w-0 truncate">{currentSortOption.menuLabel}</span>
                 <ChevronDown
                     className={`h-4 w-4 shrink-0 text-admin-text-secondary transition ${isSortOpen ? "rotate-180" : ""}`}
                 />
@@ -332,18 +333,18 @@ export default function CatalogGridToolbar({
             className="sticky z-[110] border-b border-admin-border bg-[var(--background)]"
             style={{ top: "var(--catalog-toolbar-sticky-top)" }}
         >
-            <div className="flex flex-col gap-2 py-2 sm:gap-3 sm:py-4 max-lg:landscape:gap-2 max-lg:landscape:py-2">
+            <div className="flex flex-col gap-1.5 py-1.5 sm:gap-2 sm:py-2 max-lg:landscape:gap-1.5 max-lg:landscape:py-1.5">
                 {showCategoryChips ? (
                     <div className="flex min-w-0 items-center gap-2">
-                        <div className="shrink-0 lg:hidden">{mobileRightAction}</div>
+                        <div className="min-w-0 flex-1 lg:hidden">{mobileRightAction}</div>
                         <div className="hidden min-w-0 flex-1 lg:block">{categoryChips}</div>
-                        <div className="ml-auto shrink-0">{sortControl}</div>
+                        <div className="min-w-0 flex-1 lg:ml-auto lg:flex-none">{sortControl}</div>
                     </div>
                 ) : (
                     <div className="flex min-w-0 items-center gap-2">
                         <div className="min-w-0 flex-1 lg:hidden">{mobileRightAction}</div>
                         <div className="hidden flex-1 lg:block" />
-                        {sortControl}
+                        <div className="min-w-0 flex-1 lg:flex-none">{sortControl}</div>
                     </div>
                 )}
 

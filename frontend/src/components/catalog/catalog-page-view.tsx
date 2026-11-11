@@ -71,25 +71,43 @@ export default function CatalogPageView({
     const productsTotal = products.meta?.total ?? listingProducts.length;
     const showCategoryChips = basePath === "/catalog" || basePath.startsWith("/brands/");
     const showResetFilters = showBrand;
+    const isRootCatalog = basePath === "/catalog";
+    // На корневом каталоге таб «Каталог» уже даёт контекст — на мобиле прячем UI, H1/intro оставляем для SEO.
+    const compactMobileHeader = isRootCatalog;
 
     return (
         <main className="mx-auto max-w-7xl px-4 py-2 pb-8 sm:px-6 md:py-8 md:pb-12 lg:px-8 max-lg:landscape:py-4 max-lg:landscape:pb-8">
-            <Breadcrumbs className="mb-1 md:mb-4 max-lg:landscape:mb-2" items={breadcrumbs} />
+            <Breadcrumbs
+                className={`mb-1 md:mb-4 max-lg:landscape:mb-2 ${compactMobileHeader ? "hidden md:block" : ""}`}
+                items={breadcrumbs}
+            />
 
-            <div className="mb-2 md:mb-6 max-lg:landscape:mb-3">
-                <h1 className="text-2xl font-semibold leading-tight sm:text-3xl lg:text-4xl max-lg:landscape:text-2xl">{title}</h1>
+            <div className={compactMobileHeader ? "mb-0 md:mb-6" : "mb-2 md:mb-6 max-lg:landscape:mb-3"}>
+                <h1
+                    className={
+                        compactMobileHeader
+                            ? "sr-only md:not-sr-only md:mb-0 md:text-3xl md:font-semibold md:leading-tight lg:text-4xl"
+                            : "text-2xl font-semibold leading-tight sm:text-3xl lg:text-4xl max-lg:landscape:text-2xl"
+                    }
+                >
+                    {title}
+                </h1>
                 {intro?.trim() ? (
-                    <>
-                        <p className="mt-3 hidden max-w-3xl text-sm leading-6 text-admin-text-secondary md:block sm:text-base">
-                            {intro}
-                        </p>
-                        <details className="mt-1 md:hidden">
-                            <summary className="cursor-pointer text-sm font-medium text-admin-text-secondary">
-                                {basePath === "/catalog" ? "О каталоге" : "Подробнее"}
-                            </summary>
-                            <p className="mt-2 max-w-3xl text-sm leading-6 text-admin-text-secondary">{intro}</p>
-                        </details>
-                    </>
+                    <p
+                        className={
+                            compactMobileHeader
+                                ? "sr-only md:not-sr-only md:mt-3 md:max-w-3xl md:text-base md:leading-6 md:text-admin-text-secondary"
+                                : "mt-3 hidden max-w-3xl text-sm leading-6 text-admin-text-secondary md:block sm:text-base"
+                        }
+                    >
+                        {intro}
+                    </p>
+                ) : null}
+                {!compactMobileHeader && intro?.trim() ? (
+                    <details className="mt-1 md:hidden">
+                        <summary className="cursor-pointer text-sm font-medium text-admin-text-secondary">Подробнее</summary>
+                        <p className="mt-2 max-w-3xl text-sm leading-6 text-admin-text-secondary">{intro}</p>
+                    </details>
                 ) : null}
             </div>
 

@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Catalog\Support\ProductDisplayName;
+use Modules\Catalog\Support\ProductImagePathResolver;
 use Modules\Catalog\Support\WaitingDiscountPricing;
 use Modules\Settings\Services\ShopSettingService;
 use Modules\Warehouse\Models\Warehouse;
@@ -44,6 +45,9 @@ class CartItemResource extends JsonResource
             $displayReserved = $presented['reserved_stock'];
             $isAvailable = $presented['is_available'];
             $availabilitySource = $presented['availability_source'];
+            if (CatalogVariantStockPresenter::optionalWaitingDiscountBlocked($variant, $availabilitySource)) {
+                $waitingDiscount = false;
+            }
             $basePrice = CatalogVariantStockPresenter::storefrontVariantPrice($variant, $presented) ?? 0.0;
             $price = $waitingDiscount && !(bool) $variant->is_promotion
                 ? WaitingDiscountPricing::apply($basePrice)
@@ -85,6 +89,7 @@ class CartItemResource extends JsonResource
                 : null,
             'product_slug' => $product?->slug,
             'brand_name' => $product?->brand?->name,
+            'image' => $this->storefrontImagePath($product),
 
             'variant' => $variant ? [
                 'id' => $variant->id,
@@ -116,5 +121,21 @@ class CartItemResource extends JsonResource
                 : null,
             'availability_source' => $this->availability_source ?: $availabilitySource,
         ];
+    }
+
+    private function storefrontImagePath(mixed $product): ?string
+    {
+        if ($product === null || ! $product->relationLoaded('images')) {
+            return null;
+        }
+
+        $image = $product->images->first();
+        if ($image === null) {
+            return null;
+        }
+
+        $path = ProductImagePathResolver::resolve($image, 'thumb');
+
+        return $path !== '' ? $path : null;
     }
 }

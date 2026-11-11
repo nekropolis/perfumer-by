@@ -35,7 +35,8 @@ function makeApp(name) {
         name,
         cwd: __dirname,
         script: "node_modules/next/dist/bin/next",
-        args: "start",
+        // Только loopback: снаружи сайт открывает nginx, не порт 3000.
+        args: "start -H 127.0.0.1",
         instances: 2,
         exec_mode: "cluster",
         autorestart: true,

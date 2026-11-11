@@ -4,6 +4,7 @@ namespace Modules\Communications\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Log;
 use Modules\Communications\Services\Monitoring\ExceptionTelegramReporter;
 
 class FrontendErrorController
@@ -25,6 +26,10 @@ class FrontendErrorController
             'name' => ['required', 'string', 'max:160'],
             'message' => ['required', 'string', 'max:1000'],
         ]);
+
+        if (($payload['routeType'] ?? '') === 'client') {
+            Log::warning('frontend.client', $payload);
+        }
 
         $reporter->reportFrontend($payload);
 

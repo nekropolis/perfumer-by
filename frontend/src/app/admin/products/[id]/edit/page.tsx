@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminCrudHeader from "@/components/admin/ui/admin-crud-header";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
@@ -41,6 +41,34 @@ import {
 } from "@/lib/product-page-seo";
 import { productDisplayName } from "@/lib/product-display-name";
 
+function productsListHref(returnQuery: string | null): string {
+    if (!returnQuery) {
+        return "/admin/products";
+    }
+
+    const incoming = new URLSearchParams(returnQuery);
+    const params = new URLSearchParams();
+    const search = incoming.get("search")?.trim();
+    if (search) {
+        params.set("search", search);
+    }
+    const page = incoming.get("page");
+    if (page && /^\d+$/.test(page) && Number(page) > 1) {
+        params.set("page", page);
+    }
+    const stock = incoming.get("stock");
+    if (stock === "0" || stock === "1") {
+        params.set("stock", stock);
+    }
+    const status = incoming.get("status");
+    if (status === "new" || status === "hit" || status === "discount") {
+        params.set("status", status);
+    }
+
+    const query = params.toString();
+    return query ? `/admin/products?${query}` : "/admin/products";
+}
+
 const SEO_FIELDS: ProductSeoField[] = [
     "seo_description",
     "short_description",
@@ -61,6 +89,9 @@ function minVariantPrice(product: ProductAdminDetail | null): string | null {
 
 export default function AdminProductEditPage() {
     const params = useParams<{ id: string }>();
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const listHref = productsListHref(searchParams.get("return"));
 
     const [activeTab, setActiveTab] = useState<ProductEditorTab>("main");
     const [form, setForm] = useState<ProductFormState | null>(null);
@@ -145,7 +176,7 @@ export default function AdminProductEditPage() {
         return isManual ? `На витрине: ${effective}` : `Авто: ${autoTitle}`;
     }, [brands, form, productData]);
 
-    const handleSubmit = async () => {
+    const saveProduct = async (closeAfter: boolean) => {
         if (!form) {
             return;
         }
@@ -175,6 +206,11 @@ export default function AdminProductEditPage() {
                 seo_description: form.seo_description,
                 seo_keyword: form.seo_keyword,
             });
+
+            if (closeAfter) {
+                router.push(listHref);
+                return;
+            }
 
             await loadData();
             setSuccessMessage("Продукт успешно сохранён");
@@ -334,13 +370,13 @@ export default function AdminProductEditPage() {
     return (
         <AdminPageCard>
             <AdminCrudHeader
-                backHref="/admin/products"
+                backHref={listHref}
                 backAriaLabel="Назад к продуктам"
                 title={`Редактировать продукт - ${productData?.name ?? ""}`}
                 description="Редактирование продукта"
                 items={[
                     { label: "Админка", href: "/admin" },
-                    { label: "Продукты", href: "/admin/products" },
+                    { label: "Продукты", href: listHref },
                     { label: "Редактирование" },
                 ]}
                 actions={
@@ -429,7 +465,8 @@ export default function AdminProductEditPage() {
                             brands={brands}
                             submitting={submitting}
                             onChangeAction={setForm}
-                            onSubmitAction={handleSubmit}
+                            onSubmitAction={() => void saveProduct(true)}
+                            onApplyAction={() => void saveProduct(false)}
                         />
                     )}
 
@@ -521,10 +558,18 @@ export default function AdminProductEditPage() {
                                 />
                             </div>
 
-                            <div className="flex justify-end">
+                            <div className="flex justify-end gap-2">
                                 <button
                                     type="button"
-                                    onClick={handleSubmit}
+                                    onClick={() => void saveProduct(false)}
+                                    disabled={submitting}
+                                    className="rounded-lg border border-admin-border bg-admin-surface px-4 py-2 text-sm text-admin-text transition hover:bg-admin-muted disabled:opacity-50"
+                                >
+                                    {submitting ? "Сохранение..." : "Применить"}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => void saveProduct(true)}
                                     disabled={submitting}
                                     className="rounded-lg bg-admin-primary px-4 py-2 text-sm text-white shadow-sm transition hover:bg-admin-primary-hover disabled:opacity-50"
                                 >

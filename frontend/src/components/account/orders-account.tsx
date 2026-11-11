@@ -376,11 +376,14 @@ export default function OrdersAccount({
                                       {orders.map((order) => {
                                           const cardDiscount = parseMoney(order.discount_amount);
                                           const cardPercent = formatDiscountPercentSnapshot(order.discount_percent_snapshot);
+                                          const cardDiscountAmount = formatMoneyDisplay(order.discount_amount);
                                           const cardDiscountLabel =
                                               cardDiscount > 0.004
                                                   ? cardPercent
                                                       ? `скидка ${cardPercent}%`
-                                                      : `скидка −${withBynSign(formatMoneyDisplay(order.discount_amount) ?? order.discount_amount)}`
+                                                      : cardDiscountAmount
+                                                          ? <>скидка −{withBynSign(cardDiscountAmount)}</>
+                                                          : null
                                                   : null;
 
                                           return (

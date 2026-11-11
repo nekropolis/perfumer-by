@@ -752,8 +752,7 @@ export default function AdminWarehouseBalancesPage() {
                                                         <Info size={14} />
                                                     </button>
                                                     {canWriteOff ? (
-                                                        <Link
-                                                            prefetch={false}
+                                                        <a
                                                             href={`/admin/warehouse/writeoffs/new?warehouse_id=${item.warehouse_id ?? ""}&product_id=${item.product_id}&variant_id=${item.variant_id ?? item.id}&available_qty=${item.available_stock}&reserved_qty=${item.reserved_stock}&product_name=${encodeURIComponent(
                                                                 item.product_name || ""
                                                             )}&variant_title=${encodeURIComponent(item.variant_title)}&price=${encodeURIComponent(
@@ -764,7 +763,7 @@ export default function AdminWarehouseBalancesPage() {
                                                             title="Списать"
                                                         >
                                                             <PackageMinus size={14} />
-                                                        </Link>
+                                                        </a>
                                                     ) : null}
                                                 </div>
                                             </td>

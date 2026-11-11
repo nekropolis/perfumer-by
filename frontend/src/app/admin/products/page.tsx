@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminPageCard from "@/components/admin/ui/admin-page-card";
 import AdminSearchInput from "@/components/admin/ui/admin-search-input";
 import AdminStatusDropdown from "@/components/admin/ui/admin-status-dropdown";
@@ -48,8 +48,14 @@ export default function AdminProductsPage() {
     const [searchInput, setSearchInput] = useState(
         () => searchParamsFromUrl.get("search") ?? "",
     );
-    const [outOfStockFilter, setOutOfStockFilter] = useState<"" | "1" | "0">("");
-    const [statusFilter, setStatusFilter] = useState<"" | "new" | "hit" | "discount">("");
+    const [outOfStockFilter, setOutOfStockFilter] = useState<"" | "1" | "0">(() => {
+        const value = searchParamsFromUrl.get("stock");
+        return value === "1" || value === "0" ? value : "";
+    });
+    const [statusFilter, setStatusFilter] = useState<"" | "new" | "hit" | "discount">(() => {
+        const value = searchParamsFromUrl.get("status");
+        return value === "new" || value === "hit" || value === "discount" ? value : "";
+    });
     const [page, setPage] = useUrlPage();
     const [meta, setMeta] = useState<ProductsAdminResponse | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<ProductAdminItem | null>(null);
@@ -65,6 +71,23 @@ export default function AdminProductsPage() {
     const [unlinkingReplacement, setUnlinkingReplacement] = useState(false);
 
     const debouncedSearch = useDebouncedValue(searchInput, 400);
+    const listQuery = useMemo(() => {
+        const params = new URLSearchParams();
+        const search = searchInput.trim();
+        if (search) {
+            params.set("search", search);
+        }
+        if (outOfStockFilter) {
+            params.set("stock", outOfStockFilter);
+        }
+        if (statusFilter) {
+            params.set("status", statusFilter);
+        }
+        if (page > 1) {
+            params.set("page", String(page));
+        }
+        return params.toString();
+    }, [outOfStockFilter, page, searchInput, statusFilter]);
 
     const loadItems = useCallback(async (
         targetPage: number,
@@ -447,6 +470,7 @@ export default function AdminProductsPage() {
                 ) : (
                     <ProductsTable
                         items={items}
+                        listQuery={listQuery}
                         searchQuery={searchInput}
                         onDeleteAction={requestDelete}
                         onVariantsAction={(item) => void openVariantsModal(item)}

@@ -1,6 +1,9 @@
 /** Префиксы улиц Ветер (StreetPrefix / SenderStreetPrefix). */
 export const VETER_STREET_PREFIXES = [
   "ул.",
+  "пр-кт",
+  "пер.",
+  "тракт",
   "аллея",
   "бул.",
   "дор.",
@@ -8,12 +11,9 @@ export const VETER_STREET_PREFIXES = [
   "маг.",
   "мик-н",
   "наб.",
-  "пер.",
   "пл.",
   "пр.",
-  "пр-кт",
   "ряд",
-  "тракт",
   "туп.",
   "ш.",
 ] as const;

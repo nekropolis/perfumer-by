@@ -31,8 +31,15 @@ class ProductVariantResource extends JsonResource
         $presented = $stockContext->presentedForListing($variant);
         $effectivePrice = $stockContext->storefrontVariantPrice($variant, $presented);
         [$mainStock, $supplierStock] = $stockContext->warehouseStocksForVariant($variant);
+        $blockOptionalWaitingDiscount = CatalogVariantStockPresenter::optionalWaitingDiscountBlocked(
+            $variant,
+            (string) ($presented['availability_source'] ?? ''),
+            $stockContext->eligibleOffersForVariant($variant),
+        );
 
-        $waitingPrice = $effectivePrice !== null && !(bool) $variant->is_promotion
+        $waitingPrice = $effectivePrice !== null
+            && !(bool) $variant->is_promotion
+            && ! $blockOptionalWaitingDiscount
             ? WaitingDiscountPricing::apply($effectivePrice)
             : null;
 

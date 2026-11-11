@@ -23,12 +23,12 @@ export function HeaderNavFallback({ isCompact, hideBelowMd = false, links }: Hea
                 hideBelowMd ? "max-md:hidden" : ""
             } ${isCompact ? "max-h-0 overflow-hidden opacity-0" : "max-h-12 opacity-100 md:max-h-16"}`}
         >
-            <div className="mx-auto flex h-11 max-w-7xl items-center justify-start gap-1.5 overflow-x-auto px-3 py-1 [-ms-overflow-style:none] [scrollbar-width:none] md:h-14 md:gap-2 md:py-2 sm:px-6 lg:px-8 [&::-webkit-scrollbar]:hidden">
+            <div className="mx-auto flex h-11 max-w-7xl items-center gap-1.5 px-3 py-1 md:h-14 md:justify-start md:gap-2 md:py-2 sm:px-6 lg:px-8">
                 {links.map((item) => (
                     <Link
                         key={item.href}
                         href={item.href}
-                        className="shrink-0 rounded-full border border-admin-border px-3 py-1.5 text-xs font-medium text-[var(--header-text-secondary)] transition hover:border-[var(--header-text)]/40 hover:bg-[var(--header-control-bg)] hover:text-[var(--header-text)] sm:px-4 sm:text-sm"
+                        className="min-w-0 flex-1 basis-0 truncate rounded-full border border-admin-border px-1.5 py-1.5 text-center text-xs font-medium text-[var(--header-text-secondary)] transition hover:border-[var(--header-text)]/40 hover:bg-[var(--header-control-bg)] hover:text-[var(--header-text)] md:flex-none md:basis-auto md:px-4 md:text-sm"
                     >
                         {item.label}
                     </Link>
@@ -57,7 +57,7 @@ export default function HeaderNav({ isCompact, hideBelowMd = false, links, onLoc
                 hideBelowMd ? "max-md:hidden" : ""
             } ${isCompact ? "max-h-0 overflow-hidden opacity-0" : "max-h-12 opacity-100 md:max-h-16"}`}
         >
-            <div className="mx-auto flex h-11 max-w-7xl items-center justify-start gap-1.5 overflow-x-auto px-3 py-1 [-ms-overflow-style:none] [scrollbar-width:none] md:h-14 md:gap-2 md:py-2 sm:px-6 lg:px-8 [&::-webkit-scrollbar]:hidden">
+            <div className="mx-auto flex h-11 max-w-7xl items-center gap-1.5 px-3 py-1 md:h-14 md:justify-start md:gap-2 md:py-2 sm:px-6 lg:px-8">
                 {links.map((item) => {
                     const isActive = isHeaderNavLinkActive(item.href, pathname, searchParams);
 
@@ -65,7 +65,7 @@ export default function HeaderNav({ isCompact, hideBelowMd = false, links, onLoc
                         <Link
                             key={item.href}
                             href={item.href}
-                            className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition sm:px-4 sm:text-sm ${
+                            className={`min-w-0 flex-1 basis-0 truncate rounded-full border px-1.5 py-1.5 text-center text-xs font-medium transition md:flex-none md:basis-auto md:px-4 md:text-sm ${
                                 isActive
                                     ? "border-[var(--header-text)] bg-admin-surface text-[var(--header-text)]"
                                     : "border-admin-border text-[var(--header-text-secondary)] hover:border-[var(--header-text)]/40 hover:bg-[var(--header-control-bg)] hover:text-[var(--header-text)]"

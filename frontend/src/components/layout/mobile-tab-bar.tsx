@@ -4,28 +4,25 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { Home, LayoutGrid, Menu, Search, ShoppingBag, UserRound } from "lucide-react";
+import { isStorefrontEditable } from "@/lib/storefront-keyboard";
 
 type Props = {
     cartQty: number;
     searchOpen: boolean;
     menuOpen: boolean;
+    /** Имя пользователя, если вошёл; иначе «Профиль». */
+    profileLabel: string;
     onOpenSearchAction: () => void;
     onToggleMenuAction: () => void;
     onDismissMenuAction: (href?: string) => void;
 };
 
-const TEXT_INPUT_TYPES = new Set(["checkbox", "radio", "button", "submit", "file", "range", "color"]);
-
-function isTypingElement(active: Element | null): boolean {
-    if (active instanceof HTMLInputElement) {
-        return !TEXT_INPUT_TYPES.has(active.type);
-    }
-
-    return active instanceof HTMLTextAreaElement || (active instanceof HTMLElement && active.isContentEditable);
-}
-
+/**
+ * Only compensates rare chrome glitches when NOT typing.
+ * While typing, StorefrontKeyboardController hides the tab bar via CSS.
+ */
 function readKeyboardInset(): string {
-    if (window.matchMedia("(min-width: 768px)").matches || isTypingElement(document.activeElement)) {
+    if (window.matchMedia("(min-width: 768px)").matches || isStorefrontEditable(document.activeElement)) {
         return "0px";
     }
 
@@ -60,6 +57,7 @@ export default function MobileTabBar({
     cartQty,
     searchOpen,
     menuOpen,
+    profileLabel,
     onOpenSearchAction,
     onToggleMenuAction,
     onDismissMenuAction,
@@ -106,7 +104,7 @@ export default function MobileTabBar({
     return (
         <nav
             aria-label="Разделы"
-            className="storefront-tab-bar fixed inset-x-0 z-[150] border-t border-admin-border bg-admin-surface/95 backdrop-blur md:hidden"
+            className="storefront-tab-bar fixed inset-x-0 z-[150] border-t border-admin-border backdrop-blur-md md:hidden"
             style={{
                 bottom: "var(--storefront-keyboard-inset, 0px)",
                 paddingBottom: "env(safe-area-inset-bottom)",
@@ -161,14 +159,15 @@ export default function MobileTabBar({
                 </button>
                 <Link
                     href="/account"
-                    className={tabClass(profileActive)}
+                    className={`${tabClass(profileActive)} px-0.5`}
                     aria-current={profileActive ? "page" : undefined}
+                    aria-label={profileLabel === "Профиль" ? "Профиль" : `Профиль, ${profileLabel}`}
                     onClick={() => onDismissMenuAction("/account")}
                 >
                     <span className={tabIconClass(profileActive)}>
                         <UserRound className="h-5 w-5" aria-hidden />
                     </span>
-                    Профиль
+                    <span className="max-w-full truncate px-0.5">{profileLabel}</span>
                 </Link>
             </div>
         </nav>

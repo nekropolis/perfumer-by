@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { SiteContent } from "@/lib/site-content-api";
 import BynSign from "@/components/ui/byn-sign";
+import SitePhoneDropdown from "@/components/ui/site-phone-dropdown";
 import { formatBelarusDisplay, telHref } from "@/lib/site-contact";
 import { LEGAL_FOOTER_LINKS } from "@/lib/legal-links";
 import { siteNavLink } from "@/lib/site-ui-classes";
@@ -40,9 +41,7 @@ export default function Footer({ siteContent: site }: Props) {
         <footer className="mt-auto border-t border-admin-border bg-admin-surface">
             <div className="px-4 py-4 md:hidden">
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-                    <a href={telHref(site.contact_phone_mts)} className="font-medium text-admin-text">
-                        {formatBelarusDisplay(site.contact_phone_mts)}
-                    </a>
+                    <SitePhoneDropdown size="line" />
                     <Link href="/contacts" className={siteNavLink}>
                         Контакты
                     </Link>

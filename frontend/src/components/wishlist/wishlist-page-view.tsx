@@ -34,7 +34,7 @@ export default function WishlistPageView({ embedded = false }: { embedded?: bool
     }
 
     return (
-        <main className="min-h-screen bg-admin-bg text-admin-text">
+        <main className="bg-admin-bg text-admin-text">
             <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
                 <div className="mb-6 flex items-end justify-between gap-3">
                     <div>
