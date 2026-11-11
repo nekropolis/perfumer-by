@@ -3,6 +3,7 @@
 namespace Modules\ImportExport\Console\Commands;
 
 use Illuminate\Console\Command;
+use Modules\ImportExport\Support\ElParfume\ElParfumeArtifactBackup;
 use Modules\ImportExport\Support\ElParfume\ElParfumeNginxMapBuilder;
 
 class ElParfumeBuildNginxMapCommand extends Command
@@ -41,6 +42,13 @@ class ElParfumeBuildNginxMapCommand extends Command
 
         $mapPath = $outDir.'/el-parfume.by.map.conf';
         $serverPath = $outDir.'/el-parfume.by.conf.example';
+
+        foreach ([$mapPath, $serverPath] as $path) {
+            $backup = ElParfumeArtifactBackup::backupIfExists($path);
+            if ($backup !== null) {
+                $this->line("Backed up: {$backup}");
+            }
+        }
 
         if (file_put_contents($mapPath, $result['map_conf']) === false) {
             $this->error("Cannot write: {$mapPath}");

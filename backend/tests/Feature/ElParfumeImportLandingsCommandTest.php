@@ -120,10 +120,14 @@ class ElParfumeImportLandingsCommandTest extends TestCase
         $this->assertSame('/catalog?gender=female', $targets['/woman/filter/vozrast_69/ot_15_do_25_let_69/']);
         $this->assertCount(4, $overrides);
 
+        CatalogLanding::query()->where('slug', 'zhenskie-duhi-na-leto')->update([
+            'h1' => 'Ручной заголовок',
+        ]);
+
         $exit = $this->import();
         $this->assertSame(0, $exit, Artisan::output());
         $this->assertSame(1, CatalogLanding::query()->count());
-        $this->assertSame('Женские духи на лето', CatalogLanding::query()->value('h1'));
+        $this->assertSame('Ручной заголовок', CatalogLanding::query()->value('h1'));
 
         $report = $this->readCsv($this->dir.'/report.csv');
         $leto = null;
@@ -133,8 +137,21 @@ class ElParfumeImportLandingsCommandTest extends TestCase
             }
         }
         $this->assertNotNull($leto);
-        $this->assertSame('updated', $leto['action']);
+        $this->assertSame('skipped_existing', $leto['action']);
         $this->assertCount(4, $this->readCsv($this->dir.'/overrides.csv'));
+
+        $exit = $this->import(force: true);
+        $this->assertSame(0, $exit, Artisan::output());
+        $this->assertSame('Женские духи на лето', CatalogLanding::query()->value('h1'));
+        $report = $this->readCsv($this->dir.'/report.csv');
+        $leto = null;
+        foreach ($report as $row) {
+            if ($row['old_path'] === '/woman/filter/vremya_goda_60/leto_60/') {
+                $leto = $row;
+            }
+        }
+        $this->assertNotNull($leto);
+        $this->assertSame('updated', $leto['action']);
     }
 
     public function test_dry_run_writes_nothing(): void
@@ -151,7 +168,7 @@ class ElParfumeImportLandingsCommandTest extends TestCase
         $this->assertStringNotContainsString('vozrast', $overrides);
     }
 
-    private function import(bool $dryRun = false): int
+    private function import(bool $dryRun = false, bool $force = false): int
     {
         $params = [
             '--dump' => $this->dir.'/dump.sql',
@@ -162,6 +179,9 @@ class ElParfumeImportLandingsCommandTest extends TestCase
         ];
         if ($dryRun) {
             $params['--dry-run'] = true;
+        }
+        if ($force) {
+            $params['--force'] = true;
         }
 
         return Artisan::call('elparfume:import-landings', $params);

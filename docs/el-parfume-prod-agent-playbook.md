@@ -72,9 +72,9 @@ curl -sS -o /dev/null -w "%{http_code}\n" https://perfumer.by/api/batch-code/bra
 
 ---
 
-## 3. Данные el-parfume (не в git)
+## 3. Данные el-parfume
 
-Каталог: `backend/storage/app/elparfume/`.
+Каталог рабочих файлов: `backend/storage/app/elparfume/` (**не в git**, gitignored).
 
 **Обязательно исключить `storage/app/elparfume/` из деплоя с удалением лишних файлов**, иначе пропадёт `manual_overrides.csv` (на dev так уже случалось). Держать копию:
 
@@ -82,15 +82,57 @@ curl -sS -o /dev/null -w "%{http_code}\n" https://perfumer.by/api/batch-code/bra
 cp storage/app/elparfume/manual_overrides.csv /root/elparfume_manual_overrides.backup.csv
 ```
 
-Положить на сервер (если ещё нет):
+### Что такое GSC и откуда брать CSV
 
-| Файл | Назначение |
-|---|---|
-| `el_parfume_b.sql` | дамп старого сайта |
-| `index/gsc_pages.csv` | выгрузка GSC |
-| `brand_synonyms.csv` | синонимы брендов (есть в репе/бэкапе с dev) |
+**GSC = Google Search Console** — кабинет Google, где видно, какие URL сайта показывались в поиске и сколько было показов (impressions).
 
-С dev можно скопировать готовые артефакты **как черновик**, но **match и импорты всё равно прогнать на продовом каталоге** — товары/бренды отличаются от dev.
+Файл `index/gsc_pages.csv` — выгрузка страниц el-parfume.by из GSC. Нужен, чтобы:
+- привязать показы к `old_urls.csv` при `elparfume:extract-urls`;
+- приоритезировать посадочные (`import-landings` по умолчанию берёт только URL с impressions > 0);
+- в `verify-redirects --only-gsc` проверять в первую очередь важные адреса.
+
+Как выгрузить (владелец / агент с доступом к GSC):
+1. [Google Search Console](https://search.google.com/search-console) → свойство `el-parfume.by` (или префикс URL).
+2. Отчёт **Страницы** / **Pages** (Эффективность → Страницы) за нужный период (лучше 12–16 месяцев).
+3. Экспорт → CSV (или Google Таблицы → скачать CSV).
+4. Положить как `backend/storage/app/elparfume/index/gsc_pages.csv`.
+
+Ожидаемые колонки (как в прошлой выгрузке): URL / страница и показы (`Impressions` / `Показы`). Если формат другой — перед продом сверить с парсером в `ElParfumeExtractUrlsCommand` / тестами.
+
+Яндекс.Вебмастер пока не обязателен (в плане «пока нет»).
+
+### Что такое `brand_synonyms.csv` и откуда брать
+
+Файл сопоставления **названий брендов со старого сайта** → **наш slug бренда**. Без него match хуже ловит «YSL», «DKNY», «Bond No.9» и т.п.
+
+Формат:
+
+```csv
+old,our_slug
+Yves Saint Laurent  YSL,yves-saint-laurent
+Bond No.9,bond-no9
+```
+
+**Где лежит в репо (tracked):**  
+`backend/Modules/ImportExport/data/elparfume/brand_synonyms.csv`
+
+`elparfume:match` сам подхватит этот файл, если в storage нет копии. На прод можно просто задеплоить код; при желании скопировать в storage:
+
+```bash
+cp Modules/ImportExport/data/elparfume/brand_synonyms.csv storage/app/elparfume/brand_synonyms.csv
+```
+
+Править при новых кейсах с продового `unmatched.csv` / fallback по брендам.
+
+### Остальные файлы на сервер
+
+| Файл | Назначение | Откуда |
+|---|---|---|
+| `el_parfume_b.sql` | дамп старого сайта | бэкап БД el-parfume / архив владельца |
+| `index/gsc_pages.csv` | выгрузка GSC | Google Search Console (см. выше) |
+| `brand_synonyms.csv` | синонимы брендов | репо `Modules/ImportExport/data/elparfume/` |
+
+С dev можно скопировать артефакты **как черновик**, но **match и импорты всё равно прогнать на продовом каталоге**.
 
 ---
 
@@ -108,7 +150,9 @@ php artisan elparfume:match
 # 3) Посадочные (сначала dry-run)
 php artisan elparfume:import-landings --dry-run
 php artisan elparfume:import-landings
-# создаёт/обновляет catalog_landings и дописывает manual_overrides.csv
+# Создаёт НОВЫЕ catalog_landings; уже существующие slug по умолчанию НЕ перезаписывает
+# (action=skipped_existing). Чтобы затереть контент из дампа: --force
+# Дописывает manual_overrides.csv (перед записью делает .bak-*), сбрасывает кеш sitemap.
 
 # 4) Статьи (картинки)
 # Если есть дерево старого сайта с папкой image/:
@@ -123,13 +167,18 @@ php artisan elparfume:import-reviews --dry-run
 php artisan elparfume:import-reviews
 # 1–3★ и неодобренные → pending; без товара + 2 store → TYPE_STORE
 
-# 6) Повторный match (подхватить overrides посадочных и коллизий slug)
+# 6) ОБЯЗАТЕЛЬНО второй match (иначе seo_filter останутся на /catalog?gender=…, не на /catalog/{slug})
 php artisan elparfume:match
 cp storage/app/elparfume/manual_overrides.csv /root/elparfume_manual_overrides.backup.csv
 
-# 7) Nginx map (файлы в storage, ещё не в /etc/nginx)
+# 7) Nginx map (файлы в storage, ещё не в /etc/nginx; старые map/conf бэкапятся как .bak-*)
 php artisan elparfume:build-nginx-map
+
+# 8) (опционально) прогреть sitemap после импорта посадочных
+# php artisan tinker --execute="app(Modules\\Pages\\Services\\SeoSitemapService::class)->warm();"
 ```
+
+**P0:** без шага 6 редиректы с SEO-фильтров el-parfume уйдут мимо посадочных.
 
 Ожидаемые ориентиры (с dev, на проде цифры могут чуть отличаться):
 
@@ -170,9 +219,19 @@ php artisan elparfume:verify-redirects \
   --host-header=el-parfume.by \
   --new-host=https://perfumer.by \
   --only-gsc
+
+# Перед DNS-днём желательно ещё:
+php artisan elparfume:verify-redirects \
+  --old-host=https://IP_ИЛИ_ВНУТРЕННИЙ \
+  --host-header=el-parfume.by \
+  --new-host=https://perfumer.by \
+  --only-gsc \
+  --variants
 ```
 
 Ожидание: 301 одним прыжком на `https://perfumer.by{target}`, цель даёт 200. Exit code ≠ 0 только если упали строки с `gsc_impressions > 0`.
+
+Сверить, что live-конфиг совпадает с `scripts/nginx/el-parfume.by.conf.example` и свежим `storage/app/elparfume/nginx/` после `build-nginx-map`.
 
 ---
 

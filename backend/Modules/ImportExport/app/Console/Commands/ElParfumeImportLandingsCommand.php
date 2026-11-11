@@ -7,11 +7,13 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Modules\Catalog\Models\CatalogLanding;
 use Modules\Catalog\Support\CatalogProductAttributeIds;
+use Modules\ImportExport\Support\ElParfume\ElParfumeArtifactBackup;
 use Modules\ImportExport\Support\ElParfume\ElParfumeDumpReader;
 use Modules\ImportExport\Support\ElParfume\ElParfumeHtmlContent;
 use Modules\ImportExport\Support\ElParfume\ElParfumeNormalizer;
 use Modules\ImportExport\Support\ElParfume\ElParfumeRedirectMap;
 use Modules\ImportExport\Support\VanilleHelper;
+use Modules\Pages\Services\SeoSitemapService;
 
 class ElParfumeImportLandingsCommand extends Command
 {
@@ -37,6 +39,7 @@ class ElParfumeImportLandingsCommand extends Command
         {--overrides=storage/app/elparfume/manual_overrides.csv : old_path,target overrides merged for elparfume:match}
         {--report=storage/app/elparfume/landings_report.csv : Landing import report}
         {--all : Import every seo_filter URL, including rows with no GSC impressions}
+        {--force : Overwrite existing catalog_landings content (default: skip existing slugs)}
         {--dry-run : Parse and report without writing the database or CSV files}
         {--no-link-rewrite : Keep el-parfume links in landing content}';
 
@@ -105,27 +108,38 @@ class ElParfumeImportLandingsCommand extends Command
         $overrides = [];
         $created = 0;
         $updated = 0;
+        $skipped = 0;
         $fallback = 0;
+        $force = (bool) $this->option('force');
+        /** @var array<string, true> $reservedSlugs */
+        $reservedSlugs = [];
 
         foreach ($plans as $plan) {
-            $decision = $this->decide($plan, $valueNames, $optionsByAttribute, $normalizer, $redirectMap);
+            $decision = $this->decide($plan, $valueNames, $optionsByAttribute, $normalizer, $redirectMap, $reservedSlugs);
             $action = 'fallback';
             if ($decision['landing'] !== null) {
                 $slug = $decision['landing']['slug'];
-                $existed = CatalogLanding::query()->where('slug', $slug)->exists();
-                if (! $dryRun) {
+                $reservedSlugs[$slug] = true;
+                $existing = CatalogLanding::query()->where('slug', $slug)->first();
+                if ($existing !== null && ! $force) {
+                    $action = 'skipped_existing';
+                } elseif (! $dryRun) {
                     CatalogLanding::query()->updateOrCreate(
                         ['slug' => $slug],
                         $decision['landing']['attributes'],
                     );
+                    $action = $existing !== null ? 'updated' : 'created';
+                } else {
+                    $action = $existing !== null ? 'updated' : 'created';
                 }
-                $action = $existed ? 'updated' : 'created';
             }
 
             if ($action === 'created') {
                 $created++;
             } elseif ($action === 'updated') {
                 $updated++;
+            } elseif ($action === 'skipped_existing') {
+                $skipped++;
             } else {
                 $fallback++;
             }
@@ -140,15 +154,27 @@ class ElParfumeImportLandingsCommand extends Command
         }
 
         if (! $dryRun) {
-            $this->mergeOverrides($this->resolvePath((string) $this->option('overrides')), $overrides);
+            $overridesPath = $this->resolvePath((string) $this->option('overrides'));
+            $backup = ElParfumeArtifactBackup::backupIfExists($overridesPath);
+            if ($backup !== null) {
+                $this->line("Backed up overrides: {$backup}");
+            }
+            $this->mergeOverrides($overridesPath, $overrides);
             $this->writeReport($this->resolvePath((string) $this->option('report')), $report);
+            if ($created > 0 || $updated > 0) {
+                app(SeoSitemapService::class)->forget();
+            }
         }
 
         $this->info('El-parfume landings import finished.');
         $this->line('Created: '.$created);
         $this->line('Updated: '.$updated);
+        $this->line('Skipped existing: '.$skipped);
         $this->line('Fallback: '.$fallback);
-        $this->line('Mode: '.($dryRun ? 'dry-run' : 'write'));
+        $this->line('Mode: '.($dryRun ? 'dry-run' : 'write'.($force ? ' --force' : '')));
+        if ($skipped > 0 && ! $force) {
+            $this->warn('Existing landings were not overwritten. Re-run with --force to replace content.');
+        }
 
         return self::SUCCESS;
     }
@@ -439,12 +465,17 @@ class ElParfumeImportLandingsCommand extends Command
      * @param  array<int, list<array{id:int,name:string,active:bool,norm:array{spaced:string,sorted:string,compact:string,tokens:list<string>}}>>  $optionsByAttribute
      * @return array{action:string,landing:?array{slug:string,attributes:array<string,mixed>},report:array<string,string>}
      */
+    /**
+     * @param  array<string, true>  $reservedSlugs
+     * @return array{action:string,landing:?array{slug:string,attributes:array<string,mixed>},report:array<string,string>}
+     */
     private function decide(
         array $plan,
         array $valueNames,
         array $optionsByAttribute,
         ElParfumeNormalizer $normalizer,
         ?ElParfumeRedirectMap $redirectMap,
+        array $reservedSlugs,
     ): array {
         $displayName = $this->pickDisplayName(
             $valueNames[(string) $plan['value_mod']] ?? [],
@@ -511,13 +542,21 @@ class ElParfumeImportLandingsCommand extends Command
             return ['action' => 'fallback', 'landing' => null, 'report' => $report];
         }
 
-        $slug = VanilleHelper::slugify($texts['h1']);
-        if ($slug === '') {
-            $slug = 'landing-'.((string) $plan['seo_id'] !== '' ? (string) $plan['seo_id'] : $optionId);
+        $baseSlug = VanilleHelper::slugify($texts['h1']);
+        if ($baseSlug === '') {
+            $baseSlug = 'landing-'.((string) $plan['seo_id'] !== '' ? (string) $plan['seo_id'] : $optionId);
         }
 
+        $filters = [(string) $attributeId => [$optionId]];
+        $slug = $this->allocateLandingSlug(
+            $baseSlug,
+            $gender,
+            $filters,
+            (string) $plan['seo_id'],
+            $reservedSlugs,
+        );
         $report['target'] = '/catalog/'.$slug;
-        $report['note'] = '';
+        $report['note'] = $slug === $baseSlug ? '' : 'slug_deduped';
 
         return [
             'action' => 'create',
@@ -525,7 +564,7 @@ class ElParfumeImportLandingsCommand extends Command
                 'slug' => $slug,
                 'attributes' => [
                     'gender' => $gender,
-                    'filters' => [(string) $attributeId => [$optionId]],
+                    'filters' => $filters,
                     'h1' => $texts['h1'],
                     'seo_title' => $texts['seo_title'],
                     'seo_description' => $texts['seo_description'],
@@ -535,6 +574,75 @@ class ElParfumeImportLandingsCommand extends Command
             ],
             'report' => $report,
         ];
+    }
+
+    /**
+     * Keep the same slug when the existing row is the same landing (gender+filters).
+     * Otherwise append seo_id / counter so two different filters never share one URL.
+     *
+     * @param  array<string, list<int>>  $filters
+     * @param  array<string, true>  $reservedSlugs
+     */
+    private function allocateLandingSlug(
+        string $baseSlug,
+        ?string $gender,
+        array $filters,
+        string $seoId,
+        array $reservedSlugs,
+    ): string {
+        $candidate = $baseSlug;
+        $suffix = $seoId !== '' ? $seoId : '2';
+        $n = 2;
+
+        while (true) {
+            if (! isset($reservedSlugs[$candidate]) && $this->slugIsReusable($candidate, $gender, $filters)) {
+                return $candidate;
+            }
+            $candidate = $baseSlug.'-'.$suffix;
+            $suffix = (string) $n;
+            $n++;
+            if ($n > 50) {
+                return $baseSlug.'-'.substr(sha1($seoId.'|'.json_encode($filters)), 0, 8);
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, list<int>>  $filters
+     */
+    private function slugIsReusable(string $slug, ?string $gender, array $filters): bool
+    {
+        $existing = CatalogLanding::query()->where('slug', $slug)->first();
+        if ($existing === null) {
+            return true;
+        }
+
+        $existingGender = $existing->gender !== null ? (string) $existing->gender : null;
+        if ($existingGender !== $gender) {
+            return false;
+        }
+
+        /** @var array<string, list<int|string>> $existingFilters */
+        $existingFilters = is_array($existing->filters) ? $existing->filters : [];
+
+        return $this->normalizeFilters($existingFilters) === $this->normalizeFilters($filters);
+    }
+
+    /**
+     * @param  array<string, list<int|string>>  $filters
+     * @return array<string, list<int>>
+     */
+    private function normalizeFilters(array $filters): array
+    {
+        $out = [];
+        foreach ($filters as $attrId => $optionIds) {
+            $ids = array_map(static fn ($id): int => (int) $id, array_values((array) $optionIds));
+            sort($ids);
+            $out[(string) $attrId] = $ids;
+        }
+        ksort($out);
+
+        return $out;
     }
 
     /**

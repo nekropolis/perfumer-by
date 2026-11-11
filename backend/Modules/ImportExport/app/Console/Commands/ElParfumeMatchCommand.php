@@ -5,6 +5,7 @@ namespace Modules\ImportExport\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Modules\ImportExport\Support\ElParfume\ElParfumeArtifactBackup;
 use Modules\ImportExport\Support\ElParfume\ElParfumeMatcher;
 use Modules\ImportExport\Support\ElParfume\ElParfumeNormalizer;
 
@@ -63,7 +64,7 @@ class ElParfumeMatchCommand extends Command
         $inPath = $this->resolvePath((string) $this->option('in'));
         $outPath = $this->resolvePath((string) $this->option('out'));
         $unmatchedPath = $this->resolvePath((string) $this->option('unmatched'));
-        $synonymsPath = $this->resolvePath((string) $this->option('synonyms'));
+        $synonymsPath = $this->resolveSynonymsPath((string) $this->option('synonyms'));
         $overridesPath = $this->resolvePath((string) $this->option('overrides'));
 
         if (! is_file($inPath)) {
@@ -79,22 +80,50 @@ class ElParfumeMatchCommand extends Command
 
         $input = $this->readCsv($inPath);
         $normalizer = new ElParfumeNormalizer();
+        $synonyms = $this->loadSynonyms($synonymsPath, $normalizer);
+        if ($synonymsPath !== '' && is_file($synonymsPath)) {
+            $this->line('Synonyms: '.$synonymsPath.' ('.count($synonyms).')');
+        } else {
+            $this->warn('No brand_synonyms.csv found (optional). Bundled copy: Modules/ImportExport/data/elparfume/brand_synonyms.csv');
+        }
+
         $matcher = new ElParfumeMatcher(
             $normalizer,
             $this->loadBrands(),
             $this->loadProducts(),
-            $this->loadSynonyms($synonymsPath, $normalizer),
+            $synonyms,
             $this->loadOverrides($overridesPath),
             $this->loadActiveSlugs('cms_pages'),
             $this->loadActiveSlugs('cms_posts'),
         );
 
         $matched = $matcher->match($input);
+        foreach ([$outPath, $unmatchedPath] as $path) {
+            $backup = ElParfumeArtifactBackup::backupIfExists($path);
+            if ($backup !== null) {
+                $this->line("Backed up: {$backup}");
+            }
+        }
         $this->writeCsv($outPath, self::REDIRECT_COLUMNS, $matched);
         $this->writeCsv($unmatchedPath, self::UNMATCHED_COLUMNS, $matcher->unmatched($matched));
         $this->printSummary($matched);
 
         return self::SUCCESS;
+    }
+
+    private function resolveSynonymsPath(string $path): string
+    {
+        $resolved = $this->resolvePath($path);
+        if (is_file($resolved)) {
+            return $resolved;
+        }
+
+        $bundled = module_path('ImportExport', 'data/elparfume/brand_synonyms.csv');
+        if (is_string($bundled) && is_file($bundled)) {
+            return $bundled;
+        }
+
+        return $resolved;
     }
 
     private function resolvePath(string $path): string
