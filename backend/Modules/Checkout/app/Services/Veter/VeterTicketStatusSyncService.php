@@ -65,11 +65,9 @@ class VeterTicketStatusSyncService
                 $order->shipment_status = $lastStatus;
                 $order->shipment_status_at = $statusAt;
 
-                // Курьер принял посылку на склад → локально «В доставке», дата отправки = дата доставки.
-                if (
-                    $this->isAtWarehouseStatus($lastStatus)
-                    && ! $this->isAtWarehouseStatus($previousStatus)
-                ) {
+                // «На складе» или, пока локально ещё «Собран», «В пути»:
+                // между опросами курьерка успевает уйти со склада в путь.
+                if (self::shouldApplyDeliveryHandoff((string) $order->status, $lastStatus, $previousStatus)) {
                     if ((string) $order->status === VeterTicketPreviewService::STATUS_AFTER_SEND) {
                         $order->status = self::LOCAL_STATUS_AT_WAREHOUSE;
                     }
@@ -118,9 +116,30 @@ class VeterTicketStatusSyncService
         ];
     }
 
-    private function isAtWarehouseStatus(?string $status): bool
+    /**
+     * Перевод в «В доставке» и подмена даты отправки датой доставки.
+     * «На складе» — в момент перехода. «В пути» — только если локально ещё «Собран»,
+     * иначе дата сдвигалась бы на каждом опросе уже уехавшего заказа.
+     */
+    public static function shouldApplyDeliveryHandoff(string $localStatus, ?string $courierStatus, ?string $previousCourierStatus): bool
     {
-        return mb_strtolower(trim((string) $status), 'UTF-8') === 'на складе';
+        $courier = self::normalizeCourierStatus($courierStatus);
+        $previous = self::normalizeCourierStatus($previousCourierStatus);
+
+        if ($courier === 'на складе' && $previous !== 'на складе') {
+            return true;
+        }
+
+        return $localStatus === VeterTicketPreviewService::STATUS_AFTER_SEND
+            && $courier === 'в пути';
+    }
+
+    private static function normalizeCourierStatus(?string $status): string
+    {
+        $status = mb_strtolower(trim((string) $status), 'UTF-8');
+        $collapsed = preg_replace('/\s+/u', ' ', $status);
+
+        return is_string($collapsed) ? $collapsed : $status;
     }
 
     private function parseStatusDate(?string $raw): Carbon
