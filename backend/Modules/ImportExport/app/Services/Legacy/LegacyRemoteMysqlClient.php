@@ -83,6 +83,7 @@ final class LegacyRemoteMysqlClient
 
         $privateKey = $this->resolvePrivateKey($privateKey);
         $knownHosts = $this->resolveKnownHostsFile($knownHosts);
+        $controlPath = $this->controlSocketPath();
 
         $remoteMysql = sprintf(
             'MYSQL_PWD=%s mysql --batch --raw --default-character-set=utf8mb4 -h %s -P %d -u %s %s -e %s',
@@ -101,8 +102,19 @@ final class LegacyRemoteMysqlClient
             '-o', 'UserKnownHostsFile='.$knownHosts,
             '-o', 'GlobalKnownHostsFile=/dev/null',
             '-o', 'ConnectTimeout=15',
+            '-o', 'LogLevel=ERROR',
             '-p', (string) max(1, $sshPort),
         ];
+        if ($controlPath !== null) {
+            // Legacy sshd drops a large share of new handshakes (MaxStartups).
+            // One multiplexed session avoids a fresh TCP+kex per query.
+            $ssh[] = '-o';
+            $ssh[] = 'ControlMaster=auto';
+            $ssh[] = '-o';
+            $ssh[] = 'ControlPersist=60';
+            $ssh[] = '-o';
+            $ssh[] = 'ControlPath='.$controlPath;
+        }
         if ($privateKey !== null) {
             $ssh[] = '-o';
             $ssh[] = 'IdentitiesOnly=yes';
@@ -112,15 +124,57 @@ final class LegacyRemoteMysqlClient
         $ssh[] = $sshUser.'@'.$sshHost;
         $ssh[] = $remoteMysql;
 
-        $result = Process::timeout(180)->run($ssh);
-        if (! $result->successful()) {
-            $err = trim($result->errorOutput() ?: $result->output());
-            throw new RuntimeException(
-                'Legacy SSH MySQL failed: '.($err !== '' ? $err : 'exit '.$result->exitCode())
-            );
+        $lastErr = '';
+        $exitCode = 1;
+        $attempts = 6;
+        for ($attempt = 1; $attempt <= $attempts; $attempt++) {
+            $result = Process::timeout(180)->run($ssh);
+            if ($result->successful()) {
+                return $this->parseMysqlBatchOutput($result->output());
+            }
+
+            $exitCode = $result->exitCode() ?? 1;
+            $lastErr = trim($result->errorOutput() ?: $result->output());
+            if ($attempt >= $attempts || ! $this->isTransientSshFailure($lastErr)) {
+                break;
+            }
+            if ($controlPath !== null && $this->isStaleControlSocket($lastErr)) {
+                @unlink($controlPath);
+            }
+            usleep(200000 * $attempt);
         }
 
-        return $this->parseMysqlBatchOutput($result->output());
+        throw new RuntimeException(
+            'Legacy SSH MySQL failed: '.($lastErr !== '' ? $lastErr : 'exit '.$exitCode)
+        );
+    }
+
+    private function controlSocketPath(): ?string
+    {
+        $dir = storage_path('app/legacy_ssh');
+        if (! is_dir($dir) || ! is_writable($dir)) {
+            return null;
+        }
+
+        $path = $dir.'/control.sock';
+        if (strlen($path) > 100) {
+            return null;
+        }
+
+        return $path;
+    }
+
+    private function isTransientSshFailure(string $err): bool
+    {
+        return preg_match(
+            '/Connection closed by|Connection reset by|kex_exchange_identification|Connection timed out|Control socket|mux_client_request/i',
+            $err
+        ) === 1;
+    }
+
+    private function isStaleControlSocket(string $err): bool
+    {
+        return str_contains($err, 'Control socket') || str_contains($err, 'mux_client_request');
     }
 
     private function resolvePrivateKey(string $configured): ?string
