@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, Flame, Gem, MapPin, Newspaper, Phone, Sparkles, Star, type LucideIcon } from "lucide-react";
+import { BookOpen, Flame, Gem, MapPin, Newspaper, Phone, ScanLine, Sparkles, Star, type LucideIcon } from "lucide-react";
 import { HEADER_BURGER_LINKS, HEADER_MAIN_LINKS } from "@/components/layout/header/config";
 import { useSiteContent } from "@/components/layout/site-content-context";
 import { buildHeaderPhoneDropdown, buildMessengerLinks } from "@/lib/site-contact";
@@ -19,6 +19,7 @@ const MENU_ICONS: Record<string, LucideIcon> = {
     "/articles": BookOpen,
     "/reviews": Star,
     "/contacts": MapPin,
+    "/proverka-batch-coda": ScanLine,
 };
 
 /** Прежние фото. Откат: MENU_IMAGE_SET = "stock". Файлы не удалять. */

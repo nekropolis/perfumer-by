@@ -15,12 +15,15 @@ class BatchCodeController extends Controller
     public function brands(BatchCodeRuleRepository $rules): JsonResponse
     {
         $supportBySlug = [];
+        $primaryBySlug = [];
         foreach ($rules->all() as $rule) {
             if ($rule['status'] === 'not_supported') {
                 continue;
             }
+            $primary = $rule['primary_brand'] ?? null;
             foreach ($rule['brands'] as $slug) {
                 $supportBySlug[$slug] = $rule['status'];
+                $primaryBySlug[$slug] = $primary === null || $primary === $slug;
             }
         }
 
@@ -36,6 +39,7 @@ class BatchCodeController extends Controller
                 'slug' => $brand->slug,
                 'name' => $brand->name,
                 'support' => $supportBySlug[$brand->slug],
+                'primary' => $primaryBySlug[$brand->slug],
             ])
             ->values();
 

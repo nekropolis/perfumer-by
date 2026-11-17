@@ -2,6 +2,12 @@ import type { HomePageFaqItem } from "@/lib/json-ld";
 
 export const BATCH_CODE_OTHER_BRAND_SLUG = "__other__";
 
+/** Внешний чекер — только ссылка, без встраивания и запросов с нашей стороны. */
+export const BATCH_CODE_EXTERNAL_CHECK = {
+    label: "Проверить на CheckFresh",
+    href: "https://www.checkfresh.com/?lang=ru",
+} as const;
+
 export const BATCH_CODE_PAGE_FAQ: HomePageFaqItem[] = [
     {
         question: "Что такое батч-код парфюма?",

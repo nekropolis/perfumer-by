@@ -51,6 +51,7 @@ class BatchCodeTest extends TestCase
             'estee-lauder',
             'giorgio-armani',
             'givenchy',
+            'guerlain',
             'lancome',
             'versace',
             'yves-saint-laurent',
@@ -62,6 +63,10 @@ class BatchCodeTest extends TestCase
         $this->assertSame('approximate', $bySlug['versace']['support']);
         $this->assertSame('approximate', $bySlug['dior']['support']);
         $this->assertSame('manufacturer_portal', $bySlug['clarins']['support']);
+        $this->assertSame('approximate', $bySlug['guerlain']['support']);
+        $this->assertTrue($bySlug['dior']['primary']);
+        $this->assertFalse($bySlug['christian-dior']['primary']);
+        $this->assertTrue($bySlug['chanel']['primary']);
         $this->assertArrayNotHasKey('clinique', $bySlug);
     }
 
@@ -113,6 +118,15 @@ class BatchCodeTest extends TestCase
 
         $boundary = $this->check('dior', '7M01')->assertOk()->json('data');
         $this->assertSame(['2007-12'], $boundary['result']['candidates']);
+
+        $guerlain = $this->check('guerlain', '2J02')->assertOk()->json('data');
+        $this->assertSame('approximate', $guerlain['status']);
+        $this->assertSame('low', $guerlain['confidence']);
+        $this->assertSame('lvmh-guerlain', $guerlain['rule_id']);
+        $this->assertSame(['2002-09', '2022-09'], $guerlain['result']['candidates']);
+
+        $guerlain2018 = $this->check('guerlain', '8F01')->assertOk()->json('data');
+        $this->assertSame(['2018-06'], $guerlain2018['result']['candidates']);
 
         $givenchy = $this->check('givenchy', '0F01')->assertOk()->json('data');
         $this->assertSame(['2020-06'], $givenchy['result']['candidates']);
@@ -404,6 +418,7 @@ class BatchCodeTest extends TestCase
             'christian-dior' => 'Christian Dior',
             'dior' => 'Dior',
             'givenchy' => 'Givenchy',
+            'guerlain' => 'Guerlain',
             'estee-lauder' => 'Estee Lauder',
             'giorgio-armani' => 'Giorgio Armani',
             'yves-saint-laurent' => 'Yves Saint Laurent',

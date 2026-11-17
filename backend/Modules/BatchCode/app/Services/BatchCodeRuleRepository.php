@@ -91,6 +91,10 @@ class BatchCodeRuleRepository
         if (! is_array($rule['brands']) || $rule['brands'] === []) {
             throw new RuntimeException("Batch-code rule {$id} has no brands.");
         }
+        $primary = $rule['primary_brand'] ?? null;
+        if ($primary !== null && (! is_string($primary) || ! in_array($primary, $rule['brands'], true))) {
+            throw new RuntimeException("Batch-code rule {$id} has an invalid primary brand.");
+        }
         if (! in_array($rule['status'], self::STATUSES, true)) {
             throw new RuntimeException("Batch-code rule {$id} has status {$rule['status']}.");
         }

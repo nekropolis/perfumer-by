@@ -10,6 +10,7 @@ const INFO_LINKS = [
     { label: "Подарочные сертификаты", href: "/gift-certificates" },
     { label: "Отзывы о магазине", href: "/reviews" },
     { label: "Акции и скидки", href: "/akczii-i-skidki" },
+    { label: "Проверка батч-кода", href: "/proverka-batch-coda" },
 ] as const;
 
 const EXTRA_LINKS = [
@@ -44,6 +45,9 @@ export default function Footer({ siteContent: site }: Props) {
                     <SitePhoneDropdown size="line" />
                     <Link href="/contacts" className={siteNavLink}>
                         Контакты
+                    </Link>
+                    <Link href="/proverka-batch-coda" className={siteNavLink}>
+                        Проверка кода
                     </Link>
                     <Link href={LEGAL_FOOTER_LINKS[0]?.href ?? "/contacts"} className={siteNavLink}>
                         Оферта

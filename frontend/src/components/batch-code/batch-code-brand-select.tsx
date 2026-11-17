@@ -32,11 +32,19 @@ export default function BatchCodeBrandSelect({
 
     const filteredBrands = useMemo(() => {
         const q = query.trim().toLowerCase();
-        const sorted = [...brands].sort((a, b) => a.name.localeCompare(b.name, "ru"));
+        const sorted = [...brands].sort((a, b) => {
+            const aSupported = a.support !== "not_supported";
+            const bSupported = b.support !== "not_supported";
+            if (aSupported !== bSupported) {
+                return aSupported ? -1 : 1;
+            }
+            return a.name.localeCompare(b.name, "ru");
+        });
+        const visible = sorted.filter((brand) => brand.primary !== false);
         if (!q) {
-            return sorted;
+            return visible.filter((brand) => brand.support !== "not_supported");
         }
-        return sorted.filter((brand) => brand.name.toLowerCase().includes(q));
+        return visible.filter((brand) => brand.name.toLowerCase().includes(q));
     }, [brands, query]);
 
     const pick = (slug: string) => {
@@ -85,6 +93,12 @@ export default function BatchCodeBrandSelect({
                             />
                         </div>
 
+                        {!query.trim() ? (
+                            <p className="px-4 pb-1 pt-3 text-xs leading-relaxed text-admin-text-secondary">
+                                Показаны бренды с правилами. Начните вводить название, чтобы найти любой бренд каталога.
+                            </p>
+                        ) : null}
+
                         <div className="max-h-[280px] overflow-y-auto p-2">
                             {filteredBrands.map((brand) => {
                                 const isActive = brand.slug === value;
@@ -95,13 +109,22 @@ export default function BatchCodeBrandSelect({
                                         role="option"
                                         aria-selected={isActive}
                                         onClick={() => pick(brand.slug)}
-                                        className={`mb-1 flex w-full rounded-2xl px-3 py-2 text-left text-sm transition ${
+                                        className={`mb-1 flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-left text-sm transition ${
                                             isActive
                                                 ? "bg-admin-primary font-semibold text-white"
                                                 : "text-admin-text hover:bg-admin-muted"
                                         }`}
                                     >
-                                        {brand.name}
+                                        <span className="min-w-0 flex-1 truncate">{brand.name}</span>
+                                        {brand.support === "not_supported" ? (
+                                            <span
+                                                className={`shrink-0 text-[11px] ${
+                                                    isActive ? "text-white/70" : "text-admin-text-muted"
+                                                }`}
+                                            >
+                                                не проверяем
+                                            </span>
+                                        ) : null}
                                     </button>
                                 );
                             })}

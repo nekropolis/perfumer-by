@@ -16,5 +16,6 @@ export const HEADER_BURGER_LINKS = [
     { label: "Новости", href: "/news" },
     { label: "Статьи", href: "/articles" },
     { label: "Отзывы", href: "/reviews" },
+    { label: "Проверка кода", href: "/proverka-batch-coda" },
     { label: "Контакты", href: "/contacts" },
 ] as const;

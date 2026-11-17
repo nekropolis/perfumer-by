@@ -69,10 +69,20 @@ export function formatBatchCodePeriod(args: {
         if (fromLabel === toLabel) {
             return fromLabel;
         }
-        return `с ${fromLabel} по ${toLabel}`;
+        return `${fromLabel} — ${toLabel}`;
     }
 
     return fromLabel ?? toLabel;
+}
+
+/** «январь 1998, январь 2008 или январь 2018» — без ложного диапазона. */
+export function joinBatchCodeCandidates(labels: string[]): string {
+    const values = labels.filter(Boolean);
+    if (values.length <= 1) {
+        return values[0] ?? "";
+    }
+
+    return `${values.slice(0, -1).join(", ")} или ${values[values.length - 1]}`;
 }
 
 export function batchCodeConfidenceLabel(confidence: "low" | "medium" | null): string | null {

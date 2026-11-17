@@ -1,14 +1,17 @@
-export type BatchCodeBrandSupport = "approximate" | "format_recognized" | "manufacturer_portal";
+export type BatchCodeBrandSupport =
+    | "approximate"
+    | "format_recognized"
+    | "manufacturer_portal"
+    | "not_supported";
 
-export type BatchCodeCheckStatus =
-    | BatchCodeBrandSupport
-    | "not_supported"
-    | "invalid_format";
+export type BatchCodeCheckStatus = BatchCodeBrandSupport | "invalid_format";
 
 export type BatchCodeBrand = {
     slug: string;
     name: string;
     support: BatchCodeBrandSupport;
+    /** Алиас бренда с тем же правилом: в списке показываем только основной. */
+    primary?: boolean;
 };
 
 export type BatchCodeBrandsResponse = {

@@ -1,6 +1,7 @@
 {
     "id": "lvmh-dior",
     "brands": ["christian-dior", "dior"],
+    "primary_brand": "dior",
     "status": "approximate",
     "regex": "^[0-9][A-HJ-MNP-Z][A-Z0-9]{2}$",
     "decoder": {

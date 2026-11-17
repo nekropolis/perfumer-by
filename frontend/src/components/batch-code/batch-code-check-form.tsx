@@ -14,8 +14,9 @@ import {
     batchCodeConfidenceLabel,
     formatBatchCodeDateLabel,
     formatBatchCodePeriod,
+    joinBatchCodeCandidates,
 } from "@/lib/batch-code-dates";
-import { BATCH_CODE_OTHER_BRAND_SLUG } from "@/lib/batch-code-page-content";
+import { BATCH_CODE_EXTERNAL_CHECK, BATCH_CODE_OTHER_BRAND_SLUG } from "@/lib/batch-code-page-content";
 import {
     siteBtnPrimary,
     siteBtnSecondary,
@@ -33,10 +34,10 @@ type Props = {
     brands: BatchCodeBrand[];
 };
 
-function notSupportedResult(): BatchCodeCheckData {
+function notSupportedResult(brand: { slug: string; name: string } | null = null): BatchCodeCheckData {
     return {
         status: "not_supported",
-        brand: null,
+        brand,
         code_normalized: "",
         result: null,
         confidence: null,
@@ -47,8 +48,26 @@ function notSupportedResult(): BatchCodeCheckData {
     };
 }
 
-function BatchCodeResultPanel({ data, codeRaw }: { data: BatchCodeCheckData; codeRaw: string }) {
+function BatchCodeSecondOpinion() {
+    return (
+        <p className="text-xs leading-relaxed text-admin-text-muted">
+            Не уверены?{" "}
+            <a
+                href={BATCH_CODE_EXTERNAL_CHECK.href}
+                target="_blank"
+                rel="nofollow noopener noreferrer"
+                className="underline underline-offset-2 hover:text-admin-text"
+            >
+                Проверьте на CheckFresh
+            </a>{" "}
+            — сторонний сервис, не связан с нами.
+        </p>
+    );
+}
+
+export function BatchCodeResultPanel({ data, codeRaw }: { data: BatchCodeCheckData; codeRaw: string }) {
     const confidence = batchCodeConfidenceLabel(data.confidence);
+    const precision = data.result?.precision ?? "month";
     const period = data.result
         ? formatBatchCodePeriod({
               date_from: data.result.date_from,
@@ -57,13 +76,20 @@ function BatchCodeResultPanel({ data, codeRaw }: { data: BatchCodeCheckData; cod
           })
         : null;
     const candidates = data.result?.candidates?.filter(Boolean) ?? [];
+    const candidateLabels = candidates.map((item) => formatBatchCodeDateLabel(item, precision));
+    const isAmbiguous = candidateLabels.length > 1;
 
     return (
         <div className={`${siteCard} mt-4 space-y-3 p-4 sm:p-5`} aria-live="polite">
             {data.status === "approximate" ? (
                 <>
                     <p className="text-sm font-semibold text-admin-text">
-                        {period ? (
+                        {isAmbiguous ? (
+                            <>
+                                Возможные варианты:{" "}
+                                <span className="font-normal">{joinBatchCodeCandidates(candidateLabels)}</span>
+                            </>
+                        ) : period ? (
                             <>
                                 Ориентировочно: <span className="font-normal">{period}</span>
                             </>
@@ -77,13 +103,7 @@ function BatchCodeResultPanel({ data, codeRaw }: { data: BatchCodeCheckData; cod
                     {data.period_note?.trim() ? (
                         <p className="text-sm text-admin-text-secondary">{data.period_note.trim()}</p>
                     ) : null}
-                    {candidates.length > 0 ? (
-                        <ul className="list-inside list-disc text-sm text-admin-text-secondary">
-                            {candidates.map((item) => (
-                                <li key={item}>{formatBatchCodeDateLabel(item, data.result?.precision ?? "month")}</li>
-                            ))}
-                        </ul>
-                    ) : null}
+                    {isAmbiguous ? <BatchCodeSecondOpinion /> : null}
                     {data.sources.length > 0 ? (
                         <details className="rounded-xl border border-admin-border bg-admin-muted/30 px-3 py-2">
                             <summary className="cursor-pointer text-sm font-medium text-admin-text">
@@ -100,9 +120,12 @@ function BatchCodeResultPanel({ data, codeRaw }: { data: BatchCodeCheckData; cod
             ) : null}
 
             {data.status === "format_recognized" ? (
-                <p className="text-sm text-admin-text">
-                    Формат кода распознан, дату по нему надёжно определить нельзя.
-                </p>
+                <>
+                    <p className="text-sm text-admin-text">
+                        Формат кода распознан, дату по нему надёжно определить нельзя.
+                    </p>
+                    <BatchCodeSecondOpinion />
+                </>
             ) : null}
 
             {data.status !== "approximate" && data.period_note?.trim() ? (
@@ -128,10 +151,26 @@ function BatchCodeResultPanel({ data, codeRaw }: { data: BatchCodeCheckData; cod
             ) : null}
 
             {data.status === "not_supported" ? (
-                <p className="text-sm text-admin-text">
-                    Пока мы не умеем расшифровывать код для выбранного бренда. Это не признак подделки — напишите
-                    нам, мы добавим бренд в базу.
-                </p>
+                <div className="space-y-3">
+                    <p className="text-sm text-admin-text">
+                        Пока мы не умеем расшифровывать код для выбранного бренда. Это не признак подделки — напишите
+                        нам, мы добавим бренд в базу.
+                    </p>
+                    <div>
+                        <a
+                            href={BATCH_CODE_EXTERNAL_CHECK.href}
+                            target="_blank"
+                            rel="nofollow noopener noreferrer"
+                            className={siteBtnSecondary}
+                        >
+                            {BATCH_CODE_EXTERNAL_CHECK.label}
+                        </a>
+                        <p className="mt-2 text-xs leading-relaxed text-admin-text-muted">
+                            Сторонний сервис, не связан с нами. Его результат — оценка, а не подтверждение
+                            подлинности.
+                        </p>
+                    </div>
+                </div>
             ) : null}
 
             {data.status === "invalid_format" ? (
@@ -335,10 +374,9 @@ export default function BatchCodeCheckForm({ brands }: Props) {
     const [result, setResult] = useState<BatchCodeCheckData | null>(null);
     const [lastCode, setLastCode] = useState("");
 
+    const selectedBrand = brands.find((b) => b.slug === brandSlug) ?? null;
     const selectedBrandName =
-        brandSlug === BATCH_CODE_OTHER_BRAND_SLUG
-            ? "Другой бренд"
-            : (brands.find((b) => b.slug === brandSlug)?.name ?? "Бренд");
+        brandSlug === BATCH_CODE_OTHER_BRAND_SLUG ? "Другой бренд" : (selectedBrand?.name ?? "Бренд");
 
     const onSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
         event.preventDefault();
@@ -358,8 +396,12 @@ export default function BatchCodeCheckForm({ brands }: Props) {
         setLastCode(code.trim());
 
         try {
-            if (brandSlug === BATCH_CODE_OTHER_BRAND_SLUG) {
-                setResult(notSupportedResult());
+            if (brandSlug === BATCH_CODE_OTHER_BRAND_SLUG || selectedBrand?.support === "not_supported") {
+                setResult(
+                    notSupportedResult(
+                        selectedBrand ? { slug: selectedBrand.slug, name: selectedBrand.name } : null,
+                    ),
+                );
                 return;
             }
 
@@ -387,35 +429,49 @@ export default function BatchCodeCheckForm({ brands }: Props) {
                 </span>
             </div>
 
-            <form onSubmit={onSubmit} className="space-y-4" noValidate>
-                <div>
-                    <label htmlFor={brandFieldId} className="mb-1 block text-xs text-admin-text-secondary">
-                        Бренд
-                    </label>
-                    <BatchCodeBrandSelect
-                        id={brandFieldId}
-                        brands={brands}
-                        value={brandSlug}
-                        onChangeAction={setBrandSlug}
-                        disabled={checking}
-                    />
-                </div>
+            <form onSubmit={onSubmit} className="space-y-3" noValidate>
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+                    <div>
+                        <label htmlFor={brandFieldId} className="mb-1 block text-xs text-admin-text-secondary">
+                            Бренд
+                        </label>
+                        <BatchCodeBrandSelect
+                            id={brandFieldId}
+                            brands={brands}
+                            value={brandSlug}
+                            onChangeAction={(slug) => {
+                                setBrandSlug(slug);
+                                setResult(null);
+                                setCheckError(null);
+                            }}
+                            disabled={checking}
+                        />
+                    </div>
 
-                <div>
-                    <label htmlFor={codeFieldId} className="mb-1 block text-xs text-admin-text-secondary">
-                        Батч-код
-                    </label>
-                    <input
-                        id={codeFieldId}
-                        type="text"
-                        value={code}
-                        onChange={(e) => setCode(e.target.value)}
-                        className={siteInput}
-                        placeholder="Например, 5F01"
-                        autoComplete="off"
-                        spellCheck={false}
+                    <div>
+                        <label htmlFor={codeFieldId} className="mb-1 block text-xs text-admin-text-secondary">
+                            Батч-код
+                        </label>
+                        <input
+                            id={codeFieldId}
+                            type="text"
+                            value={code}
+                            onChange={(e) => setCode(e.target.value)}
+                            className={siteInput}
+                            placeholder="Например, 5F01"
+                            autoComplete="off"
+                            spellCheck={false}
+                            disabled={checking}
+                        />
+                    </div>
+
+                    <button
+                        type="submit"
                         disabled={checking}
-                    />
+                        className={`${siteBtnPrimary} sm:min-w-36`}
+                    >
+                        {checking ? "Проверяем…" : "Проверить"}
+                    </button>
                 </div>
 
                 {checkError ? (
@@ -423,10 +479,6 @@ export default function BatchCodeCheckForm({ brands }: Props) {
                         {checkError}
                     </p>
                 ) : null}
-
-                <button type="submit" disabled={checking} className={siteBtnPrimary}>
-                    {checking ? "Проверяем…" : "Проверить"}
-                </button>
             </form>
 
             {result ? (
