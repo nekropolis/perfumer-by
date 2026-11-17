@@ -85,8 +85,9 @@ final class LegacyRemoteMysqlClient
         $knownHosts = $this->resolveKnownHostsFile($knownHosts);
         $controlPath = $this->controlSocketPath();
 
+        // Без --raw клиент экранирует \n \t \0 \\. С --raw перевод строки в поле режет строку.
         $remoteMysql = sprintf(
-            'MYSQL_PWD=%s mysql --batch --raw --default-character-set=utf8mb4 -h %s -P %d -u %s %s -e %s',
+            'MYSQL_PWD=%s mysql --batch --default-character-set=utf8mb4 -h %s -P %d -u %s %s -e %s',
             escapeshellarg($password),
             escapeshellarg($dbHost),
             $dbPort,
@@ -235,34 +236,65 @@ final class LegacyRemoteMysqlClient
     }
 
     /**
+     * mysql --batch (без --raw) печатает TSV и экранирует только \n, \t, \0 и \\.
+     * \r не экранируется. Кавычки не используются, поэтому это не CSV.
+     *
      * @return Collection<int, stdClass>
      */
     private function parseMysqlBatchOutput(string $output): Collection
     {
-        $output = str_replace("\r\n", "\n", $output);
-        $lines = preg_split("/\n/", $output, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        if ($lines === []) {
+        $output = rtrim(str_replace("\r\n", "\n", $output), "\n");
+        if ($output === '') {
             return collect();
         }
 
-        $headers = str_getcsv(array_shift($lines), "\t");
+        $lines = explode("\n", $output);
+        $headers = explode("\t", rtrim((string) array_shift($lines), "\r"));
         $rows = [];
         foreach ($lines as $line) {
-            $fields = str_getcsv($line, "\t");
+            $line = rtrim($line, "\r");
+            if ($line === '') {
+                continue;
+            }
+            $fields = explode("\t", $line);
             $row = new stdClass;
             foreach ($headers as $i => $header) {
-                $value = $fields[$i] ?? null;
-                if ($value === '\\N' || $value === 'NULL') {
-                    $value = null;
-                } elseif (is_string($value)) {
-                    $value = stripcslashes($value);
+                if ($header === '') {
+                    continue;
                 }
-                $row->{$header} = $value;
+                $row->{$header} = $this->unescapeMysqlBatchField($fields[$i] ?? null);
             }
             $rows[] = $row;
         }
 
         return collect($rows);
+    }
+
+    private function unescapeMysqlBatchField(?string $value): ?string
+    {
+        if ($value === null || $value === '\\N' || $value === 'NULL') {
+            return null;
+        }
+
+        $out = '';
+        $length = strlen($value);
+        for ($i = 0; $i < $length; $i++) {
+            if ($value[$i] !== '\\' || $i + 1 >= $length) {
+                $out .= $value[$i];
+                continue;
+            }
+            $next = $value[++$i];
+            $out .= match ($next) {
+                'n' => "\n",
+                'r' => "\r",
+                't' => "\t",
+                '0' => "\0",
+                '\\' => '\\',
+                default => '\\'.$next,
+            };
+        }
+
+        return $out;
     }
 
     private function assertIdentifier(string $name): string

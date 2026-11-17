@@ -166,7 +166,11 @@ final class LegacyOrdersImportService
         $withManagerComment = 0;
 
         foreach ($orders as $legacyOrder) {
-            $legacyOrderId = (int) ($legacyOrder->order_id ?? 0);
+            $legacyOrderIdRaw = trim((string) ($legacyOrder->order_id ?? ''));
+            if (preg_match('/^\d+$/', $legacyOrderIdRaw) !== 1) {
+                continue;
+            }
+            $legacyOrderId = (int) $legacyOrderIdRaw;
             if ($legacyOrderId <= 0) {
                 continue;
             }
