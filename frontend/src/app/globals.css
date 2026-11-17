@@ -61,7 +61,8 @@
 
   /*
    * Keyboard mode (see StorefrontKeyboardController):
-   * - hide tab bar + sticky CTAs while typing in page fields;
+   * - tab bar stays at bottom: 0. Extra padding lifts the whole bar over the page;
+   * - hide sticky CTAs while typing in page fields;
    * - dock bars marked [data-storefront-keyboard-dock] above the keyboard.
    */
   .storefront-tab-bar,
@@ -73,6 +74,8 @@
 
   /* Отделение нижней навигации и sticky CTA от белого контента страницы. */
   .storefront-tab-bar {
+    bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom);
     border-top-color: rgb(0 0 0 / 0.08);
     background-color: rgb(255 255 255 / 0.96);
     box-shadow:
@@ -86,15 +89,6 @@
     box-shadow:
       0 -1px 0 rgb(0 0 0 / 0.05),
       0 -8px 20px rgb(15 23 42 / 0.08);
-  }
-
-  html[data-storefront-keyboard="open"]:not([data-storefront-keep-tab-bar="1"]) .storefront-tab-bar {
-    opacity: 0;
-    pointer-events: none;
-    transform: translateY(110%);
-    transition:
-      opacity 180ms ease,
-      transform 180ms ease;
   }
 
   html[data-storefront-keyboard="open"]:not([data-storefront-keyboard-dock="1"]) .storefront-bottom-cta {

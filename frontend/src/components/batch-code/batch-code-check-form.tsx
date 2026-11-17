@@ -435,7 +435,7 @@ export default function BatchCodeCheckForm({ brands }: Props) {
                 </span>
             </div>
 
-            <form onSubmit={onSubmit} className="space-y-3" noValidate>
+            <form onSubmit={onSubmit} className="space-y-3" noValidate suppressHydrationWarning>
                 <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
                     <div>
                         <label htmlFor={brandFieldId} className="mb-1 block text-xs text-admin-text-secondary">
@@ -468,6 +468,7 @@ export default function BatchCodeCheckForm({ brands }: Props) {
                             autoComplete="off"
                             spellCheck={false}
                             disabled={checking}
+                            suppressHydrationWarning
                         />
                     </div>
 

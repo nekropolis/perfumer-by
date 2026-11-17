@@ -18,8 +18,8 @@ type Props = {
 };
 
 /**
- * Only compensates rare chrome glitches when NOT typing.
- * While typing, StorefrontKeyboardController hides the tab bar via CSS.
+ * Редкий сдвиг хрома, когда поле не в фокусе и визуальный вьюпорт не сдвинут.
+ * Прокрутка (offsetTop) и фокус не считаются клавиатурой — иначе меню и «Закрыть» уезжают.
  */
 function readKeyboardInset(): string {
     if (window.matchMedia("(min-width: 768px)").matches || isStorefrontEditable(document.activeElement)) {
@@ -27,11 +27,7 @@ function readKeyboardInset(): string {
     }
 
     const viewport = window.visualViewport;
-    if (!viewport) {
-        return "0px";
-    }
-
-    if (viewport.offsetTop > 1) {
+    if (!viewport || viewport.offsetTop > 1) {
         return "0px";
     }
 
@@ -69,9 +65,7 @@ export default function MobileTabBar({
         const update = (event?: Event) => {
             if (event?.type === "scroll") {
                 const viewport = window.visualViewport;
-                const gap = viewport
-                    ? Math.round(window.innerHeight - viewport.offsetTop - viewport.height)
-                    : 0;
+                const gap = viewport ? Math.round(window.innerHeight - viewport.offsetTop - viewport.height) : 0;
                 if (gap < 0) {
                     return;
                 }
@@ -105,10 +99,6 @@ export default function MobileTabBar({
         <nav
             aria-label="Разделы"
             className="storefront-tab-bar fixed inset-x-0 z-[150] border-t border-admin-border backdrop-blur-md md:hidden"
-            style={{
-                bottom: "var(--storefront-keyboard-inset, 0px)",
-                paddingBottom: "env(safe-area-inset-bottom)",
-            }}
         >
             <div className="grid h-14 grid-cols-6">
                 <Link href="/" className={tabClass(homeActive)} aria-current={homeActive ? "page" : undefined} onClick={() => onDismissMenuAction("/")}>

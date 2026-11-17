@@ -56,8 +56,6 @@ export default function BatchCodeBrandSelect({
             return;
         }
         setActiveLetter(letters[0] ?? null);
-        const previousOverflow = document.body.style.overflow;
-        document.body.style.overflow = "hidden";
         const onKey = (event: KeyboardEvent) => {
             if (event.key === "Escape") {
                 setOpen(false);
@@ -66,10 +64,40 @@ export default function BatchCodeBrandSelect({
         };
         document.addEventListener("keydown", onKey);
         return () => {
-            document.body.style.overflow = previousOverflow;
             document.removeEventListener("keydown", onKey);
         };
     }, [open, letters]);
+
+    useEffect(() => {
+        if (!open) {
+            return;
+        }
+        const scrollY = window.scrollY;
+        const body = document.body;
+        const previous = {
+            position: body.style.position,
+            top: body.style.top,
+            left: body.style.left,
+            right: body.style.right,
+            width: body.style.width,
+            overflow: body.style.overflow,
+        };
+        body.style.position = "fixed";
+        body.style.top = `-${scrollY}px`;
+        body.style.left = "0";
+        body.style.right = "0";
+        body.style.width = "100%";
+        body.style.overflow = "hidden";
+        return () => {
+            body.style.position = previous.position;
+            body.style.top = previous.top;
+            body.style.left = previous.left;
+            body.style.right = previous.right;
+            body.style.width = previous.width;
+            body.style.overflow = previous.overflow;
+            window.scrollTo(0, scrollY);
+        };
+    }, [open]);
 
     useEffect(() => {
         if (!open) {
@@ -131,6 +159,7 @@ export default function BatchCodeBrandSelect({
                 onClick={() => setOpen(true)}
                 aria-expanded={open}
                 aria-haspopup="dialog"
+                suppressHydrationWarning
                 className={`${siteBtnSecondary} w-full justify-between disabled:opacity-50`}
             >
                 <span className="truncate text-left">{selectedLabel}</span>
@@ -142,14 +171,14 @@ export default function BatchCodeBrandSelect({
             {portalReady && open
                 ? createPortal(
                       <div
-                          className="fixed inset-0 z-[220] flex items-end justify-center bg-slate-900/40 p-0 sm:items-center sm:p-4"
+                          className="fixed inset-0 z-[220] flex items-end justify-center overscroll-none bg-slate-900/40 p-0 sm:items-center sm:p-4"
                           onClick={close}
                       >
                           <div
                               role="dialog"
                               aria-modal="true"
                               aria-label="Бренд"
-                              className="flex max-h-[min(92dvh,720px)] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface p-4 shadow-2xl sm:rounded-xl"
+                              className="flex max-h-[min(92svh,720px)] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface p-4 shadow-2xl sm:rounded-xl"
                               onClick={(event) => event.stopPropagation()}
                           >
                               <div className="mb-3 flex shrink-0 items-center justify-between">
@@ -168,7 +197,6 @@ export default function BatchCodeBrandSelect({
                                   value={query}
                                   onChange={(event) => setQuery(event.target.value)}
                                   placeholder="Поиск бренда"
-                                  autoFocus
                                   autoComplete="off"
                                   autoCorrect="off"
                                   autoCapitalize="off"

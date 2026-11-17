@@ -10,9 +10,11 @@ type Props = {
     items: BreadcrumbItem[];
     className?: string;
     alwaysShow?: boolean;
+    /** Мобильная ссылка «назад». Список для SEO остаётся в разметке. */
+    mobileBack?: boolean;
 };
 
-export default function Breadcrumbs({ items, className = "", alwaysShow = false }: Props) {
+export default function Breadcrumbs({ items, className = "", alwaysShow = false, mobileBack = true }: Props) {
     if (!items.length) {
         return null;
     }
@@ -21,7 +23,7 @@ export default function Breadcrumbs({ items, className = "", alwaysShow = false 
 
     return (
         <nav className={`text-sm ${className}`} aria-label="Хлебные крошки">
-            {!alwaysShow && parentItem?.href ? (
+            {mobileBack && !alwaysShow && parentItem?.href ? (
                 <Link
                     href={parentItem.href}
                     className="mb-1 inline-flex items-center gap-1 text-admin-text-secondary transition hover:text-admin-text md:hidden"

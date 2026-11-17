@@ -25,6 +25,8 @@ export const viewport: Viewport = {
     width: "device-width",
     initialScale: 1,
     viewportFit: "cover",
+    // Клавиатура сжимает страницу, нижнее меню остаётся над ней.
+    interactiveWidget: "resizes-content",
 };
 
 export default async function RootLayout({

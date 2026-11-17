@@ -46,7 +46,7 @@ export default async function ProverkaBatchCodaPage() {
         <main className="min-h-screen bg-admin-bg text-admin-text">
             <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
                 <JsonLd data={[breadcrumbListJsonLd(crumbs), faqPageJsonLd(BATCH_CODE_PAGE_FAQ)]} />
-                <Breadcrumbs className="mb-6" items={crumbs} />
+                <Breadcrumbs className="mb-6 max-md:mb-0" items={crumbs} mobileBack={false} />
 
                 <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Проверка батч-кода парфюма</h1>
                 <p className="mt-3 max-w-3xl text-sm leading-relaxed text-admin-text-secondary sm:text-base">

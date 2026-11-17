@@ -6,7 +6,6 @@ import { createPortal } from "react-dom";
 import { formatSearchPrice } from "@/components/layout/header/format-search-price";
 import { renderHighlightedText } from "@/components/layout/header/render-highlighted-text";
 import type { HeaderSearchBrandItem, HeaderSearchItem } from "@/components/layout/header/types";
-import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import { headerSearchProductTitle } from "@/lib/product-display-name";
 import { siteBtnSecondary } from "@/lib/site-ui-classes";
 
@@ -67,7 +66,7 @@ export default function MobileSearchSheet({
         }
 
         const frame = window.requestAnimationFrame(() => {
-            inputRef.current?.focus();
+            inputRef.current?.focus({ preventScroll: true });
         });
 
         return () => window.cancelAnimationFrame(frame);
@@ -78,25 +77,39 @@ export default function MobileSearchSheet({
             return;
         }
 
-        const unlock = lockBodyScroll();
+        const scrollY = window.scrollY;
+        const keepPageStill = () => {
+            if (window.scrollY !== scrollY) {
+                window.scrollTo(0, scrollY);
+            }
+        };
+        let lastTouchY = 0;
+        const rememberTouch = (event: TouchEvent) => {
+            lastTouchY = event.touches[0]?.clientY ?? lastTouchY;
+        };
         const blockBackgroundScroll = (event: TouchEvent) => {
             const target = event.target;
-            if (!(target instanceof Node)) {
-                return;
-            }
-            // Разрешаем скролл списка и тачбар; остальное (фон + шапка шита) блокируем.
-            // Нельзя искать по aria-label «Поиск» — в DOM уже есть инпут шапки с тем же label.
             const list = listRef.current;
-            const tabBar = document.querySelector("nav.storefront-tab-bar");
-            if (list?.contains(target) || tabBar?.contains(target)) {
+            const y = event.touches[0]?.clientY ?? lastTouchY;
+            const dy = y - lastTouchY;
+            lastTouchY = y;
+            if (!(target instanceof Node) || !list?.contains(target)) {
+                event.preventDefault();
                 return;
             }
-            event.preventDefault();
+            const atTop = list.scrollTop <= 0;
+            const atBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 1;
+            if (list.scrollHeight <= list.clientHeight || (dy > 0 && atTop) || (dy < 0 && atBottom)) {
+                event.preventDefault();
+            }
         };
+        window.addEventListener("scroll", keepPageStill);
+        document.addEventListener("touchstart", rememberTouch, { passive: true });
         document.addEventListener("touchmove", blockBackgroundScroll, { passive: false });
 
         return () => {
-            unlock();
+            window.removeEventListener("scroll", keepPageStill);
+            document.removeEventListener("touchstart", rememberTouch);
             document.removeEventListener("touchmove", blockBackgroundScroll);
         };
     }, [open, isPhone]);
@@ -112,10 +125,9 @@ export default function MobileSearchSheet({
             role="dialog"
             aria-modal="true"
             aria-label="Поиск по каталогу"
-            className="storefront-keyboard-sheet fixed inset-x-0 top-0 z-[145] flex flex-col bg-admin-surface md:hidden"
-            data-storefront-keyboard-dock=""
+            className="fixed inset-x-0 top-0 z-[145] flex flex-col bg-admin-surface md:hidden"
             style={{
-                bottom: "calc(var(--storefront-tab-bar-height, 0px) + var(--storefront-keyboard-inset, 0px))",
+                bottom: "var(--storefront-tab-bar-height, 3.5rem)",
             }}
         >
             <div className="shrink-0 border-b border-admin-border px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
