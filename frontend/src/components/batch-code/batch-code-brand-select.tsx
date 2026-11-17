@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { BatchCodeBrand } from "@/types/batch-code";
 import { BATCH_CODE_OTHER_BRAND_SLUG } from "@/lib/batch-code-page-content";
+import { groupBrandsByFirstLetter, orderedLettersWithBrands } from "@/lib/brand-letter-groups";
 import { siteBtnSecondary, siteInput } from "@/lib/site-ui-classes";
 
 type Props = {
@@ -22,6 +24,9 @@ export default function BatchCodeBrandSelect({
 }: Props) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState("");
+    const [portalReady, setPortalReady] = useState(false);
+    const [activeLetter, setActiveLetter] = useState<string | null>(null);
+    const listRef = useRef<HTMLDivElement>(null);
 
     const selectedLabel = useMemo(() => {
         if (value === BATCH_CODE_OTHER_BRAND_SLUG) {
@@ -32,36 +37,100 @@ export default function BatchCodeBrandSelect({
 
     const filteredBrands = useMemo(() => {
         const q = query.trim().toLowerCase();
-        const sorted = [...brands].sort((a, b) => {
-            const aSupported = a.support !== "not_supported";
-            const bSupported = b.support !== "not_supported";
-            if (aSupported !== bSupported) {
-                return aSupported ? -1 : 1;
-            }
-            return a.name.localeCompare(b.name, "ru");
-        });
-        const visible = sorted.filter((brand) => brand.primary !== false);
+        const visible = brands.filter((brand) => brand.primary !== false);
         if (!q) {
             return visible.filter((brand) => brand.support !== "not_supported");
         }
         return visible.filter((brand) => brand.name.toLowerCase().includes(q));
     }, [brands, query]);
 
-    const pick = (slug: string) => {
-        onChangeAction(slug);
+    const brandGroups = useMemo(() => groupBrandsByFirstLetter(filteredBrands), [filteredBrands]);
+    const letters = useMemo(() => orderedLettersWithBrands(brandGroups), [brandGroups]);
+
+    useEffect(() => {
+        setPortalReady(true);
+    }, []);
+
+    useEffect(() => {
+        if (!open) {
+            return;
+        }
+        setActiveLetter(letters[0] ?? null);
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        const onKey = (event: KeyboardEvent) => {
+            if (event.key === "Escape") {
+                setOpen(false);
+                setQuery("");
+            }
+        };
+        document.addEventListener("keydown", onKey);
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            document.removeEventListener("keydown", onKey);
+        };
+    }, [open, letters]);
+
+    useEffect(() => {
+        if (!open) {
+            return;
+        }
+        const root = listRef.current;
+        if (!root) {
+            return;
+        }
+        const sections = Array.from(root.querySelectorAll<HTMLElement>("[data-brand-letter]"));
+        if (sections.length === 0) {
+            return;
+        }
+        const observer = new IntersectionObserver(
+            (entries) => {
+                const visible = entries
+                    .filter((entry) => entry.isIntersecting)
+                    .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+                const letter = visible[0]?.target.getAttribute("data-brand-letter");
+                if (letter) {
+                    setActiveLetter(letter);
+                }
+            },
+            { root, rootMargin: "0px 0px -65% 0px", threshold: [0, 0.25, 1] },
+        );
+        for (const section of sections) {
+            observer.observe(section);
+        }
+        return () => observer.disconnect();
+    }, [open, letters, query]);
+
+    const close = () => {
         setOpen(false);
         setQuery("");
     };
 
+    const pick = (slug: string) => {
+        onChangeAction(slug);
+        close();
+    };
+
+    const scrollToLetter = (letter: string) => {
+        setActiveLetter(letter);
+        const root = listRef.current;
+        const target = root?.querySelector<HTMLElement>(`[data-brand-letter="${CSS.escape(letter)}"]`);
+        if (!root || !target) {
+            return;
+        }
+        const delta = target.getBoundingClientRect().top - root.getBoundingClientRect().top;
+        root.scrollTo({ top: Math.max(0, root.scrollTop + delta - 4), behavior: "smooth" });
+    };
+
     return (
-        <div className="relative">
+        <>
             <button
                 id={id}
                 type="button"
                 disabled={disabled}
-                onClick={() => setOpen((v) => !v)}
+                onClick={() => setOpen(true)}
                 aria-expanded={open}
-                aria-haspopup="listbox"
+                aria-haspopup="dialog"
                 className={`${siteBtnSecondary} w-full justify-between disabled:opacity-50`}
             >
                 <span className="truncate text-left">{selectedLabel}</span>
@@ -70,88 +139,136 @@ export default function BatchCodeBrandSelect({
                 </span>
             </button>
 
-            {open && (
-                <>
-                    <div
-                        className="fixed inset-0 z-40 bg-black/20"
-                        onClick={() => setOpen(false)}
-                        aria-hidden
-                    />
+            {portalReady && open
+                ? createPortal(
+                      <div
+                          className="fixed inset-0 z-[220] flex items-end justify-center bg-slate-900/40 p-0 sm:items-center sm:p-4"
+                          onClick={close}
+                      >
+                          <div
+                              role="dialog"
+                              aria-modal="true"
+                              aria-label="Бренд"
+                              className="flex max-h-[min(92dvh,720px)] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface p-4 shadow-2xl sm:rounded-xl"
+                              onClick={(event) => event.stopPropagation()}
+                          >
+                              <div className="mb-3 flex shrink-0 items-center justify-between">
+                                  <div className="text-sm font-semibold text-admin-text">Бренд</div>
+                                  <button
+                                      type="button"
+                                      onClick={close}
+                                      className="rounded-2xl px-2 py-1 text-sm text-admin-text-secondary transition hover:bg-admin-muted hover:text-admin-text"
+                                  >
+                                      Закрыть
+                                  </button>
+                              </div>
 
-                    <div
-                        className="absolute left-0 top-full z-50 mt-2 w-full rounded-2xl border border-admin-border bg-admin-surface shadow-lg"
-                        role="listbox"
-                    >
-                        <div className="border-b border-admin-border p-3">
-                            <input
-                                type="search"
-                                value={query}
-                                onChange={(e) => setQuery(e.target.value)}
-                                placeholder="Поиск бренда..."
-                                className={siteInput}
-                                autoComplete="off"
-                            />
-                        </div>
+                              <input
+                                  type="text"
+                                  value={query}
+                                  onChange={(event) => setQuery(event.target.value)}
+                                  placeholder="Поиск бренда"
+                                  autoFocus
+                                  autoComplete="off"
+                                  autoCorrect="off"
+                                  autoCapitalize="off"
+                                  spellCheck={false}
+                                  className={`${siteInput} mb-3 shrink-0`}
+                              />
 
-                        {!query.trim() ? (
-                            <p className="px-4 pb-1 pt-3 text-xs leading-relaxed text-admin-text-secondary">
-                                Показаны бренды с правилами. Начните вводить название, чтобы найти любой бренд каталога.
-                            </p>
-                        ) : null}
+                              {letters.length > 0 ? (
+                                  <div className="mb-3 flex shrink-0 flex-wrap gap-1 border-b border-admin-border pb-3">
+                                      {letters.map((letter) => {
+                                          const isActive = activeLetter === letter;
+                                          return (
+                                              <button
+                                                  key={letter}
+                                                  type="button"
+                                                  onClick={() => scrollToLetter(letter)}
+                                                  aria-current={isActive ? "true" : undefined}
+                                                  className={`rounded-2xl border px-2.5 py-1.5 text-xs font-semibold transition ${
+                                                      isActive
+                                                          ? "border-admin-primary bg-admin-primary text-white"
+                                                          : "border-admin-border bg-admin-surface text-admin-text hover:bg-admin-muted"
+                                                  }`}
+                                              >
+                                                  {letter}
+                                              </button>
+                                          );
+                                      })}
+                                  </div>
+                              ) : null}
 
-                        <div className="max-h-[280px] overflow-y-auto p-2">
-                            {filteredBrands.map((brand) => {
-                                const isActive = brand.slug === value;
-                                return (
-                                    <button
-                                        key={brand.slug}
-                                        type="button"
-                                        role="option"
-                                        aria-selected={isActive}
-                                        onClick={() => pick(brand.slug)}
-                                        className={`mb-1 flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-left text-sm transition ${
-                                            isActive
-                                                ? "bg-admin-primary font-semibold text-white"
-                                                : "text-admin-text hover:bg-admin-muted"
-                                        }`}
-                                    >
-                                        <span className="min-w-0 flex-1 truncate">{brand.name}</span>
-                                        {brand.support === "not_supported" ? (
-                                            <span
-                                                className={`shrink-0 text-[11px] ${
-                                                    isActive ? "text-white/70" : "text-admin-text-muted"
-                                                }`}
-                                            >
-                                                не проверяем
-                                            </span>
-                                        ) : null}
-                                    </button>
-                                );
-                            })}
+                              <div
+                                  ref={listRef}
+                                  className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-1 [-webkit-overflow-scrolling:touch]"
+                              >
+                                  {!query.trim() ? (
+                                      <p className="text-xs leading-relaxed text-admin-text-secondary">
+                                          Показаны бренды с правилами. Начните вводить название, чтобы найти любой бренд
+                                          каталога.
+                                      </p>
+                                  ) : null}
 
-                            <button
-                                type="button"
-                                role="option"
-                                aria-selected={value === BATCH_CODE_OTHER_BRAND_SLUG}
-                                onClick={() => pick(BATCH_CODE_OTHER_BRAND_SLUG)}
-                                className={`mt-1 flex w-full rounded-2xl border border-dashed px-3 py-2 text-left text-sm transition ${
-                                    value === BATCH_CODE_OTHER_BRAND_SLUG
-                                        ? "border-admin-primary bg-admin-primary/10 font-semibold text-admin-text"
-                                        : "border-admin-border text-admin-text-secondary hover:bg-admin-muted hover:text-admin-text"
-                                }`}
-                            >
-                                Другой бренд
-                            </button>
+                                  {letters.map((letter) => (
+                                      <div key={letter} data-brand-letter={letter} className="space-y-1">
+                                          <div className="sticky top-0 z-10 bg-admin-surface py-1 text-xs font-semibold text-admin-text-secondary">
+                                              {letter}
+                                          </div>
+                                          <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2 lg:grid-cols-3">
+                                              {(brandGroups.get(letter) ?? []).map((brand) => {
+                                                  const isActive = brand.slug === value;
+                                                  return (
+                                                      <button
+                                                          key={brand.slug}
+                                                          type="button"
+                                                          onClick={() => pick(brand.slug)}
+                                                          className={`flex w-full items-center gap-2 rounded-2xl px-2 py-1.5 text-left text-sm transition hover:bg-admin-muted ${
+                                                              isActive
+                                                                  ? "bg-admin-primary font-semibold text-white hover:bg-admin-primary"
+                                                                  : "text-admin-text"
+                                                          }`}
+                                                      >
+                                                          <span className="min-w-0 flex-1 truncate">{brand.name}</span>
+                                                          {brand.support === "not_supported" ? (
+                                                              <span
+                                                                  className={`shrink-0 text-[11px] ${
+                                                                      isActive ? "text-white/70" : "text-admin-text-muted"
+                                                                  }`}
+                                                              >
+                                                                  не проверяем
+                                                              </span>
+                                                          ) : null}
+                                                      </button>
+                                                  );
+                                              })}
+                                          </div>
+                                      </div>
+                                  ))}
 
-                            {filteredBrands.length === 0 && query.trim() ? (
-                                <p className="px-3 py-2 text-sm text-admin-text-secondary">
-                                    В списке нет совпадений — выберите «Другой бренд».
-                                </p>
-                            ) : null}
-                        </div>
-                    </div>
-                </>
-            )}
-        </div>
+                                  {filteredBrands.length === 0 && query.trim() ? (
+                                      <p className="px-2 py-2 text-sm text-admin-text-secondary">
+                                          В списке нет совпадений — выберите «Другой бренд».
+                                      </p>
+                                  ) : null}
+                              </div>
+
+                              <button
+                                  type="button"
+                                  onClick={() => pick(BATCH_CODE_OTHER_BRAND_SLUG)}
+                                  className={`mt-3 shrink-0 rounded-2xl border border-dashed px-3 py-2 text-left text-sm transition ${
+                                      value === BATCH_CODE_OTHER_BRAND_SLUG
+                                          ? "border-admin-primary bg-admin-primary/10 font-semibold text-admin-text"
+                                          : "border-admin-border text-admin-text-secondary hover:bg-admin-muted hover:text-admin-text"
+                                  }`}
+                              >
+                                  Другой бренд
+                              </button>
+                          </div>
+                      </div>,
+                      document.body,
+                  )
+                : null}
+        </>
     );
 }

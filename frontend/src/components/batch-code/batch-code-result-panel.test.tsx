@@ -62,4 +62,19 @@ describe("BatchCodeResultPanel", () => {
         expect(html).toContain('href="https://www.checkfresh.com/?lang=ru"');
         expect(html).toContain('rel="nofollow noopener noreferrer"');
     });
+
+    it("adds the external check link when the code cannot be parsed", () => {
+        const data: BatchCodeCheckData = {
+            ...base,
+            status: "invalid_format",
+            code_normalized: "???",
+            result: null,
+            confidence: null,
+            sources: [],
+        };
+        const html = renderToStaticMarkup(<BatchCodeResultPanel data={data} codeRaw="???" />);
+
+        expect(html).toContain("Не удалось разобрать код");
+        expect(html).toContain('href="https://www.checkfresh.com/?lang=ru"');
+    });
 });

@@ -113,9 +113,7 @@ export default async function ProverkaBatchCodaPage() {
                     </div>
 
                     <div className="lg:col-span-5">
-                        <div className="[&>section]:mt-0">
-                            <HomeFaqAccordion items={BATCH_CODE_PAGE_FAQ} />
-                        </div>
+                        <HomeFaqAccordion items={BATCH_CODE_PAGE_FAQ} variant="panel" />
 
                         <section className="mt-8 rounded-xl border border-admin-border bg-admin-surface p-4 sm:p-5">
                             <p className="text-sm text-admin-text-secondary">

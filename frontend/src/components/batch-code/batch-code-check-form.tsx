@@ -30,6 +30,9 @@ import type { BatchCodeBrand, BatchCodeCheckData, BatchCodeDateKind } from "@/ty
 const RESULT_DISCLAIMER =
     "Результат носит справочный характер и не подтверждает подлинность товара. Отсутствие даты не означает, что аромат подделка.";
 
+/** Форма «Помогите улучшить проверку» выключена. Чтобы вернуть — поставить true. */
+const BATCH_CODE_FEEDBACK_ENABLED = false;
+
 type Props = {
     brands: BatchCodeBrand[];
 };
@@ -174,10 +177,13 @@ export function BatchCodeResultPanel({ data, codeRaw }: { data: BatchCodeCheckDa
             ) : null}
 
             {data.status === "invalid_format" ? (
-                <p className="text-sm text-admin-text">
-                    Не удалось разобрать код. Проверьте, что ввели символы с дна флакона или коробки без лишних
-                    пробелов. Код на коробке и на флаконе должен совпадать.
-                </p>
+                <>
+                    <p className="text-sm text-admin-text">
+                        Не удалось разобрать код. Проверьте, что ввели символы с дна флакона или коробки без лишних
+                        пробелов. Код на коробке и на флаконе должен совпадать.
+                    </p>
+                    <BatchCodeSecondOpinion />
+                </>
             ) : null}
 
             {data.code_normalized?.trim() && data.code_normalized !== codeRaw.trim() ? (
@@ -484,7 +490,9 @@ export default function BatchCodeCheckForm({ brands }: Props) {
             {result ? (
                 <>
                     <BatchCodeResultPanel data={result} codeRaw={lastCode} />
-                    {brandSlug !== BATCH_CODE_OTHER_BRAND_SLUG ? (
+                    {BATCH_CODE_FEEDBACK_ENABLED &&
+                    brandSlug !== BATCH_CODE_OTHER_BRAND_SLUG &&
+                    result.status !== "invalid_format" ? (
                         <BatchCodeFeedbackForm
                             brandSlug={result.brand?.slug ?? brandSlug}
                             code={lastCode}
