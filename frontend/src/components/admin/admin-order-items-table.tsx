@@ -7,13 +7,17 @@ import AdminOrderItemSuppliersModal from "@/components/admin/admin-order-item-su
 import AdminInfoButton from "@/components/admin/ui/admin-info-button";
 import CopyText from "@/components/ui/copy-text";
 import { lineItemProductTitle } from "@/lib/product-display-name";
+import { formatMoneyDisplay } from "@/lib/format-money-display";
+import { receiptLineDiscounts } from "@/lib/loyalty-pricing";
 
 type Props = {
     items: OrderItem[];
     certificatePurchases?: OrderGiftCertificatePurchase[];
+    /** Процент карты, уже применённый к заказу. 0, если скидки по карте нет. */
+    cardDiscountPercent?: number;
 };
 
-export default function AdminOrderItemsTable({ items, certificatePurchases }: Props) {
+export default function AdminOrderItemsTable({ items, certificatePurchases, cardDiscountPercent = 0 }: Props) {
     const [activeItem, setActiveItem] = useState<OrderItem | null>(null);
 
     return (
@@ -35,6 +39,16 @@ export default function AdminOrderItemsTable({ items, certificatePurchases }: Pr
                                 (item.supplier_offers?.length ?? 0) +
                                 (item.receipt_batches?.length ?? 0);
                             const productTitle = lineItemProductTitle(item) || "Товар";
+                            const priced = receiptLineDiscounts(
+                                [{
+                                    price: item.price,
+                                    qty: item.qty,
+                                    waiting: item.waiting_discount,
+                                }],
+                                cardDiscountPercent,
+                                null,
+                            )[0];
+                            const discountLabel = priced?.percentLabel ?? "";
 
                             return (
                                 <tr key={item.id} className="align-top">
@@ -63,11 +77,11 @@ export default function AdminOrderItemsTable({ items, certificatePurchases }: Pr
                                                 )}
                                             </div>
                                         )}
-                                        {item.waiting_discount && (
+                                        {discountLabel ? (
                                             <div className="mt-1 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
-                                                Предзаказ со скидкой 3%
+                                                −{discountLabel}%
                                             </div>
-                                        )}
+                                        ) : null}
                                         {item.sku && (
                                             <div className="mt-0.5 flex items-center gap-1 text-xs text-admin-text-secondary">
                                                 <span>SKU:</span>
@@ -80,9 +94,21 @@ export default function AdminOrderItemsTable({ items, certificatePurchases }: Pr
                                         )}
                                     </td>
                                     <td className="px-3 py-3 text-right">{item.qty}</td>
-                                    <td className="px-3 py-3 text-right">{item.price}</td>
-                                    <td className="px-3 py-3 text-right font-medium">
-                                        {item.total}
+                                    <td className="px-3 py-3 text-right tabular-nums">
+                                        {discountLabel && priced ? (
+                                            <div className="space-y-0.5">
+                                                <p className="text-xs text-admin-text-secondary line-through">
+                                                    {formatMoneyDisplay(priced.unitPrice)}
+                                                </p>
+                                                <p className="text-[11px] font-medium text-amber-800">−{discountLabel}%</p>
+                                                <p>{formatMoneyDisplay(priced.saleUnit)}</p>
+                                            </div>
+                                        ) : (
+                                            item.price
+                                        )}
+                                    </td>
+                                    <td className="px-3 py-3 text-right font-medium tabular-nums">
+                                        {discountLabel && priced ? formatMoneyDisplay(priced.net) : item.total}
                                     </td>
                                     <td className="px-3 py-3 text-center">
                                         <AdminInfoButton

@@ -269,3 +269,129 @@ export function resolveProductListLoyaltyPriceRange(product: {
     return range;
 }
 
+/** Процент карты, который реально вычтен из заказа. Снимок % без суммы скидки не показываем. */
+export function appliedCardDiscountPercent(
+    discountAmount: string | number | null | undefined,
+    discountPercent: string | number | null | undefined,
+): number {
+    const amount = Number(String(discountAmount ?? "").replace(",", "."));
+    const percent = Number(String(discountPercent ?? "").replace(",", "."));
+    if (!Number.isFinite(amount) || amount <= 0.004) {
+        return 0;
+    }
+    if (!Number.isFinite(percent) || percent <= 0) {
+        return 0;
+    }
+    return percent;
+}
+
+/** Сумма скидок строки: 3% за ожидание и процент карты складываются. */
+export function combinedLineDiscountPercent(waiting: boolean, cardPercent: number): number {
+    const card = Number.isFinite(cardPercent) && cardPercent > 0 ? cardPercent : 0;
+    return (waiting ? WAITING_DISCOUNT_PERCENT : 0) + card;
+}
+
+export function formatCombinedLineDiscountPercent(waiting: boolean, cardPercent: number): string | null {
+    const total = combinedLineDiscountPercent(waiting, cardPercent);
+    if (total <= 0) {
+        return null;
+    }
+    return formatDiscountPercentSnapshot(String(total));
+}
+
+function moneyToCents(value: string | number): number {
+    const normalized = String(value).replace(",", ".").trim();
+    if (!/^-?\d+(\.\d+)?$/.test(normalized)) {
+        return 0;
+    }
+    return Math.round(Number(normalized) * 100);
+}
+
+function centsToMoney(cents: number): string {
+    return (cents / 100).toFixed(2);
+}
+
+/** Цена до 3% за ожидание. 45.70 при включённом ожидании → 47.10. */
+export function unitPriceBeforeWaitingDiscount(price: string, waiting: boolean): string {
+    const current = Number(String(price).replace(",", "."));
+    if (!waiting || !Number.isFinite(current) || current <= 0) {
+        return Number.isFinite(current) ? current.toFixed(2) : "0.00";
+    }
+    const base = Math.round((current / (1 - WAITING_DISCOUNT_PERCENT / 100)) * 10) / 10;
+    return base.toFixed(2);
+}
+
+export type ReceiptLineDiscount = {
+    /** Цена единицы до скидок. */
+    unitPrice: string;
+    /** Цена единицы после скидок. */
+    saleUnit: string;
+    /** Сумма без скидки. */
+    gross: string;
+    /** Суммарный процент скидки строки, без знака. Пусто, если скидки нет. */
+    percentLabel: string;
+    /** Сумма скидки по строке (ожидание + карта). */
+    discount: string;
+    /** Сумма строки после скидок. */
+    net: string;
+};
+
+/**
+ * Скидка по строкам чека. Проценты складываются (3% + карта).
+ * Сумма скидки карты подгоняется под discount_amount заказа, чтобы итог чека совпал.
+ */
+export function receiptLineDiscounts(
+    items: { price: string; qty: number; waiting: boolean }[],
+    cardPercent: number,
+    orderDiscountAmount?: string | number | null,
+): ReceiptLineDiscount[] {
+    const card = Number.isFinite(cardPercent) && cardPercent > 0 ? cardPercent : 0;
+    const drafted = items.map((item) => {
+        const qty = Math.max(0, item.qty);
+        const unit = unitPriceBeforeWaitingDiscount(item.price, item.waiting);
+        const unitCents = moneyToCents(unit);
+        const priceCents = moneyToCents(item.price);
+        const grossCents = unitCents * qty;
+        const waitingCents = item.waiting && unitCents > priceCents ? (unitCents - priceCents) * qty : 0;
+        const cardUnit = card > 0 ? loyaltyUnitDiscountAmount(unit, null, card) : 0;
+        const cardCents = Math.round(cardUnit * 100) * qty;
+        return { qty, unit, unitCents, grossCents, waitingCents, cardCents, waiting: item.waiting };
+    });
+
+    if (orderDiscountAmount != null && orderDiscountAmount !== "") {
+        const cardPool = drafted.reduce((sum, line) => sum + line.cardCents, 0);
+        let remainder = moneyToCents(orderDiscountAmount) - cardPool;
+        if (remainder !== 0) {
+            for (let i = drafted.length - 1; i >= 0 && remainder !== 0; i -= 1) {
+                const line = drafted[i];
+                if (line.qty <= 0) {
+                    continue;
+                }
+                const next = line.cardCents + remainder;
+                if (next < 0) {
+                    remainder = next;
+                    line.cardCents = 0;
+                } else {
+                    line.cardCents = next;
+                    remainder = 0;
+                }
+            }
+        }
+    }
+
+    return drafted.map((line) => {
+        const discountCents = line.waitingCents + line.cardCents;
+        const netCents = Math.max(0, line.grossCents - discountCents);
+        const percent = (line.waiting ? WAITING_DISCOUNT_PERCENT : 0) + (line.cardCents > 0 ? card : 0);
+        const saleUnitCents = line.qty > 0 ? Math.round(netCents / line.qty) : 0;
+        return {
+            unitPrice: line.unit,
+            saleUnit: centsToMoney(saleUnitCents),
+            gross: centsToMoney(line.grossCents),
+            percentLabel: percent > 0 ? (formatDiscountPercentSnapshot(String(percent)) ?? "") : "",
+            discount: centsToMoney(discountCents),
+            net: centsToMoney(netCents),
+        };
+    });
+}
+

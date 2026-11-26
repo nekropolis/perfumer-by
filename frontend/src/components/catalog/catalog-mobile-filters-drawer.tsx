@@ -18,7 +18,7 @@ import {
     getActiveCatalogSectionChip,
     hasCatalogFacetedFilters,
 } from "@/lib/catalog-listing-query";
-import { lockBodyScroll } from "@/lib/body-scroll-lock";
+import { holdStorefrontTabBar, lockBodyScroll } from "@/lib/body-scroll-lock";
 
 type Props = {
     brands: CatalogBrandItem[];
@@ -45,6 +45,7 @@ function DrawerPanel({
     onShow,
     onSheetTransitionEnd,
     productsCount,
+    hasActiveFilters,
     children,
 }: {
     sheetState: "open" | "closed";
@@ -53,6 +54,7 @@ function DrawerPanel({
     onShow: () => void;
     onSheetTransitionEnd: () => void;
     productsCount: number;
+    hasActiveFilters: boolean;
     children: ReactNode;
 }) {
     const overlayTop = "var(--catalog-toolbar-sticky-top, 4rem)";
@@ -66,15 +68,15 @@ function DrawerPanel({
             <button
                 type="button"
                 aria-label="Закрыть фильтры"
-                className="catalog-filters-overlay pointer-events-auto absolute inset-x-0 bottom-0 z-0 bg-slate-900/40"
-                style={{ top: overlayTop }}
+                className="catalog-filters-overlay pointer-events-auto absolute inset-x-0 z-0 bg-slate-900/40"
+                style={{ top: overlayTop, bottom: "var(--storefront-tab-bar-height, 0px)" }}
                 data-state={sheetState}
                 onClick={onClose}
             />
 
             <div
-                className="catalog-filters-sheet pointer-events-auto fixed inset-x-0 bottom-0 z-10 flex flex-col overflow-hidden rounded-t-3xl bg-admin-surface shadow-2xl"
-                style={{ top: sheetTop }}
+                className="catalog-filters-sheet pointer-events-auto fixed inset-x-0 z-10 flex flex-col overflow-hidden rounded-t-3xl bg-admin-surface shadow-2xl"
+                style={{ top: sheetTop, bottom: "var(--storefront-tab-bar-height, 0px)" }}
                 data-state={sheetState}
                 role="dialog"
                 aria-modal="true"
@@ -106,13 +108,14 @@ function DrawerPanel({
                     {children}
                 </div>
 
-                <div
-                    className="shrink-0 border-t border-admin-border bg-admin-surface px-4 pt-4"
-                    style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
-                >
+                <div className="shrink-0 border-t border-admin-border bg-admin-surface px-4 py-4">
                     <div className="grid grid-cols-2 gap-3">
-                        <button type="button" onClick={onReset} className={`${siteBtnSecondary} w-full`}>
-                            Сбросить
+                        <button
+                            type="button"
+                            onClick={hasActiveFilters ? onReset : onClose}
+                            className={`${siteBtnSecondary} w-full`}
+                        >
+                            {hasActiveFilters ? "Сбросить" : "Закрыть"}
                         </button>
                         <button type="button" onClick={onShow} className={`${siteBtnPrimary} w-full`}>
                             Показать {productsCount}
@@ -171,7 +174,12 @@ export default function CatalogMobileFiltersDrawer(props: Props) {
         if (!mounted) {
             return;
         }
-        return lockBodyScroll();
+        const releaseTab = holdStorefrontTabBar();
+        const unlock = lockBodyScroll();
+        return () => {
+            releaseTab();
+            unlock();
+        };
     }, [mounted]);
 
     useEffect(() => {
@@ -179,20 +187,20 @@ export default function CatalogMobileFiltersDrawer(props: Props) {
             return;
         }
 
-        const isInSheet = (target: EventTarget | null) => {
-            const sheet = document.querySelector(".catalog-filters-sheet");
-            return Boolean(sheet && target instanceof Node && sheet.contains(target));
+        const canScrollTarget = (target: EventTarget | null) => {
+            const element = target instanceof Element ? target : target instanceof Node ? target.parentElement : null;
+            return Boolean(element?.closest(".catalog-filters-sheet, .catalog-filter-popup"));
         };
 
         const preventBackgroundTouchMove = (event: TouchEvent) => {
-            if (isInSheet(event.target)) {
+            if (canScrollTarget(event.target)) {
                 return;
             }
             event.preventDefault();
         };
 
         const preventBackgroundWheel = (event: WheelEvent) => {
-            if (isInSheet(event.target)) {
+            if (canScrollTarget(event.target)) {
                 return;
             }
             event.preventDefault();
@@ -235,6 +243,9 @@ export default function CatalogMobileFiltersDrawer(props: Props) {
         requestClose();
     };
 
+    const hasActiveFilters =
+        hasCatalogFacetedFilters(searchParams) || getActiveCatalogSectionChip(searchParams) !== "all";
+
     const drawer =
         mounted && typeof document !== "undefined" ? (
             createPortal(
@@ -245,6 +256,7 @@ export default function CatalogMobileFiltersDrawer(props: Props) {
                     onShow={showResults}
                     onSheetTransitionEnd={handleSheetTransitionEnd}
                     productsCount={shownCount}
+                    hasActiveFilters={hasActiveFilters}
                 >
                     <CatalogFilters
                         brands={props.brands}
@@ -263,8 +275,6 @@ export default function CatalogMobileFiltersDrawer(props: Props) {
             )
         ) : null;
 
-    const hasActiveFilters =
-        hasCatalogFacetedFilters(searchParams) || getActiveCatalogSectionChip(searchParams) !== "all";
     const filterChipClass = `${siteFilterChip} ${siteFilterChipInactive} inline-flex items-center font-medium`;
 
     return (

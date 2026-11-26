@@ -6,14 +6,25 @@ import type { OrderData, OrderItem } from "@/types/orders";
 import { lineItemProductTitle } from "@/lib/product-display-name";
 import { syncReceiptMadeInCountries } from "@/lib/admin-orders-api";
 import { adminModalOverlay, adminModalPanel } from "@/lib/admin-ui-classes";
+import { appliedCardDiscountPercent, receiptLineDiscounts } from "@/lib/loyalty-pricing";
 
 type ReceiptItemDraft = {
     key: string;
     productId: number | null;
     name: string;
     qty: number;
-    price: string;
-    total: string;
+    /** Цена единицы до скидок. */
+    unitPrice: string;
+    /** Цена единицы после скидок. */
+    saleUnit: string;
+    /** Сумма без скидки. */
+    gross: string;
+    /** Процент скидки строки, без знака. */
+    percentLabel: string;
+    /** Сумма скидки строки. */
+    discount: string;
+    /** Сумма после скидки. */
+    net: string;
     country: string;
     originalCountry: string;
 };
@@ -23,9 +34,6 @@ type ReceiptDraft = {
     printDate: string;
     deliveryLabel: string;
     deliveryFee: string;
-    discountCardNumber: string;
-    /** Скидка по дисконтной карте, руб. (не %). */
-    discountAmount: string;
     /** Списание подарочного сертификата, руб. */
     giftCertificateAmount: string;
     total: string;
@@ -133,39 +141,48 @@ function receiptPrintDate(order: OrderData): string {
     return new Date().toLocaleDateString("ru-RU");
 }
 
-function discountCardLabel(cardNumber: string): string {
-    const number = cardNumber.trim();
-    if (number) {
-        return `Скидка по дисконтной карте ${number}:`;
-    }
-
-    return "Скидка по дисконтной карте:";
+function receiptHasLineDiscount(items: ReceiptItemDraft[]): boolean {
+    return items.some((item) => item.percentLabel !== "" || moneyToCents(item.discount) > 0);
 }
 
 function buildReceiptDrafts(orders: OrderData[]): ReceiptDraft[] {
-    return orders.map((order) => ({
-        orderId: order.id,
-        printDate: receiptPrintDate(order),
-        deliveryLabel: deliveryLabel(order),
-        deliveryFee: order.delivery_fee ?? "0.00",
-        discountCardNumber: order.discount_card_number?.trim() ?? "",
-        discountAmount: order.discount_amount ?? "0.00",
-        giftCertificateAmount: order.gift_certificate_amount ?? "0.00",
-        total: order.total,
-        items: order.items.map((item) => {
-            const country = item.product_country?.trim() ?? "";
-            return {
-                key: `${order.id}-${item.id}`,
-                productId: item.product_id ?? null,
-                name: receiptItemDisplayName(item),
-                qty: item.qty,
+    return orders.map((order) => {
+        const discounts = receiptLineDiscounts(
+            order.items.map((item) => ({
                 price: item.price,
-                total: item.total,
-                country,
-                originalCountry: country,
-            };
-        }),
-    }));
+                qty: item.qty,
+                waiting: item.waiting_discount,
+            })),
+            appliedCardDiscountPercent(order.discount_amount, order.discount_percent_snapshot),
+            order.discount_amount,
+        );
+        return {
+            orderId: order.id,
+            printDate: receiptPrintDate(order),
+            deliveryLabel: deliveryLabel(order),
+            deliveryFee: order.delivery_fee ?? "0.00",
+            giftCertificateAmount: order.gift_certificate_amount ?? "0.00",
+            total: order.total,
+            items: order.items.map((item, index) => {
+                const country = item.product_country?.trim() ?? "";
+                const line = discounts[index];
+                return {
+                    key: `${order.id}-${item.id}`,
+                    productId: item.product_id ?? null,
+                    name: receiptItemDisplayName(item),
+                    qty: item.qty,
+                    unitPrice: line?.unitPrice ?? item.price,
+                    saleUnit: line?.saleUnit ?? item.price,
+                    gross: line?.gross ?? item.total,
+                    percentLabel: line?.percentLabel ?? "",
+                    discount: line?.discount ?? "0.00",
+                    net: line?.net ?? item.total,
+                    country,
+                    originalCountry: country,
+                };
+            }),
+        };
+    });
 }
 
 export default function AdminOrderReceiptsModal({ orders, countryOptions, onCloseAction }: Props) {
@@ -411,35 +428,80 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
                             <span>от {draft.printDate} г.</span>
                         </div>
 
-                        <table className="admin-order-receipt-table">
+                        {(() => {
+                            const showDiscountColumns = receiptHasLineDiscount(draft.items);
+                            const summaryLabelSpan = showDiscountColumns ? 5 : 2;
+                            return (
+                        <table
+                            className={
+                                showDiscountColumns
+                                    ? "admin-order-receipt-table"
+                                    : "admin-order-receipt-table admin-order-receipt-table-plain"
+                            }
+                        >
                             <thead>
                                 <tr>
                                     <th>№ п/п</th>
                                     <th>Наименование, характеристика товара</th>
-                                    <th>Ед</th>
-                                    <th>Кол-во</th>
+                                    <th>
+                                        Кол-во/
+                                        <br />
+                                        шт
+                                    </th>
                                     <th>Цена, руб</th>
+                                    {showDiscountColumns ? (
+                                        <>
+                                            <th>
+                                                Сумма
+                                                <br />
+                                                без
+                                                <br />
+                                                скидки,
+                                                <br />
+                                                руб
+                                            </th>
+                                            <th>
+                                                Скидка
+                                            </th>
+                                            <th>
+                                                Сумма
+                                                <br />
+                                                скидки,
+                                                <br />
+                                                руб
+                                            </th>
+                                        </>
+                                    ) : null}
                                     <th>Сумма, руб</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {draft.items.map((item, index) => (
+                                {draft.items.map((item, index) => {
+                                    const lineHasDiscount = item.percentLabel !== "" || moneyToCents(item.discount) > 0;
+                                    return (
                                     <tr key={item.key}>
                                         <td>{index + 1}</td>
                                         <td>
                                             {[item.name, item.country].filter(Boolean).join(" - ")}
                                         </td>
-                                        <td>шт</td>
                                         <td>{item.qty}</td>
-                                        <td>{normalizeMoneyForDisplay(item.price)}</td>
-                                        <td>{normalizeMoneyForDisplay(item.total)}</td>
+                                        <td>{normalizeMoneyForDisplay(item.saleUnit)}</td>
+                                        {showDiscountColumns ? (
+                                            <>
+                                                <td>{normalizeMoneyForDisplay(item.gross)}</td>
+                                                <td>{lineHasDiscount ? `${item.percentLabel}%` : "—"}</td>
+                                                <td>{lineHasDiscount ? normalizeMoneyForDisplay(item.discount) : "—"}</td>
+                                            </>
+                                        ) : null}
+                                        <td>{normalizeMoneyForDisplay(item.net)}</td>
                                     </tr>
-                                ))}
+                                    );
+                                })}
 
                                 {moneyToCents(draft.deliveryFee) > 0 ? (
                                     <tr className="admin-order-receipt-summary-row">
                                         <td colSpan={2} className="admin-order-receipt-total-empty" />
-                                        <td colSpan={3} className="admin-order-receipt-total-label">
+                                        <td colSpan={summaryLabelSpan} className="admin-order-receipt-total-label">
                                             {draft.deliveryLabel}:
                                         </td>
                                         <td className="admin-order-receipt-total-value">
@@ -448,22 +510,10 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
                                     </tr>
                                 ) : null}
 
-                                {moneyToCents(draft.discountAmount) > 0 ? (
-                                    <tr className="admin-order-receipt-summary-row">
-                                        <td colSpan={2} className="admin-order-receipt-total-empty" />
-                                        <td colSpan={3} className="admin-order-receipt-total-label">
-                                            {discountCardLabel(draft.discountCardNumber)}
-                                        </td>
-                                        <td className="admin-order-receipt-total-value">
-                                            −{normalizeMoneyForDisplay(draft.discountAmount)}
-                                        </td>
-                                    </tr>
-                                ) : null}
-
                                 {moneyToCents(draft.giftCertificateAmount) > 0 ? (
                                     <tr className="admin-order-receipt-summary-row">
                                         <td colSpan={2} className="admin-order-receipt-total-empty" />
-                                        <td colSpan={3} className="admin-order-receipt-total-label">
+                                        <td colSpan={summaryLabelSpan} className="admin-order-receipt-total-label">
                                             Подарочный сертификат:
                                         </td>
                                         <td className="admin-order-receipt-total-value">
@@ -474,7 +524,7 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
 
                                 <tr className="admin-order-receipt-total-row">
                                     <td colSpan={2} className="admin-order-receipt-total-empty" />
-                                    <td colSpan={3} className="admin-order-receipt-total-label">
+                                    <td colSpan={summaryLabelSpan} className="admin-order-receipt-total-label">
                                         ИТОГО:
                                     </td>
                                     <td className="admin-order-receipt-total-value">
@@ -483,6 +533,8 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
                                 </tr>
                             </tbody>
                         </table>
+                            );
+                        })()}
 
                         <div className="admin-order-receipt-signature">
                             <span>Продавец</span>

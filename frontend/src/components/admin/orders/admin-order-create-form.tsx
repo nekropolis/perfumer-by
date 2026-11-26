@@ -46,7 +46,11 @@ import {
   isAdminPhoneSearchReady,
 } from "@/lib/admin-phone-search";
 import { isPlainByPhoneComplete } from "@/components/ui/phone-input";
-import { applyWaitingDiscount, WAITING_DISCOUNT_PERCENT } from "@/lib/loyalty-pricing";
+import {
+  applyWaitingDiscount,
+  receiptLineDiscounts,
+  WAITING_DISCOUNT_PERCENT,
+} from "@/lib/loyalty-pricing";
 import { fetchCheckoutCityById, searchCheckoutCities, type CheckoutCityHit } from "@/lib/checkout-api";
 import { getOrderStatusColor, getOrderStatusLabel, solidColorPillStyle, SOLID_PILL_CHIP_CLASS } from "@/constants/order-statuses";
 import { useOrderStatusOptions } from "@/hooks/use-order-status-options";
@@ -886,6 +890,18 @@ function priceWithOptionalWaiting(basePrice: number, waiting: boolean): number {
   return next != null ? Number(next) : basePrice;
 }
 
+/** Цена строки для квоты: price уже с 3% за ожидание, base_price — до неё, чтобы карта считалась от той же базы. */
+function orderQuoteItem(line: Pick<OrderLine, "qty" | "price" | "base_price" | "waiting_discount" | "variant_id">) {
+  const price = Math.max(0, line.price);
+  const base = Math.max(0, line.base_price);
+  return {
+    qty: Math.max(1, line.qty),
+    price,
+    base_price: line.waiting_discount && base > 0 ? base : price,
+    variant_id: line.variant_id,
+  };
+}
+
 function linesFromOrderItems(
   order: OrderData,
   opts?: { strictLive?: boolean },
@@ -1348,8 +1364,9 @@ export default function AdminOrderCreateForm({
   const [draftDeliveryTimeTo, setDraftDeliveryTimeTo] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentValue>(() => normalizePayment(seedOrder?.payment_method));
   const [deliveryFee, setDeliveryFee] = useState(() => Math.max(0, Number(seedOrder?.delivery_fee ?? 0) || 0));
-  /** Ручная стоимость доставки (в т.ч. сохранённая в заказе) — не затирать ответом quote. */
+  /** Ручная стоимость доставки — не затирать ответом quote, пока состав заказа не изменился. */
   const deliveryFeeManualRef = useRef(isEdit);
+  const deliveryFeeLinesKeyRef = useRef<string | null>(null);
   const [discountCardInput, setDiscountCardInput] = useState(() => seedOrder?.discount_card_number?.trim() ?? "");
   const [appliedDiscountCardNumber, setAppliedDiscountCardNumber] = useState(
     () => seedOrder?.discount_card_number?.trim() ?? "",
@@ -1996,16 +2013,19 @@ export default function AdminOrderCreateForm({
   const quoteItemsKey = useMemo(
     () =>
       JSON.stringify(
-        filledLinesForQuote.map((l) => ({
-          variant_id: l.variant_id,
-          qty: l.qty,
-          price: l.price,
-        })),
+        filledLinesForQuote.map((l) => orderQuoteItem(l)),
       ),
     [filledLinesForQuote],
   );
 
   useEffect(() => {
+    if (deliveryFeeLinesKeyRef.current === null) {
+      deliveryFeeLinesKeyRef.current = quoteItemsKey;
+    } else if (deliveryFeeLinesKeyRef.current !== quoteItemsKey) {
+      deliveryFeeLinesKeyRef.current = quoteItemsKey;
+      deliveryFeeManualRef.current = false;
+    }
+
     if (filledLinesForQuote.length === 0) {
       queueMicrotask(() => {
         setOrderQuote(null);
@@ -2024,11 +2044,7 @@ export default function AdminOrderCreateForm({
       discount_card_number: appliedDiscountCardNumber.trim() || null,
       gift_certificate_code: appliedGiftCertificateCode.trim() || null,
       order_id: isEdit ? initialOrderId : null,
-      items: filledLinesForQuote.map((l) => ({
-        qty: Math.max(1, l.qty),
-        price: Math.max(0, l.price),
-        variant_id: l.variant_id,
-      })),
+      items: filledLinesForQuote.map((l) => orderQuoteItem(l)),
     })
       .then((response) => {
         if (!cancelled) {
@@ -2146,11 +2162,7 @@ export default function AdminOrderCreateForm({
           discount_card_number: normalized,
           gift_certificate_code: appliedGiftCertificateCode.trim() || null,
           order_id: isEdit ? initialOrderId : null,
-          items: filledLinesForQuote.map((l) => ({
-            qty: Math.max(1, l.qty),
-            price: Math.max(0, l.price),
-            variant_id: l.variant_id,
-          })),
+          items: filledLinesForQuote.map((l) => orderQuoteItem(l)),
         });
         const confirmed = response.data.discount_card_number?.trim() ?? "";
         if (confirmed === "") {
@@ -2200,11 +2212,7 @@ export default function AdminOrderCreateForm({
           discount_card_number: card,
           gift_certificate_code: appliedGiftCertificateCode.trim() || null,
           order_id: isEdit ? initialOrderId : null,
-          items: filledLinesForQuote.map((l) => ({
-            qty: Math.max(1, l.qty),
-            price: Math.max(0, l.price),
-            variant_id: l.variant_id,
-          })),
+          items: filledLinesForQuote.map((l) => orderQuoteItem(l)),
         });
         if (cancelled) return;
         const confirmed = response.data.discount_card_number?.trim() ?? "";
@@ -2257,11 +2265,7 @@ export default function AdminOrderCreateForm({
           discount_card_number: appliedDiscountCardNumber.trim() || null,
           gift_certificate_code: normalized,
           order_id: isEdit ? initialOrderId : null,
-          items: filledLinesForQuote.map((l) => ({
-            qty: Math.max(1, l.qty),
-            price: Math.max(0, l.price),
-            variant_id: l.variant_id,
-          })),
+          items: filledLinesForQuote.map((l) => orderQuoteItem(l)),
         });
         const confirmed = response.data.gift_certificate_code?.trim() ?? "";
         if (confirmed === "") {
@@ -2820,6 +2824,7 @@ export default function AdminOrderCreateForm({
         sku: item.sku,
         qty: Math.max(1, item.qty),
         price: Math.max(0, item.price),
+        base_price: item.waiting_discount && item.base_price > 0 ? item.base_price : Math.max(0, item.price),
         availability_source: item.availability_source,
         waiting_discount: item.waiting_discount,
         ...(channelFromSource(item.availability_source) === "main" && item.selected_lot_id
@@ -3941,36 +3946,82 @@ export default function AdminOrderCreateForm({
                           )}
                         </td>
                         <td className={`${orderLineTdClass} text-right`}>
-                          {itemsLocked ? (
-                            <p className="flex h-7 items-center justify-end text-sm tabular-nums text-admin-text">
-                              {formatMoneyRub(line.price)}
-                            </p>
-                          ) : (
-                            <input
-                              type="number"
-                              min={0}
-                              step="0.01"
-                              aria-label={`Цена: ${formatOrderLineProductLabel(line)}`}
-                              className="h-7 w-full rounded-md bg-admin-surface px-1.5 text-right text-sm tabular-nums ring-1 ring-inset ring-admin-border/70 outline-none transition [appearance:textfield] focus:ring-2 focus:ring-admin-primary/25 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                              value={line.price}
-                              onChange={(e) => setLinePrice(idx, Number(e.target.value))}
-                            />
-                          )}
-                          {line.waiting_discount ? (
-                            <div className="mt-0.5 space-y-0.5">
-                              {line.base_price > 0 && line.base_price !== line.price ? (
-                                <p className="text-[10px] tabular-nums text-admin-text-secondary line-through">
-                                  {formatMoneyRub(line.base_price)}
-                                </p>
-                              ) : null}
-                              <p className="text-[10px] font-medium leading-tight text-amber-800">
-                                −{WAITING_DISCOUNT_PERCENT}% ожидание
-                              </p>
-                            </div>
-                          ) : null}
+                          {(() => {
+                            const cardPercent =
+                              parseQuoteMoney(discountAmountDisplay) > 0.004
+                                ? parseQuoteMoney(discountPercentDisplay)
+                                : 0;
+                            const priced = receiptLineDiscounts(
+                              [{
+                                price: line.price.toFixed(2),
+                                qty: Math.max(1, line.qty),
+                                waiting: line.waiting_discount,
+                              }],
+                              cardPercent,
+                              null,
+                            )[0];
+                            const discountLabel = priced?.percentLabel ?? "";
+                            const priceWithoutDiscount = priced ? Number(priced.unitPrice) : line.price;
+                            const priceWithDiscount = Number(priced?.saleUnit ?? line.price);
+                            const showStruck = discountLabel !== "" && priceWithoutDiscount > line.price + 0.004;
+                            const showSalePrice = discountLabel !== "" && Math.abs(priceWithDiscount - line.price) > 0.01;
+                            return (
+                              <>
+                                {itemsLocked ? (
+                                  <p className="flex h-7 items-center justify-end text-sm tabular-nums text-admin-text">
+                                    {formatMoneyRub(line.price)}
+                                  </p>
+                                ) : (
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    aria-label={`Цена: ${formatOrderLineProductLabel(line)}`}
+                                    className="h-7 w-full rounded-md bg-admin-surface px-1.5 text-right text-sm tabular-nums ring-1 ring-inset ring-admin-border/70 outline-none transition [appearance:textfield] focus:ring-2 focus:ring-admin-primary/25 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                    value={line.price}
+                                    onChange={(e) => setLinePrice(idx, Number(e.target.value))}
+                                  />
+                                )}
+                                {showStruck || discountLabel ? (
+                                  <div className="mt-0.5 space-y-0.5">
+                                    {showStruck ? (
+                                      <p className="text-[10px] tabular-nums text-admin-text-secondary line-through">
+                                        {formatMoneyRub(priceWithoutDiscount)}
+                                      </p>
+                                    ) : null}
+                                    {discountLabel ? (
+                                      <p className="text-[10px] font-medium leading-tight text-amber-800">
+                                        −{discountLabel}%
+                                      </p>
+                                    ) : null}
+                                    {showSalePrice ? (
+                                      <p className="text-sm font-semibold tabular-nums text-admin-text">
+                                        {formatMoneyRub(priceWithDiscount)}
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                ) : null}
+                              </>
+                            );
+                          })()}
                         </td>
                         <td className={`${orderLineTdClass} text-right text-sm font-semibold leading-7 tabular-nums text-admin-text`}>
-                          {formatMoneyRub(orderLineMerchandiseTotal(line))}
+                          {(() => {
+                            const cardPercent =
+                              parseQuoteMoney(discountAmountDisplay) > 0.004
+                                ? parseQuoteMoney(discountPercentDisplay)
+                                : 0;
+                            const priced = receiptLineDiscounts(
+                              [{
+                                price: line.price.toFixed(2),
+                                qty: Math.max(1, line.qty),
+                                waiting: line.waiting_discount,
+                              }],
+                              cardPercent,
+                              null,
+                            )[0];
+                            return formatMoneyRub(priced?.percentLabel ? priced.net : orderLineMerchandiseTotal(line));
+                          })()}
                         </td>
                         <td className={`${orderLineTdClass} text-right`}>
                           {!itemsLocked ? (

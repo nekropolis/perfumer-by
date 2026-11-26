@@ -29,3 +29,20 @@ export function lockBodyScroll(): () => void {
         html.style.overscrollBehavior = previous.htmlOverscrollBehavior;
     };
 }
+
+let sheetTabHolds = 0;
+
+/** Держит нижнее меню поверх открытого листа. Несколько листов не снимают флаг раньше времени. */
+export function holdStorefrontTabBar(): () => void {
+    if (typeof document === "undefined") {
+        return () => {};
+    }
+    sheetTabHolds += 1;
+    document.documentElement.dataset.storefrontSheetTab = "1";
+    return () => {
+        sheetTabHolds = Math.max(0, sheetTabHolds - 1);
+        if (sheetTabHolds === 0) {
+            delete document.documentElement.dataset.storefrontSheetTab;
+        }
+    };
+}

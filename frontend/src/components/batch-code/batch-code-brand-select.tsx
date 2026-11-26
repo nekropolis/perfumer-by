@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import type { BatchCodeBrand } from "@/types/batch-code";
 import { BATCH_CODE_OTHER_BRAND_SLUG } from "@/lib/batch-code-page-content";
 import { groupBrandsByFirstLetter, orderedLettersWithBrands } from "@/lib/brand-letter-groups";
+import { holdStorefrontTabBar } from "@/lib/body-scroll-lock";
 import { siteBtnSecondary, siteInput } from "@/lib/site-ui-classes";
 
 type Props = {
@@ -67,6 +68,13 @@ export default function BatchCodeBrandSelect({
             document.removeEventListener("keydown", onKey);
         };
     }, [open, letters]);
+
+    useEffect(() => {
+        if (!open) {
+            return;
+        }
+        return holdStorefrontTabBar();
+    }, [open]);
 
     useEffect(() => {
         if (!open) {
@@ -171,14 +179,14 @@ export default function BatchCodeBrandSelect({
             {portalReady && open
                 ? createPortal(
                       <div
-                          className="fixed inset-0 z-[220] flex items-end justify-center overscroll-none bg-slate-900/40 p-0 sm:items-center sm:p-4"
+                          className="fixed inset-x-0 top-0 z-[220] flex items-end justify-center overscroll-none bg-slate-900/40 p-0 max-md:bottom-[var(--storefront-tab-bar-height,0px)] sm:items-center sm:p-4 md:inset-0"
                           onClick={close}
                       >
                           <div
                               role="dialog"
                               aria-modal="true"
                               aria-label="Бренд"
-                              className="flex max-h-[min(92svh,720px)] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface p-4 shadow-2xl sm:rounded-xl"
+                              className="flex max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface p-4 shadow-2xl sm:max-h-[min(92svh,720px)] sm:rounded-xl"
                               onClick={(event) => event.stopPropagation()}
                           >
                               <div className="mb-3 flex shrink-0 items-center justify-between">
@@ -292,6 +300,11 @@ export default function BatchCodeBrandSelect({
                               >
                                   Другой бренд
                               </button>
+                              <div className="mt-3 shrink-0 border-t border-admin-border pt-3 md:hidden">
+                                  <button type="button" onClick={close} className={`${siteBtnSecondary} min-h-12 w-full`}>
+                                      Закрыть
+                                  </button>
+                              </div>
                           </div>
                       </div>,
                       document.body,

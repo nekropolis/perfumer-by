@@ -769,9 +769,9 @@ export default function CartPage() {
                                     onClick={() => toggleCartItemSelected(item.id)}
                                     aria-pressed={selected}
                                     aria-label="Включить товар в оформление заказа"
-                                    className={`absolute -left-1 top-0 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white shadow-sm ${selected ? "bg-admin-primary text-white" : "bg-white/90 text-transparent"}`}
+                                    className={`absolute -left-1.5 -top-0.5 z-10 flex h-6 w-6 items-center justify-center rounded-full border-2 shadow-md ring-2 ring-white transition-colors ${selected ? "border-admin-primary bg-admin-primary text-white" : "border-neutral-600 bg-white text-transparent hover:border-admin-primary"}`}
                                 >
-                                    <Check className="h-3 w-3" strokeWidth={3} aria-hidden />
+                                    <Check className="h-3.5 w-3.5" strokeWidth={3} aria-hidden />
                                 </button>
                                 <div className="relative h-[5.5rem] w-[5.5rem] shrink-0 overflow-hidden rounded-2xl">
                                     {image ? (

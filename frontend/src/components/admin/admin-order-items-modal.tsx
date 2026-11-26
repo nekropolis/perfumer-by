@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { ChevronRight } from "lucide-react";
 import type { OrderData } from "@/types/orders";
 import AdminOrderItemsTable from "@/components/admin/admin-order-items-table";
+import { appliedCardDiscountPercent } from "@/lib/loyalty-pricing";
 import { giftCertificateStatusLabel } from "@/lib/admin-loyalty-api";
 import { adminModalOverlay, adminModalPanel } from "@/lib/admin-ui-classes";
 import { formatDeliveryClockTime } from "@/components/admin/orders/admin-delivery-time-input";
@@ -691,6 +692,10 @@ export default function AdminOrderItemsModal({ order, orderDetailLoading, onClos
                         <AdminOrderItemsTable
                             items={order.items}
                             certificatePurchases={order.gift_certificate_purchases}
+                            cardDiscountPercent={appliedCardDiscountPercent(
+                                order.discount_amount,
+                                order.discount_percent_snapshot,
+                            )}
                         />
                     </div>
 

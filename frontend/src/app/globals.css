@@ -73,6 +73,10 @@
   }
 
   /* Отделение нижней навигации и sticky CTA от белого контента страницы. */
+  html[data-storefront-sheet-tab="1"] .storefront-tab-bar {
+    z-index: 230;
+  }
+
   .storefront-tab-bar {
     bottom: 0;
     padding-bottom: env(safe-area-inset-bottom);
@@ -511,33 +515,48 @@ body:not(.admin-shell-body) .ProseMirror a {
 
   .admin-order-receipt-table th:nth-child(1),
   .admin-order-receipt-table td:nth-child(1) {
-    width: 8%;
+    width: 5%;
     text-align: right;
   }
 
   .admin-order-receipt-table th:nth-child(2),
   .admin-order-receipt-table td:nth-child(2) {
-    width: 50%;
+    width: 46%;
   }
 
   .admin-order-receipt-table th:nth-child(3),
   .admin-order-receipt-table td:nth-child(3) {
-    width: 8%;
+    width: 7%;
     text-align: center;
+    line-height: 1.15;
+    padding-left: 0.4mm;
+    padding-right: 0.4mm;
   }
 
   .admin-order-receipt-table th:nth-child(4),
-  .admin-order-receipt-table td:nth-child(4) {
-    width: 11%;
+  .admin-order-receipt-table td:nth-child(4),
+  .admin-order-receipt-table th:nth-child(5),
+  .admin-order-receipt-table td:nth-child(5),
+  .admin-order-receipt-table th:nth-child(7),
+  .admin-order-receipt-table td:nth-child(7),
+  .admin-order-receipt-table th:nth-child(8),
+  .admin-order-receipt-table td:nth-child(8) {
+    width: 8%;
     text-align: right;
   }
 
-  .admin-order-receipt-table th:nth-child(5),
-  .admin-order-receipt-table td:nth-child(5),
   .admin-order-receipt-table th:nth-child(6),
   .admin-order-receipt-table td:nth-child(6) {
-    width: 11.5%;
-    text-align: right;
+    width: 10%;
+    text-align: center;
+    line-height: 1.15;
+    padding-left: 0.4mm;
+    padding-right: 0.4mm;
+  }
+
+  .admin-order-receipt-table-plain th:nth-child(2),
+  .admin-order-receipt-table-plain td:nth-child(2) {
+    width: 72%;
   }
 
   .admin-order-receipt-total-row td {

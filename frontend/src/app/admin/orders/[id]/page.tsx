@@ -5,6 +5,7 @@ import { getOrderStatusLabel } from "@/constants/order-statuses";
 import AdminOrderStatusForm from "@/components/admin/admin-order-status-form";
 import AdminOrderInventorySync from "@/components/admin/admin-order-inventory-sync";
 import AdminOrderItemsTable from "@/components/admin/admin-order-items-table";
+import { appliedCardDiscountPercent } from "@/lib/loyalty-pricing";
 import CopyText from "@/components/ui/copy-text";
 
 type Props = {
@@ -176,6 +177,10 @@ export default async function AdminOrderPage({ params }: Props) {
                     <AdminOrderItemsTable
                         items={order.items}
                         certificatePurchases={order.gift_certificate_purchases}
+                        cardDiscountPercent={appliedCardDiscountPercent(
+                            order.discount_amount,
+                            order.discount_percent_snapshot,
+                        )}
                     />
                 </div>
 

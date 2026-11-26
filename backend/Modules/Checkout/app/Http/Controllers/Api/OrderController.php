@@ -81,6 +81,7 @@ class OrderController extends Controller
             'items.*.sku' => ['nullable', 'string', 'max:255'],
             'items.*.qty' => ['required', 'integer', 'min:1'],
             'items.*.price' => ['required', 'numeric', 'min:0'],
+            'items.*.base_price' => ['nullable', 'numeric', 'min:0'],
             'items.*.availability_source' => [
                 'nullable',
                 'string',
@@ -556,6 +557,7 @@ class OrderController extends Controller
             'items' => ['required', 'array', 'min:1'],
             'items.*.qty' => ['required', 'integer', 'min:1'],
             'items.*.price' => ['required', 'numeric', 'min:0'],
+            'items.*.base_price' => ['nullable', 'numeric', 'min:0'],
             'items.*.variant_id' => ['nullable', 'integer', 'min:1'],
         ]);
 
@@ -1314,6 +1316,7 @@ class OrderController extends Controller
         $pricingItems = array_map(static fn (array $item): array => [
             'qty' => (int) $item['qty'],
             'price' => (float) $item['price'],
+            'base_price' => isset($item['base_price']) ? (float) $item['base_price'] : null,
             'variant_id' => isset($item['variant_id']) ? (int) $item['variant_id'] : null,
         ], $items);
 

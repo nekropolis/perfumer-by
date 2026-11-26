@@ -336,7 +336,7 @@ export type AdminOrderQuotePayload = {
   order_id?: number | null;
   /** Используется только если delivery_method не передан. */
   delivery_fee?: number;
-  items: { qty: number; price: number; variant_id?: number | null }[];
+  items: { qty: number; price: number; base_price?: number | null; variant_id?: number | null }[];
 };
 
 export type AdminOrderCustomerContext = {

@@ -9,6 +9,7 @@ import { groupBrandsByFirstLetter, orderedLettersWithBrands } from "@/lib/brand-
 import { useCatalogNavigation } from "@/components/catalog/catalog-navigation";
 import { useSiteContent } from "@/components/layout/site-content-context";
 import { apiFetch } from "@/lib/api";
+import { holdStorefrontTabBar } from "@/lib/body-scroll-lock";
 
 import { siteBtnPrimary, siteBtnSecondary, siteFilterChip, siteFilterChipActive, siteFilterChipInactive, siteInput, siteCheckbox } from "@/lib/site-ui-classes";
 import BynSign from "@/components/ui/byn-sign";
@@ -388,6 +389,13 @@ export default function CatalogFilters({
         if (!isBrandModalOpen) {
             return;
         }
+        return holdStorefrontTabBar();
+    }, [isBrandModalOpen]);
+
+    useEffect(() => {
+        if (!isBrandModalOpen) {
+            return;
+        }
         const root = brandListRef.current;
         if (!root) {
             return;
@@ -727,7 +735,7 @@ export default function CatalogFilters({
             {portalReady && popupAttribute
                 ? createPortal(
                     <div className="fixed inset-0 z-[220] flex items-end justify-center bg-slate-900/40 p-0 sm:items-center sm:p-4">
-                        <div className="flex max-h-[min(88dvh,640px)] w-full flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface p-4 shadow-2xl sm:max-w-lg sm:rounded-xl">
+                        <div className="catalog-filter-popup flex max-h-[min(88dvh,640px)] w-full flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface p-4 shadow-2xl sm:max-w-lg sm:rounded-xl">
                             <div className="mb-3 flex items-center justify-between">
                                 <div className="text-sm font-semibold text-admin-text">{popupAttribute.name}</div>
                                 <button
@@ -787,11 +795,11 @@ export default function CatalogFilters({
             {portalReady && isBrandModalOpen
                 ? createPortal(
                     <div
-                        className="fixed inset-0 z-[220] flex items-end justify-center bg-slate-900/40 p-0 sm:items-center sm:p-4"
+                        className="fixed inset-x-0 top-0 z-[220] flex items-end justify-center bg-slate-900/40 p-0 max-md:bottom-[var(--storefront-tab-bar-height,0px)] sm:items-center sm:p-4 md:inset-0"
                         onClick={() => setIsBrandModalOpen(false)}
                     >
                         <div
-                            className="flex max-h-[min(92dvh,720px)] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface p-4 shadow-2xl sm:rounded-xl"
+                            className="catalog-filter-popup flex h-full max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-admin-border bg-admin-surface p-4 shadow-2xl sm:h-auto sm:max-h-[min(92dvh,720px)] sm:rounded-xl"
                             onClick={(e) => e.stopPropagation()}
                         >
                             <div className="mb-3 flex shrink-0 items-center justify-between">
@@ -881,6 +889,15 @@ export default function CatalogFilters({
                                         </div>
                                     </div>
                                 ))}
+                            </div>
+                            <div className="mt-3 shrink-0 border-t border-admin-border pt-3 md:hidden">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsBrandModalOpen(false)}
+                                    className={`${siteBtnSecondary} min-h-12 w-full`}
+                                >
+                                    Закрыть
+                                </button>
                             </div>
                         </div>
                     </div>,

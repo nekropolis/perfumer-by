@@ -17,7 +17,7 @@ final class AdminOrderPricingService
     ) {}
 
     /**
-     * @param  array<int, array{qty: int, price: float|int|string, variant_id?: int|null}>  $items
+     * @param  array<int, array{qty: int, price: float|int|string, base_price?: float|int|string|null, variant_id?: int|null}>  $items
      * @return array{
      *     subtotal: float,
      *     loyalty_discount_percent: float,
@@ -114,7 +114,7 @@ final class AdminOrderPricingService
     }
 
     /**
-     * @param  array<int, array{qty: int, price: float|int|string, variant_id?: int|null}>  $items
+     * @param  array<int, array{qty: int, price: float|int|string, base_price?: float|int|string|null, variant_id?: int|null}>  $items
      */
     private function itemsSubtotal(array $items): float
     {
@@ -129,7 +129,7 @@ final class AdminOrderPricingService
     }
 
     /**
-     * @param  array<int, array{qty: int, price: float|int|string, variant_id?: int|null}>  $items
+     * @param  array<int, array{qty: int, price: float|int|string, base_price?: float|int|string|null, variant_id?: int|null}>  $items
      */
     private function loyaltyDiscountAmount(array $items, float $cardPercent): float
     {
@@ -166,7 +166,9 @@ final class AdminOrderPricingService
             $isPromotion = (bool) ($meta['is_promotion'] ?? false);
             $oldPrice = $meta['old_price'] ?? null;
             $qty = max(0, (int) ($item['qty'] ?? 0));
-            $price = $item['price'] ?? 0;
+            // base_price — цена до 3% за ожидание. Процент карты считается от неё,
+            // чтобы 3% и карта складывались от одной цены (100 − 13% = 87), а не последовательно.
+            $price = self::loyaltyBasePrice($item);
 
             $line = LoyaltyLineDiscount::lineAmount(
                 $price,
@@ -179,5 +181,20 @@ final class AdminOrderPricingService
         }
 
         return (float) MoneyDecimal::normalize($total);
+    }
+
+    /**
+     * Цена для скидки карты: до скидки за ожидание, если она передана.
+     *
+     * @param  array{price?: float|int|string, base_price?: float|int|string|null}  $item
+     */
+    public static function loyaltyBasePrice(array $item): mixed
+    {
+        $base = $item['base_price'] ?? null;
+        if (is_numeric($base) && (float) $base > 0) {
+            return $base;
+        }
+
+        return $item['price'] ?? 0;
     }
 }
