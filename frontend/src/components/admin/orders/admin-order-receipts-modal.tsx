@@ -448,7 +448,15 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
                                         <br />
                                         шт
                                     </th>
-                                    <th>Цена, руб</th>
+                                    <th>
+                                        Цена
+                                        <br />
+                                        без
+                                        <br />
+                                        скидки,
+                                        <br />
+                                        руб
+                                    </th>
                                     {showDiscountColumns ? (
                                         <>
                                             <th>
@@ -485,7 +493,7 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
                                             {[item.name, item.country].filter(Boolean).join(" - ")}
                                         </td>
                                         <td>{item.qty}</td>
-                                        <td>{normalizeMoneyForDisplay(item.saleUnit)}</td>
+                                        <td>{normalizeMoneyForDisplay(item.unitPrice)}</td>
                                         {showDiscountColumns ? (
                                             <>
                                                 <td>{normalizeMoneyForDisplay(item.gross)}</td>
