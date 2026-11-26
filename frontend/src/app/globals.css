@@ -521,7 +521,7 @@ body:not(.admin-shell-body) .ProseMirror a {
 
   .admin-order-receipt-table th:nth-child(2),
   .admin-order-receipt-table td:nth-child(2) {
-    width: 46%;
+    width: 40%;
   }
 
   .admin-order-receipt-table th:nth-child(3),
@@ -536,27 +536,59 @@ body:not(.admin-shell-body) .ProseMirror a {
   .admin-order-receipt-table th:nth-child(4),
   .admin-order-receipt-table td:nth-child(4),
   .admin-order-receipt-table th:nth-child(5),
+  .admin-order-receipt-table td:nth-child(5) {
+    width: 12%;
+  }
+
+  .admin-order-receipt-table td:nth-child(4),
   .admin-order-receipt-table td:nth-child(5),
-  .admin-order-receipt-table th:nth-child(7),
   .admin-order-receipt-table td:nth-child(7),
-  .admin-order-receipt-table th:nth-child(8),
   .admin-order-receipt-table td:nth-child(8) {
-    width: 8%;
     text-align: right;
   }
 
   .admin-order-receipt-table th:nth-child(6),
   .admin-order-receipt-table td:nth-child(6) {
-    width: 10%;
+    width: 8%;
     text-align: center;
     line-height: 1.15;
     padding-left: 0.4mm;
     padding-right: 0.4mm;
   }
 
+  .admin-order-receipt-table th:nth-child(7),
+  .admin-order-receipt-table td:nth-child(7) {
+    width: 8%;
+  }
+
+  .admin-order-receipt-table th:nth-child(8),
+  .admin-order-receipt-table td:nth-child(8) {
+    width: 8%;
+  }
+
   .admin-order-receipt-table-plain th:nth-child(2),
   .admin-order-receipt-table-plain td:nth-child(2) {
-    width: 72%;
+    width: 58%;
+  }
+
+  .admin-order-receipt-table-plain th:nth-child(3),
+  .admin-order-receipt-table-plain td:nth-child(3) {
+    width: 13%;
+    padding-left: 1.2mm;
+    padding-right: 1.2mm;
+  }
+
+  .admin-order-receipt-table-plain th:nth-child(4),
+  .admin-order-receipt-table-plain td:nth-child(4),
+  .admin-order-receipt-table-plain th:nth-child(5),
+  .admin-order-receipt-table-plain td:nth-child(5) {
+    width: 12%;
+  }
+
+  .admin-order-receipt-table-plain th:nth-child(3),
+  .admin-order-receipt-table-plain th:nth-child(4),
+  .admin-order-receipt-table-plain th:nth-child(5) {
+    white-space: nowrap;
   }
 
   .admin-order-receipt-total-row td {

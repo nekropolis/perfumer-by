@@ -444,19 +444,21 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
                                     <th>№ п/п</th>
                                     <th>Наименование, характеристика товара</th>
                                     <th>
-                                        Кол-во/
-                                        <br />
-                                        шт
+                                        {showDiscountColumns ? (
+                                            <>
+                                                Кол-во,
+                                                <br />
+                                                шт
+                                            </>
+                                        ) : (
+                                            "Кол-во, шт"
+                                        )}
                                     </th>
                                     {showDiscountColumns ? (
                                         <th>
-                                            Цена
+                                            Цена без
                                             <br />
-                                            без
-                                            <br />
-                                            скидки,
-                                            <br />
-                                            руб
+                                            скидки, руб
                                         </th>
                                     ) : (
                                         <th>Цена, руб</th>
@@ -464,21 +466,15 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
                                     {showDiscountColumns ? (
                                         <>
                                             <th>
-                                                Сумма
+                                                Сумма без
                                                 <br />
-                                                без
-                                                <br />
-                                                скидки,
-                                                <br />
-                                                руб
+                                                скидки, руб
                                             </th>
                                             <th>
                                                 Скидка
                                             </th>
                                             <th>
-                                                Сумма
-                                                <br />
-                                                скидки,
+                                                Сумма скидки,
                                                 <br />
                                                 руб
                                             </th>
