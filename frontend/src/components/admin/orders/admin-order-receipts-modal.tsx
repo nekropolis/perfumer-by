@@ -448,15 +448,19 @@ export default function AdminOrderReceiptsModal({ orders, countryOptions, onClos
                                         <br />
                                         шт
                                     </th>
-                                    <th>
-                                        Цена
-                                        <br />
-                                        без
-                                        <br />
-                                        скидки,
-                                        <br />
-                                        руб
-                                    </th>
+                                    {showDiscountColumns ? (
+                                        <th>
+                                            Цена
+                                            <br />
+                                            без
+                                            <br />
+                                            скидки,
+                                            <br />
+                                            руб
+                                        </th>
+                                    ) : (
+                                        <th>Цена, руб</th>
+                                    )}
                                     {showDiscountColumns ? (
                                         <>
                                             <th>
