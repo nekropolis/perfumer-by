@@ -30,6 +30,7 @@ use Modules\Catalog\Services\VariantSupplierRetailPriceService;
 use Modules\Catalog\Support\CatalogVariantStockPresenter;
 use Modules\Catalog\Support\ProductDisplayName;
 use Modules\ImportExport\Services\Vanille\Parsers\SellerOneSpreadsheetParser;
+use Modules\ImportExport\Services\Vanille\Support\SellerOneCatalogRematchIndex;
 use Modules\ImportExport\Services\Vanille\Support\SellerOnePreviewSyncService;
 use Modules\ImportExport\Services\Vanille\Support\SellerOnePricingService;
 use Modules\ImportExport\Services\Vanille\Support\SellerOneVariantLinkAutoCreator;
@@ -364,6 +365,7 @@ class SupplierPriceImportService
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
+        $catalogRematchIndex = SellerOneCatalogRematchIndex::build($brands, $productsIndex);
 
         // ── Индекс существующих SupplierProduct: грузим ОДИН РАЗ вместо WhereIn на батч ──
         // Храним как array(string => array{id,external_url,is_linked,external_name,payload})
@@ -441,7 +443,8 @@ class SupplierPriceImportService
             // Batch-collect связанных строк → один bulk upsert
             $linkedRecords = [];
             $linkedRows = [];
-            // Unlinked, название не изменилось → без матчера (главный выигрыш на повторном прайсе)
+            // Несвязанные с тем же названием: матчер только если предложения ещё нет
+            // и имя линии уже есть в каталоге бренда (хэш имён бренда изменился).
             $unchangedTitleRecords = [];
             $unchangedTitleRows = [];
 
@@ -469,6 +472,7 @@ class SupplierPriceImportService
                 if (
                     $existing !== null
                     && trim((string) ($existing['external_name'] ?? '')) === trim((string) ($row['title'] ?? ''))
+                    && ! $this->shouldRematchUnchangedUnlinked($row, $existing, $catalogRematchIndex)
                 ) {
                     $unchangedTitleRecords[] = $existing;
                     $unchangedTitleRows[] = $row;
@@ -479,7 +483,10 @@ class SupplierPriceImportService
                     ? $nonLinkedExistingModels->get($existing['id'])
                     : null;
 
-                $parsed = $this->parseSupplierRow($row, $brands, $rules, $productsIndex);
+                $parsed = $this->attachUnmatchedCatalogHash(
+                    $this->parseSupplierRow($row, $brands, $rules, $productsIndex),
+                    $catalogRematchIndex,
+                );
                 if ($parsed['suggested_variant']) {
                     $totalMatched++;
                 }
@@ -2454,6 +2461,81 @@ class SupplierPriceImportService
     public function resolvePriceProfile(?string $supplierCode = null): SupplierPriceProfile
     {
         return SupplierPriceProfile::fromCode($supplierCode ?? self::DEFAULT_SUPPLIER_CODE);
+    }
+
+    /**
+     * Несвязанная строка с тем же названием матчится заново, только если предложения ещё нет
+     * и имя линии уже есть в каталоге, а хэш имён бренда не совпадает с прошлым прогоном.
+     *
+     * @param  array{payload?: array<string, mixed>}  $existing
+     * @param  array{
+     *     name_keys: array<string, true>,
+     *     hashes: array<int, string>,
+     *     brand_ids: array<string, int>,
+     *     brands_by_first_token: array<string, list<array{id:int, normalized:string}>>
+     * }  $catalogRematchIndex
+     */
+    private function shouldRematchUnchangedUnlinked(array $row, array $existing, array $catalogRematchIndex): bool
+    {
+        $payload = is_array($existing['payload'] ?? null) ? $existing['payload'] : [];
+        $parsed = is_array($payload['parsed'] ?? null) ? $payload['parsed'] : [];
+        $brandName = trim((string) ($parsed['brand'] ?? ''));
+        $productName = trim((string) ($parsed['product_name'] ?? ''));
+        $titleLine = '';
+        if ($brandName === '' || $productName === '') {
+            $titleLine = $this->variantMatcher->splitNameAndVariantTail((string) ($row['title'] ?? ''))['name'];
+        }
+
+        $line = SellerOneCatalogRematchIndex::resolveLine($brandName, $productName, $titleLine, $catalogRematchIndex);
+        $nameInCatalog = false;
+        $currentHash = null;
+        if ($line !== null) {
+            $nameInCatalog = SellerOneCatalogRematchIndex::containsName(
+                $catalogRematchIndex,
+                $line['brand_id'],
+                $line['name'],
+            );
+            $currentHash = $catalogRematchIndex['hashes'][$line['brand_id']] ?? null;
+        }
+
+        $storedHash = isset($payload['match_catalog_hash']) && $payload['match_catalog_hash'] !== ''
+            ? (string) $payload['match_catalog_hash']
+            : null;
+
+        return SellerOneCatalogRematchIndex::shouldRematch(
+            $payload['suggested_product_id'] ?? null,
+            $payload['suggested_variant_id'] ?? null,
+            $nameInCatalog,
+            $storedHash,
+            $currentHash,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $parsed
+     * @param  array{brand_ids: array<string, int>, hashes: array<int, string>}  $catalogRematchIndex
+     * @return array<string, mixed>
+     */
+    private function attachUnmatchedCatalogHash(array $parsed, array $catalogRematchIndex): array
+    {
+        if (! empty($parsed['suggested_variant']) || ! empty($parsed['suggested_product'])) {
+            return $parsed;
+        }
+
+        $parsedBlock = is_array($parsed['parsed'] ?? null) ? $parsed['parsed'] : [];
+        $brandName = trim((string) ($parsedBlock['brand'] ?? ''));
+        if ($brandName === '') {
+            return $parsed;
+        }
+
+        $brandId = $catalogRematchIndex['brand_ids'][SellerOneCatalogRematchIndex::normalize($brandName)] ?? null;
+        if ($brandId === null || ! isset($catalogRematchIndex['hashes'][$brandId])) {
+            return $parsed;
+        }
+
+        $parsed['match_catalog_hash'] = $catalogRematchIndex['hashes'][$brandId];
+
+        return $parsed;
     }
 
     /**

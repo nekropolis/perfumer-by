@@ -70,6 +70,9 @@ class SellerOnePreviewSyncService
             'is_new' => $isNew,
             'last_parsed_at' => now()?->toDateTimeString(),
         ];
+        if (array_key_exists('match_catalog_hash', $parsed)) {
+            $nextPayload['match_catalog_hash'] = $parsed['match_catalog_hash'];
+        }
         unset($nextPayload['absent_from_parse_table_at']);
 
         if ($existing) {
