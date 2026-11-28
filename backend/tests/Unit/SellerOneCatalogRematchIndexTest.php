@@ -106,4 +106,25 @@ class SellerOneCatalogRematchIndexTest extends TestCase
         $this->assertSame(['brand_id' => 691, 'name' => 'into the blue'], $line);
         $this->assertTrue(SellerOneCatalogRematchIndex::containsName($index, 691, 'into the blue'));
     }
+
+    public function test_rewritten_ysl_title_hits_yves_saint_laurent_line(): void
+    {
+        $index = SellerOneCatalogRematchIndex::buildFromRows(
+            [
+                ['id' => 1797, 'name' => 'Yves Saint Laurent'],
+            ],
+            [
+                1797 => [
+                    ['id' => 8165, 'name' => 'Black Opium'],
+                ],
+            ],
+        );
+
+        $raw = SellerOneCatalogRematchIndex::resolveLine('', '', 'YSL Black Opium (L)', $index);
+        $rewritten = SellerOneCatalogRematchIndex::resolveLine('', '', 'Yves Saint Laurent Black Opium (L)', $index);
+
+        $this->assertNull($raw);
+        $this->assertSame(['brand_id' => 1797, 'name' => 'black opium'], $rewritten);
+        $this->assertTrue(SellerOneCatalogRematchIndex::containsName($index, 1797, 'black opium'));
+    }
 }

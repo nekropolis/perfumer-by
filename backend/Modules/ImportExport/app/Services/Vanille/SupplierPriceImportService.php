@@ -472,7 +472,7 @@ class SupplierPriceImportService
                 if (
                     $existing !== null
                     && trim((string) ($existing['external_name'] ?? '')) === trim((string) ($row['title'] ?? ''))
-                    && ! $this->shouldRematchUnchangedUnlinked($row, $existing, $catalogRematchIndex)
+                    && ! $this->shouldRematchUnchangedUnlinked($row, $existing, $catalogRematchIndex, $rules)
                 ) {
                     $unchangedTitleRecords[] = $existing;
                     $unchangedTitleRows[] = $row;
@@ -2465,7 +2465,8 @@ class SupplierPriceImportService
 
     /**
      * Несвязанная строка с тем же названием матчится заново, только если предложения ещё нет
-     * и имя линии уже есть в каталоге, а хэш имён бренда не совпадает с прошлым прогоном.
+     * и имя линии уже есть в каталоге. Название сначала проходит правила поставщика
+     * (YSL → Yves Saint Laurent), иначе бренд из правила не виден.
      *
      * @param  array{payload?: array<string, mixed>}  $existing
      * @param  array{
@@ -2474,19 +2475,21 @@ class SupplierPriceImportService
      *     brand_ids: array<string, int>,
      *     brands_by_first_token: array<string, list<array{id:int, normalized:string}>>
      * }  $catalogRematchIndex
+     * @param  Collection<int, SellerOneMatchRule>  $rules
      */
-    private function shouldRematchUnchangedUnlinked(array $row, array $existing, array $catalogRematchIndex): bool
+    private function shouldRematchUnchangedUnlinked(array $row, array $existing, array $catalogRematchIndex, Collection $rules): bool
     {
         $payload = is_array($existing['payload'] ?? null) ? $existing['payload'] : [];
-        $parsed = is_array($payload['parsed'] ?? null) ? $payload['parsed'] : [];
-        $brandName = trim((string) ($parsed['brand'] ?? ''));
-        $productName = trim((string) ($parsed['product_name'] ?? ''));
-        $titleLine = '';
-        if ($brandName === '' || $productName === '') {
-            $titleLine = $this->variantMatcher->splitNameAndVariantTail((string) ($row['title'] ?? ''))['name'];
+        if (SellerOneCatalogRematchIndex::hasSuggestion(
+            $payload['suggested_product_id'] ?? null,
+            $payload['suggested_variant_id'] ?? null,
+        )) {
+            return false;
         }
 
-        $line = SellerOneCatalogRematchIndex::resolveLine($brandName, $productName, $titleLine, $catalogRematchIndex);
+        $title = $this->variantMatcher->applyTitleRules((string) ($row['title'] ?? ''), $rules);
+        $titleLine = $this->variantMatcher->splitNameAndVariantTail($title)['name'];
+        $line = SellerOneCatalogRematchIndex::resolveLine('', '', $titleLine, $catalogRematchIndex);
         $nameInCatalog = false;
         $currentHash = null;
         if ($line !== null) {

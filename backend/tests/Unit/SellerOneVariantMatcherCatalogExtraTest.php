@@ -50,6 +50,19 @@ class SellerOneVariantMatcherCatalogExtraTest extends TestCase
         $this->assertSame($title, $result);
     }
 
+    public function test_apply_title_rules_replaces_ysl_with_catalog_brand(): void
+    {
+        $matcher = new SellerOneVariantMatcher();
+        $rules = collect([
+            (object) ['pattern' => 'YSL', 'replacement' => 'Yves Saint Laurent'],
+        ]);
+
+        $this->assertSame(
+            'Yves Saint Laurent Black Opium (L) 50ml edp',
+            $matcher->applyTitleRules('YSL Black Opium (L) 50ml edp', $rules),
+        );
+    }
+
     public function test_catalog_extra_gender_only_suffix_detected(): void
     {
         $matcher = new SellerOneVariantMatcher();

@@ -168,6 +168,11 @@ final class SellerOneCatalogRematchIndex
         return sprintf('%u', crc32(implode("\n", $lines)));
     }
 
+    public static function hasSuggestion(mixed $suggestedProductId, mixed $suggestedVariantId): bool
+    {
+        return self::positiveId($suggestedProductId) || self::positiveId($suggestedVariantId);
+    }
+
     public static function shouldRematch(
         mixed $suggestedProductId,
         mixed $suggestedVariantId,
@@ -175,7 +180,7 @@ final class SellerOneCatalogRematchIndex
         ?string $storedCatalogHash,
         ?string $currentBrandHash,
     ): bool {
-        if (self::positiveId($suggestedProductId) || self::positiveId($suggestedVariantId)) {
+        if (self::hasSuggestion($suggestedProductId, $suggestedVariantId)) {
             return false;
         }
 

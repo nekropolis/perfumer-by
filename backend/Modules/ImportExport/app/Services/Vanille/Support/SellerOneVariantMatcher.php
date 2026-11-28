@@ -2785,9 +2785,12 @@ class SellerOneVariantMatcher
     }
 
     /**
+     * Подмена в названии по правилам поставщика (YSL → Yves Saint Laurent и т.п.).
+     * Нужна и полному матчеру, и дешёвой проверке перед повторным матчем.
+     *
      * @param  Collection<int, SellerOneMatchRule>  $rules
      */
-    private function applyTitleRules(string $title, Collection $rules): string
+    public function applyTitleRules(string $title, Collection $rules): string
     {
         $result = $title;
         foreach ($rules as $rule) {
